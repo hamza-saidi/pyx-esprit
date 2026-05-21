@@ -1,0 +1,232 @@
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: Identifier 'totalCount' has already been declared
+C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\controllers\statisticsController.js:182
+    const [totalCount, openersCount, clickersCount, errorsCount] = await Promise.all([
+           ^
+
+SyntaxError: Identifier 'totalCount' has already been declared
+    at wrapSafe (node:internal/modules/cjs/loader:1469:18)
+    at Module._compile (node:internal/modules/cjs/loader:1491:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:217:24)
+    at Module.require (node:internal/modules/cjs/loader:1339:12)
+    at require (node:internal/modules/helpers:126:16)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\routes\statistics.js:3:30)
+FATAL UNCAUGHT EXCEPTION: Identifier 'totalCount' has already been declared
+C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\controllers\statisticsController.js:182
+    const [totalCount, openersCount, clickersCount, errorsCount] = await Promise.all([
+           ^
+
+SyntaxError: Identifier 'totalCount' has already been declared
+    at wrapSafe (node:internal/modules/cjs/loader:1469:18)
+    at Module._compile (node:internal/modules/cjs/loader:1491:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:217:24)
+    at Module.require (node:internal/modules/cjs/loader:1339:12)
+    at require (node:internal/modules/helpers:126:16)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\routes\statistics.js:3:30)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: Identifier 'statsEnTempsReel' has already been declared
+C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\controllers\statisticsController.js:190
+    const statsEnTempsReel = {
+          ^
+
+SyntaxError: Identifier 'statsEnTempsReel' has already been declared
+    at wrapSafe (node:internal/modules/cjs/loader:1469:18)
+    at Module._compile (node:internal/modules/cjs/loader:1491:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:217:24)
+    at Module.require (node:internal/modules/cjs/loader:1339:12)
+    at require (node:internal/modules/helpers:126:16)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\routes\statistics.js:3:30)
+FATAL UNCAUGHT EXCEPTION: Identifier 'statsEnTempsReel' has already been declared
+C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\controllers\statisticsController.js:190
+    const statsEnTempsReel = {
+          ^
+
+SyntaxError: Identifier 'statsEnTempsReel' has already been declared
+    at wrapSafe (node:internal/modules/cjs/loader:1469:18)
+    at Module._compile (node:internal/modules/cjs/loader:1491:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:217:24)
+    at Module.require (node:internal/modules/cjs/loader:1339:12)
+    at require (node:internal/modules/helpers:126:16)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\routes\statistics.js:3:30)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+FATAL UNCAUGHT EXCEPTION: listen EADDRINUSE: address already in use :::5000
+Error: listen EADDRINUSE: address already in use :::5000
+    at Server.setupListenHandle [as _listen2] (node:net:1902:16)
+    at listenInCluster (node:net:1959:12)
+    at Server.listen (node:net:2061:7)
+    at Function.listen (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\Users\Maycem Saïdi\OneDrive - pylon-dw.com\Bureau\golf huub-antigravity\backend\server.js:71:5)
+    at Module._compile (node:internal/modules/cjs/loader:1546:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1691:10)
+    at Module.load (node:internal/modules/cjs/loader:1317:32)
+    at Module._load (node:internal/modules/cjs/loader:1127:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)

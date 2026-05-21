@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Local env files (Secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
+**/ .env*
+
+# Build directories
+dist/
+build/
+frontend/dist/
+frontend/build/
+.next/
+.serverless/
+out/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Diagnostic / Backup / Cache
+.npm/
+.eslintcache
+.parcel-cache/
+.vite/
+.turbo/
+.cache/
+backendss.zip
+*.zip
+*.tar.gz
+*.rar
+
+# Uploads / Ephemeral storage
+uploads/
+**/uploads/*
+!**/uploads/README.md
+
+# Testing
+coverage/
+.nyc_output/
