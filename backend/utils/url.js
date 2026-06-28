@@ -36,14 +36,20 @@ function getPublicBaseUrl(req) {
   if (req && typeof req.get === 'function') {
     const host = req.get('host');
     const xfProto = req.get('x-forwarded-proto');
-    const protocol = (xfProto ? String(xfProto).split(',')[0].trim() : (req.protocol || 'http')) || 'http';
+    const protocol =
+      (xfProto ? String(xfProto).split(',')[0].trim() : req.protocol || 'http') || 'http';
     if (host) inferred = normalizeBaseUrl(`${protocol}://${host}`, { defaultProtocol: protocol });
   }
 
-  const explicit = normalizeBaseUrl(explicitRaw, { defaultProtocol: (inferred.startsWith('http://') ? 'http' : 'https') });
-  const frontend = normalizeBaseUrl(frontendRaw, { defaultProtocol: (inferred.startsWith('http://') ? 'http' : 'https') });
+  const explicit = normalizeBaseUrl(explicitRaw, {
+    defaultProtocol: inferred.startsWith('http://') ? 'http' : 'https',
+  });
+  const frontend = normalizeBaseUrl(frontendRaw, {
+    defaultProtocol: inferred.startsWith('http://') ? 'http' : 'https',
+  });
 
-  const isLocal = (v) => v && /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(v.replace(/\/+$/, ''));
+  const isLocal = (v) =>
+    v && /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(v.replace(/\/+$/, ''));
 
   // In production, never emit localhost URLs (this causes broken links for recipients)
   if (explicit && !isLocal(explicit)) return explicit;
@@ -62,4 +68,3 @@ function getPublicBaseUrl(req) {
 }
 
 module.exports = { getPublicBaseUrl };
-

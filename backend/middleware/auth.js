@@ -6,7 +6,8 @@ function authenticateToken(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Token manquant' });
 
-  const secret = process.env.JWT_SECRET || (config && config.jwt && config.jwt.secret);
+  const { getJwtSecret } = require('../utils/jwt');
+  const secret = getJwtSecret('access');
 
   jwt.verify(token, secret, (err, user) => {
     if (err) {
@@ -29,4 +30,4 @@ function authorizeRoles(...roles) {
   };
 }
 
-module.exports = { authenticateToken, authorizeRoles }; 
+module.exports = { authenticateToken, authorizeRoles };

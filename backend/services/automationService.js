@@ -25,14 +25,16 @@ class AutomationService {
       const activeAutomations = await Automation.findAll({
         where: {
           type: 'custom',
-          actif: true
-        }
+          actif: true,
+        },
       });
 
       for (const auto of activeAutomations) {
         let config = auto.config;
         if (typeof config === 'string') {
-          try { config = JSON.parse(config); } catch (e) {}
+          try {
+            config = JSON.parse(config);
+          } catch (e) {}
         }
 
         if (!config || config.trigger !== triggerType) continue;
@@ -62,8 +64,8 @@ class AutomationService {
       const activeScheduled = await Automation.findAll({
         where: {
           actif: true,
-          type: 'custom'
-        }
+          type: 'custom',
+        },
       });
 
       const now = new Date();
@@ -71,7 +73,9 @@ class AutomationService {
       for (const auto of activeScheduled) {
         let config = auto.config;
         if (typeof config === 'string') {
-          try { config = JSON.parse(config); } catch (e) {}
+          try {
+            config = JSON.parse(config);
+          } catch (e) {}
         }
 
         if (!config || config.trigger !== 'scheduled') continue;
@@ -98,24 +102,27 @@ class AutomationService {
       // 1. Auto-Expiry: Switch Active to Expired if date passed
       const expiredCount = await Contact.update(
         { statut_abonnement: 'expiré' },
-        { 
-          where: { 
+        {
+          where: {
             statut_abonnement: 'actif',
-            date_expiration_abonnement: { [Op.lt]: now }
-          } 
+            date_expiration_abonnement: { [Op.lt]: now },
+          },
         }
       );
-      if (expiredCount[0] > 0) console.log(`[AUTOMATION] ${expiredCount[0]} memberships marked as EXPIRED.`);
+      if (expiredCount[0] > 0)
+        console.log(`[AUTOMATION] ${expiredCount[0]} memberships marked as EXPIRED.`);
 
       // 2. Reminders: Find automations with trigger 'membership_expiring'
       const expiringAutomations = await Automation.findAll({
-        where: { actif: true, type: 'custom' }
+        where: { actif: true, type: 'custom' },
       });
 
       for (const auto of expiringAutomations) {
         let config = auto.config;
         if (typeof config === 'string') {
-          try { config = JSON.parse(config); } catch (e) {}
+          try {
+            config = JSON.parse(config);
+          } catch (e) {}
         }
         if (!config || config.trigger !== 'membership_expiring') continue;
 
@@ -131,14 +138,16 @@ class AutomationService {
             date_expiration_abonnement: {
               [Op.and]: [
                 { [Op.gte]: new Date(targetDayStr + ' 00:00:00') },
-                { [Op.lte]: new Date(targetDayStr + ' 23:59:59') }
-              ]
-            }
-          }
+                { [Op.lte]: new Date(targetDayStr + ' 23:59:59') },
+              ],
+            },
+          },
         });
 
         if (contacts.length > 0) {
-          console.log(`[AUTOMATION] Triggering "${auto.nom}" for ${contacts.length} contacts expiring in ${daysBefore} days.`);
+          console.log(
+            `[AUTOMATION] Triggering "${auto.nom}" for ${contacts.length} contacts expiring in ${daysBefore} days.`
+          );
           for (const contact of contacts) {
             // isRecurring=true for reminders so they can be sent even if they had other automations
             await this.executeAction(auto, contact, config, true);
@@ -165,17 +174,15 @@ class AutomationService {
 
     switch (frequency) {
       case 'daily':
-        return (now.getTime() - lastRun.getTime()) >= 23 * 60 * 60 * 1000; // ~24h
+        return now.getTime() - lastRun.getTime() >= 23 * 60 * 60 * 1000; // ~24h
       case 'weekly':
-        return (now.getTime() - lastRun.getTime()) >= 6 * 24 * 60 * 60 * 1000; // ~7 days
-      case 'monthly':
-      {
+        return now.getTime() - lastRun.getTime() >= 6 * 24 * 60 * 60 * 1000; // ~7 days
+      case 'monthly': {
         const nextMonth = new Date(lastRun);
         nextMonth.setMonth(nextMonth.getMonth() + 1);
         return now >= nextMonth;
       }
-      case 'yearly':
-      {
+      case 'yearly': {
         const nextYear = new Date(lastRun);
         nextYear.setFullYear(nextYear.getFullYear() + 1);
         return now >= nextYear;
@@ -200,15 +207,19 @@ class AutomationService {
 
       // Find contacts with the specific tag
       const contacts = await Contact.findAll({
-        include: [{
-          model: Tag,
-          as: 'tags',
-          where: { nom: tagCondition },
-          through: { attributes: [] }
-        }]
+        include: [
+          {
+            model: Tag,
+            as: 'tags',
+            where: { nom: tagCondition },
+            through: { attributes: [] },
+          },
+        ],
       });
 
-      console.log(`[AUTOMATION] Executing bulk action for ${contacts.length} contacts (Tag: ${tagCondition})`);
+      console.log(
+        `[AUTOMATION] Executing bulk action for ${contacts.length} contacts (Tag: ${tagCondition})`
+      );
 
       for (const contact of contacts) {
         // executeAction handles duplicate prevention per automation instance
@@ -219,7 +230,6 @@ class AutomationService {
 
       // Update automation last run
       await automation.update({ derniere_execution: new Date() });
-
     } catch (err) {
       console.error(`[AUTOMATION] Bulk execution failed for ${automation.id}:`, err);
     }
@@ -231,7 +241,7 @@ class AutomationService {
   async executeAction(automation, contact, config, skipDuplicateCheck = false) {
     const templateId = config.action_template_id;
     const quickMessage = config.quick_message;
-    
+
     if (!templateId && !quickMessage) return;
 
     try {
@@ -243,8 +253,8 @@ class AutomationService {
       const alreadySent = await EnvoiEmail.findOne({
         where: {
           contact_id: contact.id,
-          token_tracking: { [Op.like]: `${tokenPrefix}%` }
-        }
+          token_tracking: { [Op.like]: `${tokenPrefix}%` },
+        },
       });
 
       if (alreadySent) {
@@ -270,17 +280,17 @@ class AutomationService {
       const variables = {
         prenom: contact.prenom || '',
         nom: contact.nom || '',
-        email: contact.email || ''
+        email: contact.email || '',
       };
 
-      Object.keys(variables).forEach(key => {
+      Object.keys(variables).forEach((key) => {
         const regex = new RegExp(`{{${key}}}`, 'g');
         html = html.replace(regex, variables[key]);
       });
 
       // 3. Send Email
       const token = `${tokenPrefix}${contact.id}-${Date.now()}`;
-      
+
       const res = await emailService.sendGenericEmail(contact.email, subject, html);
 
       if (res.success) {
@@ -292,14 +302,13 @@ class AutomationService {
           statut: 'envoyé',
           date_envoi: new Date(),
           token_tracking: token,
-          actif: true
+          actif: true,
         });
 
         if (!skipDuplicateCheck) {
           await automation.update({ derniere_execution: new Date() });
         }
       }
-
     } catch (err) {
       console.error(`[AUTOMATION] Failed to execute action for automation ${automation.id}:`, err);
     }

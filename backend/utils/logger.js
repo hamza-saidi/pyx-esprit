@@ -22,7 +22,7 @@ try {
 function writeLog(level, message, details = '') {
   const timestamp = new Date().toISOString();
   const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${message} ${details ? JSON.stringify(details) : ''}\n`;
-  
+
   // Console logging (fallback)
   if (level === 'error') console.error(logEntry.trim());
   else if (level === 'warn') console.warn(logEntry.trim());
@@ -39,5 +39,5 @@ function writeLog(level, message, details = '') {
 module.exports = {
   info: (msg, details) => writeLog('info', msg, details),
   warn: (msg, details) => writeLog('warn', msg, details),
-  error: (msg, details) => writeLog('error', msg, details)
+  error: (msg, details) => writeLog('error', msg, details),
 };

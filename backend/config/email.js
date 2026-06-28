@@ -8,19 +8,18 @@ module.exports = {
     secure: false, // true pour 465, false pour autres ports
     auth: {
       user: process.env.SMTP_USER || '',
-      pass: process.env.SMTP_PASS || ''
-
+      pass: process.env.SMTP_PASS || '',
     },
     tls: {
-      rejectUnauthorized: false
-    }
+      rejectUnauthorized: false,
+    },
   },
 
   // Configuration de développement (MailHog)
   development: {
     host: 'localhost',
     port: 1025,
-    ignoreTLS: true
+    ignoreTLS: true,
   },
 
   // Configuration de l'expéditeur
@@ -29,7 +28,7 @@ module.exports = {
   // Configuration des en-têtes personnalisés
   headers: {
     'X-Mailer': 'Golf Club Marketing Platform',
-    'X-Priority': '3'
+    'X-Priority': '3',
   },
 
   // Limites d'envoi
@@ -37,8 +36,8 @@ module.exports = {
     emailsPerSecond: 10, // Nombre d'emails par seconde pour éviter le spam
     maxRetries: 3, // Nombre maximum de tentatives en cas d'échec
     retryDelay: 5000, // Délai entre les tentatives en millisecondes
-    batchSize: 50,          // Batches plus petits
-    dailyLimit: 500   
+    batchSize: 50, // Batches plus petits
+    dailyLimit: 500,
   },
 
   // Configuration Microsoft Graph (application Azure AD en mode client credentials)
@@ -49,16 +48,16 @@ module.exports = {
     // Utilisateur/boîte aux lettres expéditeur: email ou id Graph
     senderUserId: process.env.GRAPH_SENDER_USER_ID || '',
     senderEmail: process.env.GRAPH_SENDER_EMAIL || process.env.SMTP_FROM || 'noreply@golfclub.com',
-    saveToSentItems: (process.env.GRAPH_SAVE_TO_SENT_ITEMS || 'true') === 'true'
+    saveToSentItems: (process.env.GRAPH_SAVE_TO_SENT_ITEMS || 'true') === 'true',
   },
 
   // Configuration des templates
   templates: {
-    unsubscribeUrl: process.env.FRONTEND_URL ? 
-      `${process.env.FRONTEND_URL}/unsubscribe` : 
-      'http://localhost:3000/unsubscribe',
-    trackingPixelUrl: process.env.BACKEND_URL ? 
-      `${process.env.BACKEND_URL}/tracking/pixel` : 
-      'http://localhost:5000/tracking/pixel'
-  }
+    unsubscribeUrl: process.env.FRONTEND_URL
+      ? `${process.env.FRONTEND_URL}/unsubscribe`
+      : 'http://localhost:3000/unsubscribe',
+    trackingPixelUrl: process.env.BACKEND_URL
+      ? `${process.env.BACKEND_URL}/tracking/pixel`
+      : 'http://localhost:5000/tracking/pixel',
+  },
 };

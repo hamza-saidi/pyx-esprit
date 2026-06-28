@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const fetch = (...args) => import('node-fetch').then(module => module.default(...args));
+const fetch = (...args) => import('node-fetch').then((module) => module.default(...args));
 const fs = require('fs');
 const path = require('path');
 const { ClientSecretCredential } = require('@azure/identity');
@@ -19,12 +19,14 @@ class EmailService {
   async initTransporter() {
     try {
       const provider = emailConfig.provider || 'smtp';
-      const nodeEnv = (process.env.NODE_ENV || 'development');
+      const nodeEnv = process.env.NODE_ENV || 'development';
 
       if (provider === 'graph') {
         const { tenantId, clientId, clientSecret } = emailConfig.graph || {};
         if (!tenantId || !clientId || !clientSecret) {
-          throw new Error('Configuration Graph incomplète: GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET requis');
+          throw new Error(
+            'Configuration Graph incomplète: GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET requis'
+          );
         }
 
         const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
@@ -33,12 +35,15 @@ class EmailService {
             getAccessToken: async () => {
               const token = await credential.getToken('https://graph.microsoft.com/.default');
               return token.token;
-            }
-          }
+            },
+          },
         });
         console.log(`Service email initialisé via Microsoft Graph (${nodeEnv})`);
       } else {
-        const hasSmtpCreds = !!(process.env.SMTP_USER || (emailConfig.smtp && emailConfig.smtp.auth && emailConfig.smtp.auth.user));
+        const hasSmtpCreds = !!(
+          process.env.SMTP_USER ||
+          (emailConfig.smtp && emailConfig.smtp.auth && emailConfig.smtp.auth.user)
+        );
         if (hasSmtpCreds) {
           this.transporter = nodemailer.createTransport(emailConfig.smtp);
           await this.transporter.verify();
@@ -50,8 +55,8 @@ class EmailService {
         }
       }
     } catch (error) {
-      console.error('Erreur lors de l\'initialisation du service email:', error);
-      throw new Error('Impossible d\'initialiser le service email');
+      console.error("Erreur lors de l'initialisation du service email:", error);
+      throw new Error("Impossible d'initialiser le service email");
     }
   }
 
@@ -64,21 +69,25 @@ class EmailService {
       const attachments = [];
       let next = html;
       let match;
-      
+
       while ((match = regex.exec(html)) !== null) {
         const fullTag = match[0];
         const url = match[1] || '';
-        
+
         let safeName = null;
         // Handle absolute local URLs
         if (baseUrl && url.startsWith(baseUrl)) {
           const pathPart = url.substring(baseUrl.length);
-          const mediaMatch = pathPart.match(/\/api\/(templates\/media|campagne\/attachments)\/([^"'\s?#]+)/);
+          const mediaMatch = pathPart.match(
+            /\/api\/(templates\/media|campagne\/attachments)\/([^"'\s?#]+)/
+          );
           if (mediaMatch) safeName = mediaMatch[2];
-        } 
+        }
         // Handle relative URLs
         else if (url.startsWith('/api/')) {
-          const mediaMatch = url.match(/\/api\/(templates\/media|campagne\/attachments)\/([^"'\s?#]+)/);
+          const mediaMatch = url.match(
+            /\/api\/(templates\/media|campagne\/attachments)\/([^"'\s?#]+)/
+          );
           if (mediaMatch) safeName = mediaMatch[2];
         }
 
@@ -92,13 +101,13 @@ class EmailService {
 
         const contentId = `img-${safeName.replace(/[^a-zA-Z0-9]/g, '')}`;
         const data = fs.readFileSync(filePath).toString('base64');
-        
+
         attachments.push({
           '@odata.type': '#microsoft.graph.fileAttachment',
           name: safeName,
           isInline: true,
           contentId,
-          contentBytes: data
+          contentBytes: data,
         });
 
         console.log(`[INLINE-GRAPH] Inlining image: ${safeName} as ${contentId}`);
@@ -110,7 +119,8 @@ class EmailService {
           if (styleWidthMatch) {
             const val = styleWidthMatch[1];
             // if percent, we'll use 600 as base (standard container)
-            const numericWidth = styleWidthMatch[2] === '%' ? Math.round(600 * (parseInt(val)/100)) : val;
+            const numericWidth =
+              styleWidthMatch[2] === '%' ? Math.round(600 * (parseInt(val) / 100)) : val;
             updatedTag = updatedTag.replace('<img', `<img width="${numericWidth}"`);
           } else {
             updatedTag = updatedTag.replace('<img', `<img width="600"`);
@@ -139,14 +149,18 @@ class EmailService {
       while ((match = regex.exec(html)) !== null) {
         const fullTag = match[0];
         const url = match[1] || '';
-        
+
         let safeName = null;
         if (baseUrl && url.startsWith(baseUrl)) {
           const pathPart = url.substring(baseUrl.length);
-          const mediaMatch = pathPart.match(/\/api\/(templates\/media|campagne\/attachments)\/([^"'\s?#]+)/);
+          const mediaMatch = pathPart.match(
+            /\/api\/(templates\/media|campagne\/attachments)\/([^"'\s?#]+)/
+          );
           if (mediaMatch) safeName = mediaMatch[2];
         } else if (url.startsWith('/api/')) {
-          const mediaMatch = url.match(/\/api\/(templates\/media|campagne\/attachments)\/([^"'\s?#]+)/);
+          const mediaMatch = url.match(
+            /\/api\/(templates\/media|campagne\/attachments)\/([^"'\s?#]+)/
+          );
           if (mediaMatch) safeName = mediaMatch[2];
         }
 
@@ -163,12 +177,12 @@ class EmailService {
         attachments.push({
           filename: safeName,
           path: filePath,
-          cid: contentId
+          cid: contentId,
         });
 
         // Update tag: replace src with cid and ensure Outlook-compatible width
         let updatedTag = fullTag.replace(/src=["']([^"']+)["']/i, `src="cid:${contentId}"`);
-        
+
         // Outlook Fix: word renderer ignores max-width and percentage widths on images
         // We inject a fixed width if possible
         if (!updatedTag.includes(' width=')) {
@@ -176,11 +190,12 @@ class EmailService {
           if (styleWidthMatch) {
             const val = styleWidthMatch[1];
             // if percent, we'll use 600 as base (standard container)
-            const numericWidth = styleWidthMatch[2] === '%' ? Math.round(600 * (parseInt(val)/100)) : val;
+            const numericWidth =
+              styleWidthMatch[2] === '%' ? Math.round(600 * (parseInt(val) / 100)) : val;
             updatedTag = updatedTag.replace('<img', `<img width="${numericWidth}"`);
           }
         }
-        
+
         // Ensure display block for alignment
         if (!updatedTag.includes('display:')) {
           updatedTag = updatedTag.replace('style="', 'style="display:block;');
@@ -199,108 +214,123 @@ class EmailService {
     try {
       // Parser les paramètres si c'est une chaîne JSON
       let parametres = campagne?.parametres;
-        try {
-          parametres = typeof parametres === 'string' ? JSON.parse(parametres) : parametres;
-          // Security: handle double-stringified values if they occurred
-          if (typeof parametres === 'string') {
-            parametres = JSON.parse(parametres);
-          }
-          console.log('[ATTACHMENTS] Parsed parametres');
-        } catch (e) {
-          console.error('[ATTACHMENTS] Error parsing parametres JSON:', e.message);
-          return [];
+      try {
+        parametres = typeof parametres === 'string' ? JSON.parse(parametres) : parametres;
+        // Security: handle double-stringified values if they occurred
+        if (typeof parametres === 'string') {
+          parametres = JSON.parse(parametres);
         }
-      
+        console.log('[ATTACHMENTS] Parsed parametres');
+      } catch (e) {
+        console.error('[ATTACHMENTS] Error parsing parametres JSON:', e.message);
+        return [];
+      }
+
       const metas = parametres?.attachments;
       if (!Array.isArray(metas) || !metas.length) {
         console.log('[ATTACHMENTS] No attachments found in campagne.parametres.attachments');
         return [];
       }
-      
+
       console.log(`[ATTACHMENTS] Found ${metas.length} attachment(s) in campagne ${campagne.id}`);
-      
-      return metas.map((meta, index) => {
-        try {
-          // Essayer plusieurs chemins possibles
-          const storedPath = meta?.storedPath || meta?.path || meta?.absolutePath;
-          if (!storedPath) {
-            console.warn(`[ATTACHMENTS] Attachment ${index} has no path:`, meta);
-            return null;
-          }
-          
-          // Normaliser le chemin - garder les backslashes pour Windows
-          let diskPath = storedPath;
-          
-          // Essayer le chemin tel quel (absolu)
-          if (fs.existsSync(diskPath)) {
-            console.log(`[ATTACHMENTS] Found attachment ${index} at absolute path: ${diskPath}`);
-          } else {
-            // Essayer avec path.resolve pour normaliser
-            const resolvedPath = path.resolve(storedPath);
-            if (fs.existsSync(resolvedPath)) {
-              diskPath = resolvedPath;
-              console.log(`[ATTACHMENTS] Found attachment ${index} at resolved path: ${diskPath}`);
+
+      return metas
+        .map((meta, index) => {
+          try {
+            // Essayer plusieurs chemins possibles
+            const storedPath = meta?.storedPath || meta?.path || meta?.absolutePath;
+            if (!storedPath) {
+              console.warn(`[ATTACHMENTS] Attachment ${index} has no path:`, meta);
+              return null;
+            }
+
+            // Normaliser le chemin - garder les backslashes pour Windows
+            let diskPath = storedPath;
+
+            // Essayer le chemin tel quel (absolu)
+            if (fs.existsSync(diskPath)) {
+              console.log(`[ATTACHMENTS] Found attachment ${index} at absolute path: ${diskPath}`);
             } else {
-              // Essayer comme chemin relatif depuis le backend
-              const relativePath = path.join(__dirname, '..', storedPath);
-              if (fs.existsSync(relativePath)) {
-                diskPath = relativePath;
-                console.log(`[ATTACHMENTS] Found attachment ${index} at relative path: ${diskPath}`);
+              // Essayer avec path.resolve pour normaliser
+              const resolvedPath = path.resolve(storedPath);
+              if (fs.existsSync(resolvedPath)) {
+                diskPath = resolvedPath;
+                console.log(
+                  `[ATTACHMENTS] Found attachment ${index} at resolved path: ${diskPath}`
+                );
               } else {
-                // Essayer dans le dossier uploads/campaign-attachments avec le nom de fichier
-                const filename = path.basename(storedPath);
-                const attachmentsDir = path.join(__dirname, '..', 'uploads', 'campaign-attachments');
-                const fallbackPath = path.join(attachmentsDir, filename);
-                if (fs.existsSync(fallbackPath)) {
-                  diskPath = fallbackPath;
-                  console.log(`[ATTACHMENTS] Found attachment ${index} in attachments dir: ${diskPath}`);
+                // Essayer comme chemin relatif depuis le backend
+                const relativePath = path.join(__dirname, '..', storedPath);
+                if (fs.existsSync(relativePath)) {
+                  diskPath = relativePath;
+                  console.log(
+                    `[ATTACHMENTS] Found attachment ${index} at relative path: ${diskPath}`
+                  );
                 } else {
-                  // Dernière tentative: utiliser l'ID si disponible
-                  if (meta?.id) {
-                    const idPath = path.join(attachmentsDir, meta.id);
-                    if (fs.existsSync(idPath)) {
-                      diskPath = idPath;
-                      console.log(`[ATTACHMENTS] Found attachment ${index} by ID: ${diskPath}`);
+                  // Essayer dans le dossier uploads/campaign-attachments avec le nom de fichier
+                  const filename = path.basename(storedPath);
+                  const attachmentsDir = path.join(
+                    __dirname,
+                    '..',
+                    'uploads',
+                    'campaign-attachments'
+                  );
+                  const fallbackPath = path.join(attachmentsDir, filename);
+                  if (fs.existsSync(fallbackPath)) {
+                    diskPath = fallbackPath;
+                    console.log(
+                      `[ATTACHMENTS] Found attachment ${index} in attachments dir: ${diskPath}`
+                    );
+                  } else {
+                    // Dernière tentative: utiliser l'ID si disponible
+                    if (meta?.id) {
+                      const idPath = path.join(attachmentsDir, meta.id);
+                      if (fs.existsSync(idPath)) {
+                        diskPath = idPath;
+                        console.log(`[ATTACHMENTS] Found attachment ${index} by ID: ${diskPath}`);
+                      } else {
+                        console.error(`[ATTACHMENTS] Attachment ${index} not found at any path:`, {
+                          storedPath,
+                          resolvedPath,
+                          relativePath,
+                          fallbackPath,
+                          idPath,
+                          meta,
+                        });
+                        return null;
+                      }
                     } else {
                       console.error(`[ATTACHMENTS] Attachment ${index} not found at any path:`, {
                         storedPath,
                         resolvedPath,
                         relativePath,
                         fallbackPath,
-                        idPath,
-                        meta
+                        meta,
                       });
                       return null;
                     }
-                  } else {
-                    console.error(`[ATTACHMENTS] Attachment ${index} not found at any path:`, {
-                      storedPath,
-                      resolvedPath,
-                      relativePath,
-                      fallbackPath,
-                      meta
-                    });
-                    return null;
                   }
                 }
               }
             }
+
+            const buffer = fs.readFileSync(diskPath);
+            const attachment = {
+              name: meta?.name || meta?.filename || path.basename(diskPath),
+              mimeType: meta?.mimeType || meta?.mimeType || 'application/octet-stream',
+              content: buffer,
+            };
+
+            console.log(
+              `[ATTACHMENTS] Successfully loaded attachment ${index}: ${attachment.name} (${buffer.length} bytes, ${attachment.mimeType})`
+            );
+            return attachment;
+          } catch (e) {
+            console.error(`[ATTACHMENTS] Error loading attachment ${index}:`, e.message);
+            return null;
           }
-          
-          const buffer = fs.readFileSync(diskPath);
-          const attachment = {
-            name: meta?.name || meta?.filename || path.basename(diskPath),
-            mimeType: meta?.mimeType || meta?.mimeType || 'application/octet-stream',
-            content: buffer
-          };
-          
-          console.log(`[ATTACHMENTS] Successfully loaded attachment ${index}: ${attachment.name} (${buffer.length} bytes, ${attachment.mimeType})`);
-          return attachment;
-        } catch (e) {
-          console.error(`[ATTACHMENTS] Error loading attachment ${index}:`, e.message);
-          return null;
-        }
-      }).filter(Boolean);
+        })
+        .filter(Boolean);
     } catch (e) {
       console.error('[ATTACHMENTS] Error in _getCampaignAttachments:', e.message);
       return [];
@@ -310,19 +340,17 @@ class EmailService {
   async envoyerCampagne(campagneId) {
     try {
       const campagne = await CampagneEmail.findByPk(campagneId, {
-        include: [
-          { model: StatistiqueCampagne, as: 'statistiques' }
-        ]
+        include: [{ model: StatistiqueCampagne, as: 'statistiques' }],
       });
 
       if (!campagne) {
         throw new Error('Campagne non trouvée');
       }
-      
+
       // Log pour déboguer les paramètres et pièces jointes
       console.log(`[CAMPAGNE] Loading campagne ${campagneId}`);
       console.log(`[CAMPAGNE] Parametres type:`, typeof campagne.parametres);
-      
+
       // Parser les paramètres si c'est une chaîne JSON
       let parametres = campagne.parametres;
       if (typeof parametres === 'string') {
@@ -336,32 +364,38 @@ class EmailService {
           console.error(`[CAMPAGNE] Error parsing parametres:`, e.message);
         }
       }
-      
+
       // Limit logging of large parameters
       const loggedParams = parametres ? { ...parametres } : {};
       if (loggedParams.attachments) loggedParams.attachmentsCount = loggedParams.attachments.length;
       delete loggedParams.attachments; // Don't log full attachment meta
-      
+
       console.log(`[CAMPAGNE] Parametres partial summary:`, JSON.stringify(loggedParams));
 
       // Autoriser "envoyer maintenant" depuis un brouillon en le basculant automatiquement
-      if (campagne.statut !== 'programmée') {
-        if (campagne.statut === 'brouillon') {
-          await campagne.update({
-            statut: 'programmée',
-            date_programmation: campagne.date_programmation || new Date()
-          });
-        } else {
-          throw new Error('La campagne doit être programmée pour être envoyée');
-        }
+      if (campagne.statut === 'brouillon') {
+        await campagne.update({
+          statut: 'programmée',
+          date_programmation: campagne.date_programmation || new Date(),
+        });
       }
 
-      // Mettre à jour le statut
-      await campagne.update({ statut: 'en_cours', date_envoi: new Date() });
+      // Mettre à jour le statut de manière atomique pour éviter le traitement par plusieurs instances concurrentes (cluster)
+      const [updatedRowsCount] = await CampagneEmail.update(
+        { statut: 'en_cours', date_envoi: new Date() },
+        { where: { id: campagneId, statut: 'programmée' } }
+      );
+
+      if (updatedRowsCount === 0) {
+        throw new Error("La campagne est déjà en cours d'envoi ou n'est plus programmée");
+      }
+
+      // Rafraîchir l'instance en mémoire
+      await campagne.reload();
 
       // Récupérer les destinataires
       const destinataires = await this.getDestinataires(campagne);
-      
+
       if (destinataires.length === 0) {
         await campagne.update({ statut: 'erreur' });
         throw new Error('Aucun destinataire trouvé pour cette campagne');
@@ -378,11 +412,11 @@ class EmailService {
 
       for (let i = 0; i < envois.length; i += batchSize) {
         const batch = envois.slice(i, i + batchSize);
-        
+
         // Envoyer le lot d'emails en parallèle
-        const promises = batch.map(envoi => this.envoyerEmailAvecRetry(campagne, envoi));
+        const promises = batch.map((envoi) => this.envoyerEmailAvecRetry(campagne, envoi));
         const results = await Promise.allSettled(promises);
-        
+
         // Compter les résultats
         results.forEach((result, index) => {
           if (result.status === 'fulfilled') {
@@ -403,7 +437,7 @@ class EmailService {
       await campagne.update({
         statut: 'envoyée',
         nb_envoyes: nbEnvoyes,
-        nb_erreurs: nbErreurs
+        nb_erreurs: nbErreurs,
       });
 
       // Mettre à jour ou créer les statistiques
@@ -416,18 +450,14 @@ class EmailService {
         success: true,
         nbEnvoyes,
         nbErreurs,
-        message: `Campagne envoyée: ${nbEnvoyes} emails, ${nbErreurs} erreurs`
+        message: `Campagne envoyée: ${nbEnvoyes} emails, ${nbErreurs} erreurs`,
       };
-
     } catch (error) {
-      console.error('Erreur lors de l\'envoi de la campagne:', error);
-      
+      console.error("Erreur lors de l'envoi de la campagne:", error);
+
       // Remettre la campagne en statut programmée en cas d'erreur
       try {
-        await CampagneEmail.update(
-          { statut: 'programmée' },
-          { where: { id: campagneId } }
-        );
+        await CampagneEmail.update({ statut: 'programmée' }, { where: { id: campagneId } });
       } catch (updateError) {
         console.error('Erreur lors de la remise en statut programmée:', updateError);
       }
@@ -440,11 +470,13 @@ class EmailService {
     try {
       const result = await this.envoyerEmail(campagne, envoi);
       try {
-        console.log(`[MAIL][OK] campagne=${campagne.id} envoi=${envoi.id} to=${envoi.email_destinataire} provider=${emailConfig.provider || 'smtp'} result=${result?.messageId || result?.success || 'ok'}`);
+        console.log(
+          `[MAIL][OK] campagne=${campagne.id} envoi=${envoi.id} to=${envoi.email_destinataire} provider=${emailConfig.provider || 'smtp'} result=${result?.messageId || result?.success || 'ok'}`
+        );
       } catch {}
-      await envoi.update({ 
-        statut: 'envoyé', 
-        date_envoi: new Date() 
+      await envoi.update({
+        statut: 'envoyé',
+        date_envoi: new Date(),
       });
       return result;
     } catch (error) {
@@ -454,12 +486,14 @@ class EmailService {
         return this.envoyerEmailAvecRetry(campagne, envoi, retryCount + 1);
       } else {
         // Échec définitif
-        await envoi.update({ 
-          statut: 'erreur', 
-          message_erreur: error.message 
+        await envoi.update({
+          statut: 'erreur',
+          message_erreur: error.message,
         });
         try {
-          console.error(`[MAIL][ERR] campagne=${campagne.id} envoi=${envoi.id} to=${envoi.email_destinataire} provider=${emailConfig.provider || 'smtp'} error=${error.message}`);
+          console.error(
+            `[MAIL][ERR] campagne=${campagne.id} envoi=${envoi.id} to=${envoi.email_destinataire} provider=${emailConfig.provider || 'smtp'} error=${error.message}`
+          );
         } catch {}
         throw error;
       }
@@ -473,19 +507,33 @@ class EmailService {
 
     // Prendre en compte les paramètres d'audience stockés en base
     const audience = campagne.parametres?.audience;
-    const audienceCategoryId = campagne.parametres?.category_id || campagne.parametres?.category_id_fallback;
-    const audienceDistributionId = campagne.parametres?.distribution_id || campagne.parametres?.distribution_id_fallback;
+    const audienceCategoryId =
+      campagne.parametres?.category_id || campagne.parametres?.category_id_fallback;
+    const audienceDistributionId =
+      campagne.parametres?.distribution_id || campagne.parametres?.distribution_id_fallback;
     const audienceWhere = campagne.parametres?.where;
 
     let baseWhere = { actif: true };
     if (audience === 'all' && !campagne.segment_id && !campagne.tags_ids) {
       return await Contact.findAll({ where: baseWhere });
     }
-    if (audience === 'category' && audienceCategoryId && !campagne.segment_id && !campagne.tags_ids) {
+    if (
+      audience === 'category' &&
+      audienceCategoryId &&
+      !campagne.segment_id &&
+      !campagne.tags_ids
+    ) {
       return await Contact.findAll({ where: { ...baseWhere, category_id: audienceCategoryId } });
     }
-    if (audience === 'distribution' && audienceDistributionId && !campagne.segment_id && !campagne.tags_ids) {
-      return await Contact.findAll({ where: { ...baseWhere, distribution_id: audienceDistributionId } });
+    if (
+      audience === 'distribution' &&
+      audienceDistributionId &&
+      !campagne.segment_id &&
+      !campagne.tags_ids
+    ) {
+      return await Contact.findAll({
+        where: { ...baseWhere, distribution_id: audienceDistributionId },
+      });
     }
     if (audience === 'custom' && audienceWhere && typeof audienceWhere === 'object') {
       baseWhere = { ...baseWhere, ...audienceWhere };
@@ -494,18 +542,31 @@ class EmailService {
     // Normaliser les paramètres potentiellement sérialisés en garantissant un tableau Array pour Sequelize Op.in
     let parsedContacts = Array.isArray(campagne.contacts_ids)
       ? campagne.contacts_ids
-      : (typeof campagne.contacts_ids === 'string'
-          ? (() => { try { return JSON.parse(campagne.contacts_ids) || []; } catch { return []; } })()
-          : []);
-    const contactsIds = Array.isArray(parsedContacts) ? parsedContacts : [parsedContacts].filter(Boolean);
+      : typeof campagne.contacts_ids === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(campagne.contacts_ids) || [];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+    const contactsIds = Array.isArray(parsedContacts)
+      ? parsedContacts
+      : [parsedContacts].filter(Boolean);
 
     let parsedTags = Array.isArray(campagne.tags_ids)
       ? campagne.tags_ids
-      : (typeof campagne.tags_ids === 'string'
-          ? (() => { try { return JSON.parse(campagne.tags_ids) || []; } catch { return []; } })()
-          : []);
+      : typeof campagne.tags_ids === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(campagne.tags_ids) || [];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
     const tagsIds = Array.isArray(parsedTags) ? parsedTags : [parsedTags].filter(Boolean);
-
 
     // Construire la requête de manière unifiée (comme calculerDestinataires)
     let whereClause = { ...baseWhere };
@@ -515,29 +576,39 @@ class EmailService {
     if (campagne.segment_id) {
       const segment = await Segment.findByPk(campagne.segment_id);
       if (segment && segment.criteres) {
-        // Utiliser buildContactQueryFromCriteria depuis campagneController
-        const { buildContactQueryFromCriteria } = require('../controllers/campagneController');
+        // FIX: Use standalone queryBuilder utility (eliminates circular dep: emailService → campagneController)
+        const { buildContactQueryFromCriteria } = require('../utils/queryBuilder');
         const built = buildContactQueryFromCriteria(segment.criteres);
         whereClause = { ...whereClause, ...built.where };
         include = [...include, ...built.include];
       }
     } else {
       // Audience rapide sinon
-      if (audience === 'category' && audienceCategoryId) whereClause = { ...whereClause, category_id: audienceCategoryId };
-      if (audience === 'distribution' && audienceDistributionId) whereClause = { ...whereClause, distribution_id: audienceDistributionId };
-      if (audience === 'custom' && audienceWhere && typeof audienceWhere === 'object') Object.assign(whereClause, audienceWhere);
+      if (audience === 'category' && audienceCategoryId)
+        whereClause = { ...whereClause, category_id: audienceCategoryId };
+      if (audience === 'distribution' && audienceDistributionId)
+        whereClause = { ...whereClause, distribution_id: audienceDistributionId };
+      if (audience === 'custom' && audienceWhere && typeof audienceWhere === 'object')
+        Object.assign(whereClause, audienceWhere);
     }
 
     // Filtrer par tags si spécifiés (en plus du segment)
     if (tagsIds && tagsIds.length > 0) {
-      include.push({ model: Tag, as: 'tags', where: { id: { [Op.in]: tagsIds } }, through: { attributes: [] }, required: true });
+      include.push({
+        model: Tag,
+        as: 'tags',
+        where: { id: { [Op.in]: tagsIds } },
+        through: { attributes: [] },
+        required: true,
+      });
     }
 
     // Récupérer les contacts avec la requête unifiée
     // SÉCURITÉ: On ne récupère des contacts que si une intention de ciblage est détectée
     // (segment, tags, ou audience spécifique). Sinon, on attend les contactsIds manuels.
-    const hasTargeting = campagne.segment_id || (tagsIds && tagsIds.length > 0) || (audience && audience !== 'custom');
-    
+    const hasTargeting =
+      campagne.segment_id || (tagsIds && tagsIds.length > 0) || (audience && audience !== 'custom');
+
     if (hasTargeting) {
       // On ne lance la requête que si on a des inclusions (tags) ou des filtres supplémentaires (where)
       // Note: whereClause contient toujours { actif: true } au minimum.
@@ -557,15 +628,15 @@ class EmailService {
     // Ajouter les contacts spécifiques
     if (contactsIds && contactsIds.length > 0) {
       const contactsSpecifiques = await Contact.findAll({
-        where: { 
+        where: {
           id: { [Op.in]: contactsIds },
-          actif: true 
-        }
+          actif: true,
+        },
       });
       // Utiliser les IDs pour dédupliquer
-      const existingIds = new Set(contacts.map(c => c.id));
+      const existingIds = new Set(contacts.map((c) => c.id));
       const newContacts = Array.isArray(contactsSpecifiques) ? contactsSpecifiques : [];
-      const uniqueNew = newContacts.filter(c => !existingIds.has(c.id));
+      const uniqueNew = newContacts.filter((c) => !existingIds.has(c.id));
       contacts = [...contacts, ...uniqueNew];
     }
 
@@ -587,13 +658,13 @@ class EmailService {
     const batchSize = 500; // bulk insert for performance
     for (let i = 0; i < destinataires.length; i += batchSize) {
       const batch = destinataires.slice(i, i + batchSize);
-      const rows = batch.map(contact => ({
+      const rows = batch.map((contact) => ({
         campagne_id: campagne.id,
         contact_id: contact.id,
         email_destinataire: contact.email,
         statut: 'en_attente',
         token_tracking: this.genererTokenTracking(),
-        actif: true
+        actif: true,
       }));
       const created = await EnvoiEmail.bulkCreate(rows);
       envois.push(...created);
@@ -604,10 +675,10 @@ class EmailService {
   async envoyerEmail(campagne, envoi) {
     // Personnaliser le contenu avec tracking
     let htmlContent = await this.personnaliserContenu(campagne.contenu_html, envoi, campagne);
-    
+
     // Ajouter le pixel de tracking pour les ouvertures
     htmlContent = this.ajouterPixelTracking(htmlContent, envoi.token_tracking);
-    
+
     // Ajouter le tracking des clics (+ UTM)
     htmlContent = this.ajouterTrackingClics(htmlContent, envoi.token_tracking, campagne);
 
@@ -616,8 +687,10 @@ class EmailService {
     }
 
     const persistentAttachments = this._getCampaignAttachments(campagne);
-    console.log(`[EMAIL][SMTP] Sending email to ${envoi.email_destinataire} with ${persistentAttachments.length} attachment(s)`);
-    
+    console.log(
+      `[EMAIL][SMTP] Sending email to ${envoi.email_destinataire} with ${persistentAttachments.length} attachment(s)`
+    );
+
     const processed = this._processImagesAndInlining(htmlContent);
     htmlContent = processed.html;
 
@@ -631,21 +704,23 @@ class EmailService {
         ...emailConfig.headers,
         'X-Campaign-ID': campagne.id,
         'X-Contact-ID': envoi.contact_id,
-        'X-Tracking-Token': envoi.token_tracking
+        'X-Tracking-Token': envoi.token_tracking,
       },
       attachments: [
-        ...persistentAttachments.map(att => ({
+        ...persistentAttachments.map((att) => ({
           filename: att.name,
           content: att.content,
-          contentType: att.mimeType
+          contentType: att.mimeType,
         })),
-        ...processed.attachments
-      ]
+        ...processed.attachments,
+      ],
     };
 
     const info = await this.transporter.sendMail(mailOptions);
     try {
-      console.log(`[SMTP] messageId=${info?.messageId} to=${envoi.email_destinataire} campagne=${campagne.id}`);
+      console.log(
+        `[SMTP] messageId=${info?.messageId} to=${envoi.email_destinataire} campagne=${campagne.id}`
+      );
     } catch {}
     return info;
   }
@@ -658,16 +733,20 @@ class EmailService {
     const fromEmail = emailConfig.graph?.senderEmail || emailConfig.from;
     const inline = this._extractInlineImagesForGraph(htmlContent);
     const persistentAttachments = this._getCampaignAttachments(campagne);
-    console.log(`[EMAIL][GRAPH] Sending email to ${envoi.email_destinataire} with ${persistentAttachments.length} attachment(s)`);
-    
-    const graphAttachments = persistentAttachments.map(att => {
-      console.log(`[EMAIL][GRAPH] Attaching file: ${att.name} (${att.content.length} bytes, ${att.mimeType})`);
+    console.log(
+      `[EMAIL][GRAPH] Sending email to ${envoi.email_destinataire} with ${persistentAttachments.length} attachment(s)`
+    );
+
+    const graphAttachments = persistentAttachments.map((att) => {
+      console.log(
+        `[EMAIL][GRAPH] Attaching file: ${att.name} (${att.content.length} bytes, ${att.mimeType})`
+      );
       return {
         '@odata.type': '#microsoft.graph.fileAttachment',
         name: att.name,
         isInline: false,
         contentBytes: att.content.toString('base64'),
-        contentType: att.mimeType
+        contentType: att.mimeType,
       };
     });
     const message = {
@@ -675,26 +754,21 @@ class EmailService {
         subject: campagne.sujet,
         body: {
           contentType: 'HTML',
-          content: inline.html
+          content: inline.html,
         },
         from: {
-          emailAddress: { address: fromEmail }
+          emailAddress: { address: fromEmail },
         },
-        toRecipients: [
-          { emailAddress: { address: envoi.email_destinataire } }
-        ],
+        toRecipients: [{ emailAddress: { address: envoi.email_destinataire } }],
         internetMessageHeaders: [
           { name: 'X-Campaign-ID', value: String(campagne.id) },
           { name: 'X-Contact-ID', value: String(envoi.contact_id) },
           { name: 'X-Tracking-Token', value: envoi.token_tracking },
-          ...Object.entries(emailConfig.headers || {}).map(([name, value]) => ({ name, value }))
+          ...Object.entries(emailConfig.headers || {}).map(([name, value]) => ({ name, value })),
         ],
-        attachments: [
-          ...(inline.attachments || []),
-          ...graphAttachments
-        ]
+        attachments: [...(inline.attachments || []), ...graphAttachments],
       },
-      saveToSentItems: emailConfig.graph?.saveToSentItems !== false
+      saveToSentItems: emailConfig.graph?.saveToSentItems !== false,
     };
 
     // With application permissions, /me is NOT allowed. Always target a specific mailbox.
@@ -702,14 +776,20 @@ class EmailService {
     const senderUserPrincipal = emailConfig.graph?.senderEmail || emailConfig.from;
     const userPath = senderUserId
       ? `users/${senderUserId}`
-      : (senderUserPrincipal ? `users/${senderUserPrincipal}` : null);
+      : senderUserPrincipal
+        ? `users/${senderUserPrincipal}`
+        : null;
     if (!userPath) {
-      throw new Error('Configuration Graph incomplète: définir graph.senderEmail ou graph.senderUserId');
+      throw new Error(
+        'Configuration Graph incomplète: définir graph.senderEmail ou graph.senderUserId'
+      );
     }
     try {
       const resp = await this.graphClient.api(`/${userPath}/sendMail`).post(message);
       try {
-        console.log(`[GRAPH] sendMail to=${envoi.email_destinataire} from=${fromEmail} campagne=${campagne.id} resp=${JSON.stringify(resp)}`);
+        console.log(
+          `[GRAPH] sendMail to=${envoi.email_destinataire} from=${fromEmail} campagne=${campagne.id} resp=${JSON.stringify(resp)}`
+        );
       } catch {}
       return { success: true };
     } catch (error) {
@@ -724,77 +804,41 @@ class EmailService {
           if (msg) details += ` bodyMessage=${msg}`;
         } catch {}
       }
-      console.error(`[GRAPH][ERR] sendMail to=${envoi.email_destinataire} campagne=${campagne.id} -> ${details}`);
+      console.error(
+        `[GRAPH][ERR] sendMail to=${envoi.email_destinataire} campagne=${campagne.id} -> ${details}`
+      );
       throw new Error(details);
     }
   }
 
-  // Detect and convert Base64 images to physical files in uploads/
-  _convertBase64ImagesToFiles(html) {
+  // Detect and convert Base64 images to files in storage (local or cloud)
+  async _convertBase64ImagesToFiles(html) {
     try {
       const base64Regex = /src=["']data:image\/([a-zA-Z]+);base64,([^"']+)["']/gi;
       let match;
       let processedHtml = html;
-      const uploadsDir = path.join(__dirname, '..', 'uploads');
-      
-      // Ensure uploads dir exists (should already exist but to be safe)
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+      const fileStorage = require('../utils/fileStorage');
 
       while ((match = base64Regex.exec(html)) !== null) {
         const fullMatch = match[0];
         const ext = match[1] || 'png';
         const base64Data = match[2];
-        
+
         // Skip if base64 is too short (maybe a placeholder) or empty
         if (base64Data.length < 50) continue;
 
         const fileName = `auto-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-        const filePath = path.join(uploadsDir, fileName);
-        
-        // Save to disk
-        fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
-        
-        // Replace with relative API URL (will be made absolute by _ensureAbsoluteUrls next)
-        const newUrl = `/api/templates/media/${fileName}`;
-        processedHtml = processedHtml.split(match[1] + ';base64,' + match[2]).join(newUrl); // Robust replacement for long strings
-        console.log(`[EMAIL] Auto-converted Base64 to file: ${fileName} (${Math.round(base64Data.length * 0.75 / 1024)} KB)`);
-      }
-      return processedHtml;
-    } catch (e) {
-      console.error('[EMAIL][ERR] Error converting Base64 images:', e);
-      return html;
-    }
-  }
+        const buffer = Buffer.from(base64Data, 'base64');
 
-  // Detect and convert Base64 images to physical files in uploads/
-  _convertBase64ImagesToFiles(html) {
-    try {
-      const base64Regex = /src=["']data:image\/([a-zA-Z]+);base64,([^"']+)["']/gi;
-      let match;
-      let processedHtml = html;
-      const uploadsDir = path.join(__dirname, '..', 'uploads');
-      
-      // Ensure uploads dir exists
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        // Save to storage (S3 or local fallback)
+        const fileUrl = await fileStorage.saveFile(fileName, buffer, `image/${ext}`);
 
-      while ((match = base64Regex.exec(html)) !== null) {
-        const fullMatch = match[0];
-        const ext = match[1] || 'png';
-        const base64Data = match[2];
-        
-        // Skip if base64 is too short or empty
-        if (base64Data.length < 50) continue;
-
-        const fileName = `auto-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-        const filePath = path.join(uploadsDir, fileName);
-        
-        // Save to disk
-        fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
-        
-        // Replace with relative API URL (will be made absolute by _ensureAbsoluteUrls next)
-        const newUrl = `/api/templates/media/${fileName}`;
-        processedHtml = processedHtml.split(match[1] + ';base64,' + match[2]).join(newUrl);
-        console.log(`[EMAIL] Auto-converted Base64 to file: ${fileName} (${Math.round(base64Data.length * 0.75 / 1024)} KB)`);
+        // Replace base64 source with the public file URL
+        processedHtml = processedHtml.split(match[1] + ';base64,' + match[2]).join(fileUrl);
+        console.log(
+          `[EMAIL] Auto-converted Base64 to storage file: ${fileName} (${Math.round((base64Data.length * 0.75) / 1024)} KB)`
+        );
       }
       return processedHtml;
     } catch (e) {
@@ -808,7 +852,7 @@ class EmailService {
     try {
       // Get the production base URL (already verified to be robust)
       const baseUrl = getPublicBaseUrl().replace(/\/+$/, '');
-      
+
       if (!baseUrl) return html;
 
       // 1. Replace localhost URLs: http://localhost:51000/api/... -> https://crm2.citrusgolfclub.com/api/...
@@ -824,7 +868,7 @@ class EmailService {
       processedHtml = processedHtml.replace(relativePattern, (match, attr, path) => {
         return `${attr}="${baseUrl}${path}"`;
       });
-      
+
       return processedHtml;
     } catch (error) {
       console.error('Error ensuring absolute URLs:', error);
@@ -835,43 +879,41 @@ class EmailService {
   async personnaliserContenu(contenu, envoi, campagne) {
     try {
       let html = contenu || '';
-      let prenom = '';
-      let nom = '';
-      try {
-        if (envoi.contact_id) {
-          const { Contact } = require('../models');
-          const contact = await Contact.findByPk(envoi.contact_id);
-          if (contact) { prenom = contact.prenom || ''; nom = contact.nom || ''; }
-        }
-      } catch {}
-      const fullname = [prenom, nom].filter(Boolean).join(' ').trim() || envoi.email_destinataire || '';
-      const baseUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
-      const viewInBrowser = `${baseUrl}/view-email?token=${encodeURIComponent(envoi.token_tracking)}&campaign=${encodeURIComponent(campagne?.id || '')}`;
-      const preferencesLink = `${baseUrl}/preferences?email=${encodeURIComponent(envoi.email_destinataire)}`;
-      const trackingOpenUrl = `${getPublicBaseUrl()}/api/tracking/open/${encodeURIComponent(envoi.token_tracking)}`;
+      let prenom = '',
+        nom = '',
+        ville = '',
+        nationalite = '',
+        sexe = '',
+        handicap = '',
+        type_client = '';
 
-      // Support for additional contact fields
-      let ville = '';
-      let nationalite = '';
-      let sexe = '';
-      let handicap = '';
-      let type_client = '';
-      
-      try {
-        if (envoi.contact_id) {
+      // PERF FIX: Single DB query for all contact fields (was 2 identical queries before)
+      if (envoi.contact_id) {
+        try {
           const { Contact } = require('../models');
           const contact = await Contact.findByPk(envoi.contact_id);
           if (contact) {
+            prenom = contact.prenom || '';
+            nom = contact.nom || '';
             ville = contact.ville || '';
             nationalite = contact.nationalite || '';
             sexe = contact.sexe || '';
             handicap = contact.handicap !== null ? String(contact.handicap) : '';
             type_client = contact.type_client || '';
           }
+        } catch (e) {
+          require('../utils/logger').error('personnaliserContenu: contact fetch error', {
+            error: e.message,
+          });
         }
-      } catch (e) {
-        console.error('Error fetching contact for merge tags:', e.message);
       }
+
+      const fullname =
+        [prenom, nom].filter(Boolean).join(' ').trim() || envoi.email_destinataire || '';
+      const baseUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+      const viewInBrowser = `${baseUrl}/view-email?token=${encodeURIComponent(envoi.token_tracking)}&campaign=${encodeURIComponent(campagne?.id || '')}`;
+      const preferencesLink = `${baseUrl}/preferences?email=${encodeURIComponent(envoi.email_destinataire)}`;
+      const trackingOpenUrl = `${getPublicBaseUrl()}/api/tracking/open/${encodeURIComponent(envoi.token_tracking)}`;
 
       html = html
         .replace(/\{\{prenom\}\}/g, prenom)
@@ -884,17 +926,22 @@ class EmailService {
         .replace(/\{\{handicap\}\}/g, handicap)
         .replace(/\{\{type_client\}\}/g, type_client)
         .replace(/\{\{tracking_token\}\}/g, envoi.token_tracking)
-        .replace(/\{\{unsubscribe_link\}\}/g, `${emailConfig.templates.unsubscribeUrl}?token=${envoi.token_tracking}`)
-        // Use the real tracking endpoint (avoid stale /tracking/pixel and avoid localhost in prod)
-        .replace(/\{\{tracking_pixel\}\}/g, `<img src="${trackingOpenUrl}" width="1" height="1" style="display:none;" />`)
+        .replace(
+          /\{\{unsubscribe_link\}\}/g,
+          `${emailConfig.templates.unsubscribeUrl}?token=${envoi.token_tracking}`
+        )
+        .replace(
+          /\{\{tracking_pixel\}\}/g,
+          `<img src="${trackingOpenUrl}" width="1" height="1" style="display:none;" />`
+        )
         .replace(/\{\{view_in_browser_link\}\}/g, viewInBrowser)
         .replace(/\{\{preferences_link\}\}/g, preferencesLink);
 
-    // NEW: Automatic Optimization for Base64 (Prevents 10MB+ emails that Gmail marks as spam)
-    html = this._convertBase64ImagesToFiles(html);
+      // NEW: Automatic Optimization for Base64 (Prevents 10MB+ emails that Gmail marks as spam)
+      html = await this._convertBase64ImagesToFiles(html);
 
-    // Ensure all internal URLs are absolute
-    html = this._ensureAbsoluteUrls(html);
+      // Ensure all internal URLs are absolute
+      html = this._ensureAbsoluteUrls(html);
 
       // SAFE: Check if HTML is already a complete document structure
       // This prevents wrapping emails that already have full HTML structure
@@ -902,18 +949,20 @@ class EmailService {
       const hasHtmlTag = /<\s*html[\s>]/i.test(html);
       const hasBodyTag = /<\s*body[\s>]/i.test(html);
       const isCompleteHtml = hasDoctype || (hasHtmlTag && hasBodyTag);
-      
+
       // Prepare footer if needed (before wrapping so we can append it to fragments)
       // Keep only the essential unsubscribe link visible; tracking for opens/clicks is handled separately.
       const hasUnsub = /unsubscribe_link|se désabonner|se desabonner|unsubscrib/i.test(html);
-      const footer = !hasUnsub ? `
+      const footer = !hasUnsub
+        ? `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px">
           <tr><td align="center">
             <p style="font-size:12px;color:#666;margin:0">Se désabonner: <a href="${emailConfig.templates.unsubscribeUrl}?token=${envoi.token_tracking}" style="color:#1976d2">cliquez ici</a></p>
           </td></tr>
         </table>
-      `.trim() : null;
-      
+      `.trim()
+        : null;
+
       // Only wrap HTML fragments (not complete documents) to ensure proper rendering
       if (!isCompleteHtml && html.trim()) {
         // Add footer to fragment before wrapping
@@ -993,7 +1042,7 @@ class EmailService {
       }
     } catch {}
     const trackingPixel = `<img src="${getPublicBaseUrl()}/api/tracking/open/${tokenTracking}" width="1" height="1" style="display:none;" />`;
-    
+
     // Insérer le pixel avant la fermeture du body
     if (htmlContent.includes('</body>')) {
       return htmlContent.replace('</body>', `${trackingPixel}</body>`);
@@ -1006,11 +1055,17 @@ class EmailService {
   ajouterTrackingClics(htmlContent, tokenTracking, campagne) {
     // Regex pour trouver tous les liens href
     const linkRegex = /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*?)>/gi;
-    
+
     return htmlContent.replace(linkRegex, (match, beforeHref, url, afterHref) => {
       const lower = (url || '').toLowerCase();
       // Ne pas tracker certains liens
-      if (lower.startsWith('mailto:') || lower.startsWith('tel:') || lower.includes('unsubscribe') || lower.includes('desabonnement') || lower.startsWith('#')) {
+      if (
+        lower.startsWith('mailto:') ||
+        lower.startsWith('tel:') ||
+        lower.includes('unsubscribe') ||
+        lower.includes('desabonnement') ||
+        lower.startsWith('#')
+      ) {
         return match;
       }
       // UTM params
@@ -1018,16 +1073,19 @@ class EmailService {
         const original = new URL(url, 'https://dummy.base');
         const isHttp = original.protocol === 'http:' || original.protocol === 'https:';
         if (isHttp) {
-          if (!original.searchParams.has('utm_source')) original.searchParams.set('utm_source', 'newsletter');
-          if (!original.searchParams.has('utm_medium')) original.searchParams.set('utm_medium', 'email');
-          if (!original.searchParams.has('utm_campaign') && campagne?.id) original.searchParams.set('utm_campaign', String(campagne.id));
+          if (!original.searchParams.has('utm_source'))
+            original.searchParams.set('utm_source', 'newsletter');
+          if (!original.searchParams.has('utm_medium'))
+            original.searchParams.set('utm_medium', 'email');
+          if (!original.searchParams.has('utm_campaign') && campagne?.id)
+            original.searchParams.set('utm_campaign', String(campagne.id));
           url = original.href.replace('https://dummy.base', '');
         }
       } catch {}
-      
+
       // Créer l'URL de tracking
       const trackingUrl = `${getPublicBaseUrl()}/api/tracking/click/${tokenTracking}?url=${encodeURIComponent(url)}`;
-      
+
       return `<a ${beforeHref}href="${trackingUrl}"${afterHref}>`;
     });
   }
@@ -1041,17 +1099,17 @@ class EmailService {
           nb_envoyes: 0,
           nb_ouverts: 0,
           nb_clics: 0,
-          nb_desabonnements: 0
-        }
+          nb_desabonnements: 0,
+        },
       });
 
       if (!created) {
         await statistiques.update({
-          nb_envoyes: statistiques.nb_envoyes + nbEnvoyes
+          nb_envoyes: statistiques.nb_envoyes + nbEnvoyes,
         });
       } else {
         await statistiques.update({
-          nb_envoyes: nbEnvoyes
+          nb_envoyes: nbEnvoyes,
         });
       }
     } catch (error) {
@@ -1065,36 +1123,38 @@ class EmailService {
       // Compter les envois par statut
       const stats = await EnvoiEmail.findAll({
         where: { campagne_id: campagneId },
-        attributes: [
-          'statut',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-        ],
-        group: ['statut']
+        attributes: ['statut', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        group: ['statut'],
       });
 
       // Compter les ouvertures et clics séparément
       const ouverts = await EnvoiEmail.count({
-        where: { 
+        where: {
           campagne_id: campagneId,
-          date_ouverture: { [Op.not]: null }
-        }
+          date_ouverture: { [Op.not]: null },
+        },
       });
 
       const clics = await EnvoiEmail.count({
-        where: { 
+        where: {
           campagne_id: campagneId,
-          date_clic: { [Op.not]: null }
-        }
+          date_clic: { [Op.not]: null },
+        },
       });
 
       // Calculer les totaux
       let totalEnvoyes = 0;
       let totalErreurs = 0;
 
-      stats.forEach(stat => {
+      stats.forEach((stat) => {
         const count = parseInt(stat.dataValues.count);
 
-        if (stat.statut === 'envoyé' || stat.statut === 'livré' || stat.statut === 'ouvert' || stat.statut === 'cliqué') {
+        if (
+          stat.statut === 'envoyé' ||
+          stat.statut === 'livré' ||
+          stat.statut === 'ouvert' ||
+          stat.statut === 'cliqué'
+        ) {
           totalEnvoyes += count;
         }
         if (stat.statut === 'erreur') {
@@ -1103,30 +1163,43 @@ class EmailService {
       });
 
       // Mettre à jour les statistiques
-      await StatistiqueCampagne.update({
-        nb_envoyes: totalEnvoyes,
-        nb_ouverts: ouverts,
-        nb_clics: clics
-      }, {
-        where: { campagne_id: campagneId }
-      });
+      await StatistiqueCampagne.update(
+        {
+          nb_envoyes: totalEnvoyes,
+          nb_ouverts: ouverts,
+          nb_clics: clics,
+        },
+        {
+          where: { campagne_id: campagneId },
+        }
+      );
 
-      console.log(`Statistiques mises à jour pour campagne ${campagneId}: ${totalEnvoyes} envoyés, ${ouverts} ouverts, ${clics} clics`);
+      console.log(
+        `Statistiques mises à jour pour campagne ${campagneId}: ${totalEnvoyes} envoyés, ${ouverts} ouverts, ${clics} clics`
+      );
     } catch (error) {
       console.error('Erreur lors de la mise à jour des statistiques temps réel:', error);
     }
   }
 
   delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async envoyerTest(email, campagne) {
     try {
       if ((emailConfig.provider || 'smtp') === 'graph') {
         const htmlContent = campagne.contenu_html;
-        const dummyEnvoi = { contact_id: 0, token_tracking: 'test-token', email_destinataire: email };
-        await this.envoyerEmailViaGraph({ ...campagne, sujet: `[TEST] ${campagne.sujet}` }, dummyEnvoi, htmlContent);
+        const dummyEnvoi = {
+          contact_id: 0,
+          token_tracking: 'test-token',
+          email_destinataire: email,
+        };
+        await this.envoyerEmailViaGraph(
+          { ...campagne, sujet: `[TEST] ${campagne.sujet}` },
+          dummyEnvoi,
+          htmlContent
+        );
         return { success: true };
       }
 
@@ -1138,8 +1211,8 @@ class EmailService {
         text: campagne.contenu_texte || this.htmlToText(campagne.contenu_html),
         headers: {
           ...emailConfig.headers,
-          'X-Test': 'true'
-        }
+          'X-Test': 'true',
+        },
       };
 
       const result = await this.transporter.sendMail(mailOptions);
@@ -1159,14 +1232,21 @@ class EmailService {
           subject,
           body: { contentType: 'HTML', content: html },
           from: { emailAddress: { address: fromEmail } },
-          toRecipients: [ { emailAddress: { address: to } } ]
+          toRecipients: [{ emailAddress: { address: to } }],
         },
-        saveToSentItems: emailConfig.graph?.saveToSentItems !== false
+        saveToSentItems: emailConfig.graph?.saveToSentItems !== false,
       };
       const senderUserId = emailConfig.graph?.senderUserId;
       const senderUserPrincipal = emailConfig.graph?.senderEmail || emailConfig.from;
-      const userPath = senderUserId ? `users/${senderUserId}` : (senderUserPrincipal ? `users/${senderUserPrincipal}` : null);
-      if (!userPath) throw new Error('Configuration Graph incomplète: définir graph.senderEmail ou graph.senderUserId');
+      const userPath = senderUserId
+        ? `users/${senderUserId}`
+        : senderUserPrincipal
+          ? `users/${senderUserPrincipal}`
+          : null;
+      if (!userPath)
+        throw new Error(
+          'Configuration Graph incomplète: définir graph.senderEmail ou graph.senderUserId'
+        );
       await this.graphClient.api(`/${userPath}/sendMail`).post(message);
       return { success: true };
     }
@@ -1187,24 +1267,30 @@ class EmailService {
           subject,
           body: { contentType: 'HTML', content: inline.html },
           from: { emailAddress: { address: from } },
-          toRecipients: [ { emailAddress: { address: to } } ],
+          toRecipients: [{ emailAddress: { address: to } }],
           attachments: [
             // Inline images first
             ...inline.attachments,
             // Regular attachments (files uploaded in form)
-            ...await Promise.all((attachments || []).map(async f => ({
-              '@odata.type': '#microsoft.graph.fileAttachment',
-              name: f.filename || path.basename(f.path || 'file'),
-              isInline: false,
-              contentBytes: fs.existsSync(f.path) ? fs.readFileSync(f.path).toString('base64') : ''
-            })))
-          ]
+            ...(await Promise.all(
+              (attachments || []).map(async (f) => ({
+                '@odata.type': '#microsoft.graph.fileAttachment',
+                name: f.filename || path.basename(f.path || 'file'),
+                isInline: false,
+                contentBytes: fs.existsSync(f.path)
+                  ? fs.readFileSync(f.path).toString('base64')
+                  : '',
+              }))
+            )),
+          ],
         },
-        saveToSentItems: emailConfig.graph?.saveToSentItems !== false
+        saveToSentItems: emailConfig.graph?.saveToSentItems !== false,
       };
       const userPath = emailConfig.graph?.senderUserId
         ? `users/${emailConfig.graph.senderUserId}`
-        : (emailConfig.graph?.senderEmail || emailConfig.from ? `users/${emailConfig.graph?.senderEmail || emailConfig.from}` : null);
+        : emailConfig.graph?.senderEmail || emailConfig.from
+          ? `users/${emailConfig.graph?.senderEmail || emailConfig.from}`
+          : null;
       if (!userPath) throw new Error('Configuration Graph incomplète');
       await this.graphClient.api(`/${userPath}/sendMail`).post(message);
       return { success: true };
