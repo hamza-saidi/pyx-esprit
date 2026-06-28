@@ -1,0 +1,22 @@
+# ==========================================================
+# .dockerignore — Backend (exclut les fichiers inutiles de l'image)
+# ==========================================================
+node_modules
+.env
+.env.*
+!.env.production.example
+logs
+*.log
+uploads
+coverage
+.nyc_output
+.git
+.gitignore
+FATAL_ERROR.txt
+STARTUP_OK.txt
+backendss.zip
+*.zip
+*.rar
+tools/
+README.md
+tests/
