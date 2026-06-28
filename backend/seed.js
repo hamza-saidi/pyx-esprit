@@ -8,29 +8,35 @@ async function seed() {
   // Utilisateurs
   const users = [];
   for (let i = 0; i < 5; i++) {
-    users.push(await db.Utilisateur.create({
-      nom: faker.name.findName(),
-      email: faker.internet.email(),
-      mot_de_passe: await bcrypt.hash('password', 10),
-      role: i === 0 ? 'admin' : 'employee',
-    }));
+    users.push(
+      await db.Utilisateur.create({
+        nom: faker.name.findName(),
+        email: faker.internet.email(),
+        mot_de_passe: await bcrypt.hash('password', 10),
+        role: i === 0 ? 'admin' : 'employee',
+      })
+    );
   }
 
   // Tags
   const tags = [];
   for (let i = 0; i < 5; i++) {
-    tags.push(await db.Tag.create({
-      nom: faker.hacker.noun(),
-    }));
+    tags.push(
+      await db.Tag.create({
+        nom: faker.hacker.noun(),
+      })
+    );
   }
 
   // Segments
   const segments = [];
   for (let i = 0; i < 3; i++) {
-    segments.push(await db.Segment.create({
-      nom: faker.commerce.department(),
-      criteres: { random: faker.random.word() },
-    }));
+    segments.push(
+      await db.Segment.create({
+        nom: faker.commerce.department(),
+        criteres: { random: faker.random.word() },
+      })
+    );
   }
 
   // Contacts
@@ -62,7 +68,12 @@ async function seed() {
       consentement_rgpd: faker.datatype.boolean(),
     });
     // Ajout tags aléatoires
-    await contact.setTags(faker.helpers.shuffle(tags).slice(0, faker.datatype.number({ min: 1, max: 3 })).map(t => t.id));
+    await contact.setTags(
+      faker.helpers
+        .shuffle(tags)
+        .slice(0, faker.datatype.number({ min: 1, max: 3 }))
+        .map((t) => t.id)
+    );
     // Ajout de notes
     for (let n = 0; n < faker.datatype.number({ min: 1, max: 3 }); n++) {
       await db.Note.create({
@@ -77,13 +88,15 @@ async function seed() {
   // Événements
   const events = [];
   for (let i = 0; i < 5; i++) {
-    events.push(await db.Evenement.create({
-      titre: faker.company.catchPhrase(),
-      date: faker.date.future(),
-      lieu: faker.address.city(),
-      description: faker.lorem.paragraph(),
-      index_requis: faker.datatype.float({ min: 0, max: 54, precision: 0.1 }),
-    }));
+    events.push(
+      await db.Evenement.create({
+        titre: faker.company.catchPhrase(),
+        date: faker.date.future(),
+        lieu: faker.address.city(),
+        description: faker.lorem.paragraph(),
+        index_requis: faker.datatype.float({ min: 0, max: 54, precision: 0.1 }),
+      })
+    );
   }
 
   // RSVP (liens contacts/événements)
@@ -106,21 +119,29 @@ async function seed() {
   // Campagnes email
   const campagnes = [];
   for (let i = 0; i < 5; i++) {
-    campagnes.push(await db.CampagneEmail.create({
-      titre: faker.company.bsBuzz(),
-      sujet: faker.company.bs(),
-      contenu_html: `<h2>${faker.company.catchPhrase()}</h2><p>${faker.lorem.text()}</p>`,
-      contenu_texte: faker.lorem.sentences(2),
-      type_campagne: faker.random.arrayElement(['newsletter', 'promotion', 'invitation', 'notification', 'autre']),
-      date_programmation: faker.date.future(),
-      statut: faker.random.arrayElement(['brouillon', 'programmée', 'envoyée']),
-      createur_id: faker.random.arrayElement(users).id,
-      segment_id: faker.random.arrayElement(segments).id,
-      priorite: faker.random.arrayElement(['basse', 'normale', 'haute']),
-      limite_envois: faker.datatype.number({ min: 50, max: 500 }),
-      tags_ids: [],
-      contacts_ids: []
-    }));
+    campagnes.push(
+      await db.CampagneEmail.create({
+        titre: faker.company.bsBuzz(),
+        sujet: faker.company.bs(),
+        contenu_html: `<h2>${faker.company.catchPhrase()}</h2><p>${faker.lorem.text()}</p>`,
+        contenu_texte: faker.lorem.sentences(2),
+        type_campagne: faker.random.arrayElement([
+          'newsletter',
+          'promotion',
+          'invitation',
+          'notification',
+          'autre',
+        ]),
+        date_programmation: faker.date.future(),
+        statut: faker.random.arrayElement(['brouillon', 'programmée', 'envoyée']),
+        createur_id: faker.random.arrayElement(users).id,
+        segment_id: faker.random.arrayElement(segments).id,
+        priorite: faker.random.arrayElement(['basse', 'normale', 'haute']),
+        limite_envois: faker.datatype.number({ min: 50, max: 500 }),
+        tags_ids: [],
+        contacts_ids: [],
+      })
+    );
   }
 
   // Statistiques campagnes
@@ -138,4 +159,7 @@ async function seed() {
   process.exit();
 }
 
-seed().catch(e => { console.error(e); process.exit(1); });
+seed().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

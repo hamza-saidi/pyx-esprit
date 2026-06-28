@@ -38,7 +38,7 @@ const templates = [
           </div>
       </body>
       </html>
-    `.trim()
+    `.trim(),
   },
   {
     nom: 'Offre Green Fee - Spéciale',
@@ -54,7 +54,7 @@ const templates = [
           </div>
         </div>
       </div>
-    `.trim()
+    `.trim(),
   },
   {
     nom: 'Accueil Nouveaux Membres',
@@ -80,8 +80,8 @@ const templates = [
           </table>
         </td></tr>
       </table>
-    `.trim()
-  }
+    `.trim(),
+  },
 ];
 
 const seedTemplates = async () => {
@@ -90,7 +90,7 @@ const seedTemplates = async () => {
     for (const t of templates) {
       await ModeleEmail.findOrCreate({
         where: { nom: t.nom },
-        defaults: t
+        defaults: t,
       });
     }
     console.log('✅ Templates seeded successfully.');

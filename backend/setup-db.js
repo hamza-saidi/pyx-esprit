@@ -10,11 +10,11 @@ require('dotenv').config();
 const { Sequelize } = require('sequelize');
 const bcrypt = require('bcryptjs');
 
-const DB_HOST     = process.env.DB_HOST     || 'localhost';
-const DB_USER     = process.env.DB_USER     || 'root';
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_USER = process.env.DB_USER || 'root';
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
-const DB_NAME     = process.env.DB_NAME     || 'maycemj';
-const DB_PORT     = Number(process.env.DB_PORT || 3306);
+const DB_NAME = process.env.DB_NAME || 'maycemj';
+const DB_PORT = Number(process.env.DB_PORT || 3306);
 
 async function main() {
   // ── Step 1: Create the database if it doesn't exist ──────────────────────
@@ -42,7 +42,7 @@ async function main() {
 
   // ── Step 2: Load models and sync all tables ───────────────────────────────
   console.log('\n🔧 Syncing all models...');
-  const db = require('./models');        // uses .env values internally
+  const db = require('./models'); // uses .env values internally
 
   try {
     await db.sequelize.authenticate();
@@ -66,10 +66,10 @@ async function main() {
   } else {
     const hashed = await bcrypt.hash('12345', 10);
     await Utilisateur.create({
-      nom:          'Maycem Admin',
-      email:        'maycem2003@gmail.com',
+      nom: 'Maycem Admin',
+      email: 'maycem2003@gmail.com',
       mot_de_passe: hashed,
-      role:         'admin',
+      role: 'admin',
     });
     console.log('✅ Admin user created: maycem2003@gmail.com / 12345');
   }
@@ -78,7 +78,7 @@ async function main() {
   console.log('\n🎉 Setup complete!\n');
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('❌ Unexpected error:', err);
   process.exit(1);
 });
