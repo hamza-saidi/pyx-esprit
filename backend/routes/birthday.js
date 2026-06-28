@@ -7,5 +7,3 @@ router.get('/today', authenticateToken, birthdayController.listToday);
 router.post('/today/send', authenticateToken, birthdayController.sendToday);
 
 module.exports = router;
-
-

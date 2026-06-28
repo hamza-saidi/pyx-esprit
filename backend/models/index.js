@@ -14,44 +14,39 @@ const databasePassword = process.env.DB_PASSWORD || config.database.password;
 const databaseHost = process.env.DB_HOST || config.database.host;
 const databasePort = Number(process.env.DB_PORT || config.database.port || 3306);
 
-const sequelize = new Sequelize(
-  databaseName,
-  databaseUser,
-  databasePassword,
-  {
-    host: databaseHost,
-    port: databasePort,
-    dialect: 'mysql',
-    logging: false,
-    dialectOptions: {
-      charset: 'utf8mb4'
-    },
-    define: {
-      charset: 'utf8mb4',
-      collate: 'utf8mb4_general_ci'
-    },
-    // Conservative pool but expanded for production stability
-    pool: {
-      max: 15,
-      min: 2,
-      acquire: 30000,
-      idle: 10000,
-      evict: 10000,
-    },
-  }
-);
+const sequelize = new Sequelize(databaseName, databaseUser, databasePassword, {
+  host: databaseHost,
+  port: databasePort,
+  dialect: 'mysql',
+  logging: false,
+  dialectOptions: {
+    charset: 'utf8mb4',
+  },
+  define: {
+    charset: 'utf8mb4',
+    collate: 'utf8mb4_general_ci',
+  },
+  // Conservative pool but expanded for production stability
+  pool: {
+    max: 15,
+    min: 2,
+    acquire: 30000,
+    idle: 10000,
+    evict: 10000,
+  },
+});
 
 const db = {};
 
 fs.readdirSync(__dirname)
-  .filter(file => file !== 'index.js' && file.endsWith('.js'))
-  .forEach(file => {
+  .filter((file) => file !== 'index.js' && file.endsWith('.js'))
+  .forEach((file) => {
     const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
     db[model.name] = model;
   });
 
 // Associations
-Object.keys(db).forEach(modelName => {
+Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
   }
@@ -60,4 +55,4 @@ Object.keys(db).forEach(modelName => {
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
-module.exports = db; 
+module.exports = db;

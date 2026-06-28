@@ -9,4 +9,4 @@ router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.post('/verify-mfa', authController.verifyMfa);
 
-module.exports = router; 
+module.exports = router;

@@ -16,8 +16,15 @@ router.post('/', authenticateToken, authorizeRoles('admin'), async (req, res) =>
     if (!nom || !email || !mot_de_passe) {
       return res.status(400).json({ message: 'Nom, email et mot de passe requis' });
     }
-    if (mot_de_passe.length < 8 || !/[A-Z]/.test(mot_de_passe) || !/[a-z]/.test(mot_de_passe) || !/[0-9]/.test(mot_de_passe)) {
-      return res.status(400).json({ message: 'Mot de passe faible (8+ caractères, majuscule, minuscule, chiffre requis)' });
+    if (
+      mot_de_passe.length < 8 ||
+      !/[A-Z]/.test(mot_de_passe) ||
+      !/[a-z]/.test(mot_de_passe) ||
+      !/[0-9]/.test(mot_de_passe)
+    ) {
+      return res.status(400).json({
+        message: 'Mot de passe faible (8+ caractères, majuscule, minuscule, chiffre requis)',
+      });
     }
     const existing = await Utilisateur.findOne({ where: { email } });
     if (existing) return res.status(400).json({ message: 'Email déjà utilisé' });
@@ -38,4 +45,4 @@ router.delete('/:id', authenticateToken, authorizeRoles('admin'), async (req, re
   res.json({ message: 'Utilisateur supprimé' });
 });
 
-module.exports = router; 
+module.exports = router;

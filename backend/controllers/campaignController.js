@@ -17,8 +17,8 @@ exports.getAll = async (req, res) => {
       include: [
         { model: Utilisateur, as: 'createur', attributes: ['id', 'nom', 'email'] },
         { model: Segment, as: 'segment' },
-        { model: StatistiqueCampagne, as: 'statistiques' }
-      ]
+        { model: StatistiqueCampagne, as: 'statistiques' },
+      ],
     });
     res.json(campagnes);
   } catch (err) {
@@ -32,8 +32,8 @@ exports.getOne = async (req, res) => {
       include: [
         { model: Utilisateur, as: 'createur', attributes: ['id', 'nom', 'email'] },
         { model: Segment, as: 'segment' },
-        { model: StatistiqueCampagne, as: 'statistiques' }
-      ]
+        { model: StatistiqueCampagne, as: 'statistiques' },
+      ],
     });
     if (!campagne) return res.status(404).json({ message: 'Campagne non trouvée' });
     res.json(campagne);
@@ -72,4 +72,4 @@ exports.send = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-}; 
+};

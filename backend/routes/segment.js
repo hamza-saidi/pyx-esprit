@@ -19,4 +19,4 @@ router.post('/preview-count', authenticateToken, segmentController.previewCount)
 // Détacher des campagnes d'un segment
 router.post('/:id/detach-campaigns', authenticateToken, segmentController.detachCampaigns);
 
-module.exports = router; 
+module.exports = router;

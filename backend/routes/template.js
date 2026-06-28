@@ -30,7 +30,7 @@ const storage = multer.diskStorage({
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const ext = path.extname(file.originalname || '') || '';
     cb(null, `${unique}${ext}`);
-  }
+  },
 });
 
 const upload = multer({ storage });
@@ -41,20 +41,21 @@ router.post('/media/upload', authenticateToken, upload.single('file'), (req, res
     url: fileUrl,
     name: req.file.originalname,
     size: req.file.size,
-    mimeType: req.file.mimetype
+    mimeType: req.file.mimetype,
   });
 });
 
 router.get('/media/recent', authenticateToken, (req, res) => {
   const dir = path.join(__dirname, '..', 'uploads');
   if (!fs.existsSync(dir)) return res.json([]);
-  const files = fs.readdirSync(dir)
-    .map(name => ({
+  const files = fs
+    .readdirSync(dir)
+    .map((name) => ({
       name,
       mtime: fs.statSync(path.join(dir, name)).mtime.getTime(),
-      url: `${getPublicBaseUrl(req)}/api/templates/media/${name}`
+      url: `${getPublicBaseUrl(req)}/api/templates/media/${name}`,
     }))
-    .sort((a,b) => b.mtime - a.mtime)
+    .sort((a, b) => b.mtime - a.mtime)
     .slice(0, 50);
   res.json(files);
 });
@@ -66,4 +67,4 @@ router.get('/media/:name', (req, res) => {
   res.sendFile(filePath);
 });
 
-module.exports = router; 
+module.exports = router;

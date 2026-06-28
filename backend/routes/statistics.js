@@ -18,4 +18,4 @@ router.get('/segment/:segmentId', authenticateToken, statisticsController.getSta
 // Statistiques des événements
 router.get('/events', authenticateToken, statisticsController.getEventStats);
 
-module.exports = router; 
+module.exports = router;

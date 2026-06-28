@@ -9,7 +9,7 @@ exports.create = async (req, res) => {
       nom: req.body.nom,
       contenu_html: req.body.contenu_html,
       blocks_json: req.body.blocks_json || null,
-      design_json: req.body.design_json || null
+      design_json: req.body.design_json || null,
     };
     const template = await ModeleEmail.create(payload);
     res.status(201).json(template);
@@ -20,7 +20,7 @@ exports.create = async (req, res) => {
 
 exports.getAll = async (req, res) => {
   try {
-    const templates = await ModeleEmail.findAll({ order: [['date_creation','DESC']] });
+    const templates = await ModeleEmail.findAll({ order: [['date_creation', 'DESC']] });
     res.json(templates);
   } catch (err) {
     try {
@@ -28,8 +28,13 @@ exports.getAll = async (req, res) => {
       const status = err?.response?.status || 500;
       // Fallback: générer un HTML simple si OpenAI échoue
       const texte = req.body?.texte || '';
-      const paragraphs = (texte || '').split(/\n{1,}/).map(p => p.trim()).filter(Boolean);
-      const htmlBody = paragraphs.map(p => `<p style="margin:0 0 12px">${p.replace(/\n/g, '<br/>')}</p>`).join('\n');
+      const paragraphs = (texte || '')
+        .split(/\n{1,}/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      const htmlBody = paragraphs
+        .map((p) => `<p style="margin:0 0 12px">${p.replace(/\n/g, '<br/>')}</p>`)
+        .join('\n');
       const fallbackHtml = `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f7;padding:24px">
           <tr><td align="center">
@@ -81,13 +86,19 @@ exports.delete = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-}; 
+};
 
 // Suggestion de modèles (stub AI)
 exports.suggest = async (req, res) => {
   try {
-    const { type = 'anniversaire', ton = 'amical', longueur = 'moyen', sujet = '' } = req.body || {};
-    const subject = sujet || (type === 'anniversaire' ? 'Joyeux anniversaire !' : 'Newsletter du club');
+    const {
+      type = 'anniversaire',
+      ton = 'amical',
+      longueur = 'moyen',
+      sujet = '',
+    } = req.body || {};
+    const subject =
+      sujet || (type === 'anniversaire' ? 'Joyeux anniversaire !' : 'Newsletter du club');
     const html = `
       <h2>${subject}</h2>
       <p style="font-size:16px">Bonjour {{prenom}},</p>
@@ -111,7 +122,7 @@ exports.textToHtml = async (req, res) => {
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ message: 'OPENAI_API_KEY manquant dans l\'environnement' });
+      return res.status(500).json({ message: "OPENAI_API_KEY manquant dans l'environnement" });
     }
 
     const openai = new OpenAI({ apiKey });
@@ -120,11 +131,15 @@ exports.textToHtml = async (req, res) => {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'Tu es un assistant qui génère des emails HTML responsives compatibles avec Nodemailer.' },
-        { role: 'user', content: prompt }
+        {
+          role: 'system',
+          content:
+            'Tu es un assistant qui génère des emails HTML responsives compatibles avec Nodemailer.',
+        },
+        { role: 'user', content: prompt },
       ],
       temperature: 0.6,
-      max_tokens: 1500
+      max_tokens: 1500,
     });
 
     const html = completion.choices?.[0]?.message?.content?.trim();

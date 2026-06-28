@@ -22,4 +22,4 @@ router.get('/:id/statistiques', authenticateToken, eventController.getEventStats
 // Annuler un événement
 router.post('/:id/annuler', authenticateToken, eventController.cancelEvent);
 
-module.exports = router; 
+module.exports = router;

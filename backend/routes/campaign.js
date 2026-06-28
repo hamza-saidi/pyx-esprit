@@ -13,4 +13,4 @@ router.delete('/:id', authenticateToken, campaignController.delete);
 // Envoi d'emails
 router.post('/:id/send', authenticateToken, campaignController.send);
 
-module.exports = router; 
+module.exports = router;

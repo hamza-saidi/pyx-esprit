@@ -9,4 +9,3 @@ router.get('/open/:token', trackingController.trackOpen);
 router.get('/click/:token', trackingController.trackClick);
 
 module.exports = router;
-

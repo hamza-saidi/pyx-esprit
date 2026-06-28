@@ -4,27 +4,27 @@ const { Op } = require('sequelize');
 // Validation helper
 const validateEventData = (data) => {
   const errors = [];
-  
+
   if (!data.titre || data.titre.trim().length < 3) {
     errors.push('Le titre doit contenir au moins 3 caractères');
   }
-  
+
   if (!data.date || new Date(data.date) <= new Date()) {
-    errors.push('La date de l\'événement doit être dans le futur');
+    errors.push("La date de l'événement doit être dans le futur");
   }
-  
+
   if (!data.lieu || data.lieu.trim().length < 2) {
     errors.push('Le lieu doit contenir au moins 2 caractères');
   }
-  
+
   if (data.index_requis && (data.index_requis < -54 || data.index_requis > 54)) {
-    errors.push('L\'index requis doit être entre -54 et +54');
+    errors.push("L'index requis doit être entre -54 et +54");
   }
-  
+
   if (data.capacite_max && data.capacite_max < 1) {
     errors.push('La capacité maximale doit être supérieure à 0');
   }
-  
+
   return errors;
 };
 
@@ -32,16 +32,25 @@ const validateEventData = (data) => {
 exports.create = async (req, res) => {
   try {
     const {
-      titre, date, lieu, description, index_requis, capacite_max,
-      type_evenement, prix, tags_ids, parametres, evenement_recurrent
+      titre,
+      date,
+      lieu,
+      description,
+      index_requis,
+      capacite_max,
+      type_evenement,
+      prix,
+      tags_ids,
+      parametres,
+      evenement_recurrent,
     } = req.body;
 
     // Validation des données
     const validationErrors = validateEventData(req.body);
     if (validationErrors.length > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Données invalides',
-        errors: validationErrors
+        errors: validationErrors,
       });
     }
 
@@ -52,16 +61,16 @@ exports.create = async (req, res) => {
         date: {
           [Op.between]: [
             new Date(new Date(date).getTime() - 2 * 60 * 60 * 1000), // 2h avant
-            new Date(new Date(date).getTime() + 4 * 60 * 60 * 1000)  // 4h après
-          ]
+            new Date(new Date(date).getTime() + 4 * 60 * 60 * 1000), // 4h après
+          ],
         },
-        actif: true
-      }
+        actif: true,
+      },
     });
 
     if (conflit) {
-      return res.status(400).json({ 
-        message: 'Conflit d\'horaire détecté avec un autre événement au même lieu' 
+      return res.status(400).json({
+        message: "Conflit d'horaire détecté avec un autre événement au même lieu",
       });
     }
 
@@ -80,10 +89,10 @@ exports.create = async (req, res) => {
         ...parametres,
         evenement_recurrent: evenement_recurrent || false,
         created_by: req.user.id,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       },
       statut: 'planifié',
-      actif: true
+      actif: true,
     });
 
     // Si c'est un événement récurrent, créer les occurrences futures
@@ -98,34 +107,34 @@ exports.create = async (req, res) => {
           {
             model: Rsvp,
             as: 'rsvps',
-            include: [{ model: Contact, as: 'contact' }]
-          }
-        ]
-      })
+            include: [{ model: Contact, as: 'contact' }],
+          },
+        ],
+      }),
     });
   } catch (err) {
     console.error('Erreur create event:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de la création de l\'événement', 
-      error: err.message 
+    res.status(500).json({
+      message: "Erreur lors de la création de l'événement",
+      error: err.message,
     });
   }
 };
 
 exports.getAll = async (req, res) => {
   try {
-    const { 
-      statut, 
-      type, 
-      search, 
-      date_debut, 
+    const {
+      statut,
+      type,
+      search,
+      date_debut,
       date_fin,
       lieu,
       index_requis,
       page = 1,
       limit = 20,
       sortBy = 'date',
-      sortOrder = 'ASC'
+      sortOrder = 'ASC',
     } = req.query;
 
     const offset = (page - 1) * limit;
@@ -136,12 +145,12 @@ exports.getAll = async (req, res) => {
     if (type) whereClause.type_evenement = type;
     if (lieu) whereClause.lieu = { [Op.like]: `%${lieu}%` };
     if (index_requis) whereClause.index_requis = { [Op.lte]: parseFloat(index_requis) };
-    
+
     if (search) {
       whereClause[Op.or] = [
         { titre: { [Op.like]: `%${search}%` } },
         { description: { [Op.like]: `%${search}%` } },
-        { lieu: { [Op.like]: `%${search}%` } }
+        { lieu: { [Op.like]: `%${search}%` } },
       ];
     }
 
@@ -154,9 +163,11 @@ exports.getAll = async (req, res) => {
     // Validation du tri
     const allowedSortFields = ['date', 'titre', 'lieu', 'type_evenement', 'prix'];
     const allowedSortOrders = ['ASC', 'DESC'];
-    
+
     const finalSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'date';
-    const finalSortOrder = allowedSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'ASC';
+    const finalSortOrder = allowedSortOrders.includes(sortOrder.toUpperCase())
+      ? sortOrder.toUpperCase()
+      : 'ASC';
 
     const { count, rows: events } = await Evenement.findAndCountAll({
       where: whereClause,
@@ -164,12 +175,12 @@ exports.getAll = async (req, res) => {
         {
           model: Rsvp,
           as: 'rsvps',
-          include: [{ model: Contact, as: 'contact' }]
-        }
+          include: [{ model: Contact, as: 'contact' }],
+        },
       ],
       order: [[finalSortBy, finalSortOrder]],
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: parseInt(offset),
     });
 
     // Calculer les statistiques globales
@@ -178,9 +189,9 @@ exports.getAll = async (req, res) => {
       attributes: [
         'statut',
         'type_evenement',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
       ],
-      group: ['statut', 'type_evenement']
+      group: ['statut', 'type_evenement'],
     });
 
     res.json({
@@ -200,14 +211,14 @@ exports.getAll = async (req, res) => {
         date_debut,
         date_fin,
         lieu,
-        index_requis
-      }
+        index_requis,
+      },
     });
   } catch (err) {
     console.error('Erreur getAll events:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de la récupération des événements', 
-      error: err.message 
+    res.status(500).json({
+      message: 'Erreur lors de la récupération des événements',
+      error: err.message,
     });
   }
 };
@@ -215,23 +226,23 @@ exports.getAll = async (req, res) => {
 exports.getOne = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const event = await Evenement.findByPk(id, {
       include: [
         {
           model: Rsvp,
           as: 'rsvps',
           include: [
-            { 
-              model: Contact, 
+            {
+              model: Contact,
               as: 'contact',
-              attributes: ['id', 'nom', 'prenom', 'email', 'telephone', 'handicap', 'type_client']
-            }
-          ]
-        }
-      ]
+              attributes: ['id', 'nom', 'prenom', 'email', 'telephone', 'handicap', 'type_client'],
+            },
+          ],
+        },
+      ],
     });
-    
+
     if (!event) {
       return res.status(404).json({ message: 'Événement non trouvé' });
     }
@@ -239,27 +250,33 @@ exports.getOne = async (req, res) => {
     // Calculer les statistiques de l'événement
     const statsEvenement = {
       total_invites: event.rsvps?.length || 0,
-      confirmes: event.rsvps?.filter(r => r.statut === 'confirmé').length || 0,
-      absents: event.rsvps?.filter(r => r.statut === 'absent').length || 0,
-      en_attente: event.rsvps?.filter(r => r.statut === 'invité').length || 0,
+      confirmes: event.rsvps?.filter((r) => r.statut === 'confirmé').length || 0,
+      absents: event.rsvps?.filter((r) => r.statut === 'absent').length || 0,
+      en_attente: event.rsvps?.filter((r) => r.statut === 'invité').length || 0,
       taux_confirmation: 0,
-      taux_participation: 0
+      taux_participation: 0,
     };
 
     if (statsEvenement.total_invites > 0) {
-      statsEvenement.taux_confirmation = (statsEvenement.confirmes / statsEvenement.total_invites * 100).toFixed(2);
-      statsEvenement.taux_participation = ((statsEvenement.confirmes + statsEvenement.absents) / statsEvenement.total_invites * 100).toFixed(2);
+      statsEvenement.taux_confirmation = (
+        (statsEvenement.confirmes / statsEvenement.total_invites) *
+        100
+      ).toFixed(2);
+      statsEvenement.taux_participation = (
+        ((statsEvenement.confirmes + statsEvenement.absents) / statsEvenement.total_invites) *
+        100
+      ).toFixed(2);
     }
 
     res.json({
       ...event.toJSON(),
-      statistiques: statsEvenement
+      statistiques: statsEvenement,
     });
   } catch (err) {
     console.error('Erreur getOne event:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de la récupération de l\'événement', 
-      error: err.message 
+    res.status(500).json({
+      message: "Erreur lors de la récupération de l'événement",
+      error: err.message,
     });
   }
 };
@@ -276,8 +293,8 @@ exports.update = async (req, res) => {
 
     // Vérifier que l'événement peut être modifié
     if (['termine', 'annule'].includes(event.statut)) {
-      return res.status(400).json({ 
-        message: 'Impossible de modifier un événement terminé ou annulé' 
+      return res.status(400).json({
+        message: 'Impossible de modifier un événement terminé ou annulé',
       });
     }
 
@@ -288,14 +305,14 @@ exports.update = async (req, res) => {
         date: updateData.date || event.date,
         lieu: updateData.lieu || event.lieu,
         index_requis: updateData.index_requis || event.index_requis,
-        capacite_max: updateData.capacite_max || event.capacite_max
+        capacite_max: updateData.capacite_max || event.capacite_max,
       };
-      
+
       const validationErrors = validateEventData(validationData);
       if (validationErrors.length > 0) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Données invalides',
-          errors: validationErrors
+          errors: validationErrors,
         });
       }
     }
@@ -304,7 +321,7 @@ exports.update = async (req, res) => {
     if (updateData.date || updateData.lieu) {
       const nouvelleDate = updateData.date ? new Date(updateData.date) : event.date;
       const nouveauLieu = updateData.lieu || event.lieu;
-      
+
       const conflit = await Evenement.findOne({
         where: {
           id: { [Op.ne]: id },
@@ -312,22 +329,22 @@ exports.update = async (req, res) => {
           date: {
             [Op.between]: [
               new Date(nouvelleDate.getTime() - 2 * 60 * 60 * 1000),
-              new Date(nouvelleDate.getTime() + 4 * 60 * 60 * 1000)
-            ]
+              new Date(nouvelleDate.getTime() + 4 * 60 * 60 * 1000),
+            ],
           },
-          actif: true
-        }
+          actif: true,
+        },
       });
 
       if (conflit) {
-        return res.status(400).json({ 
-          message: 'Conflit d\'horaire détecté avec un autre événement au même lieu' 
+        return res.status(400).json({
+          message: "Conflit d'horaire détecté avec un autre événement au même lieu",
         });
       }
     }
 
     await event.update(updateData);
-    
+
     res.json({
       message: 'Événement mis à jour avec succès',
       event: await Evenement.findByPk(id, {
@@ -335,16 +352,16 @@ exports.update = async (req, res) => {
           {
             model: Rsvp,
             as: 'rsvps',
-            include: [{ model: Contact, as: 'contact' }]
-          }
-        ]
-      })
+            include: [{ model: Contact, as: 'contact' }],
+          },
+        ],
+      }),
     });
   } catch (err) {
     console.error('Erreur update event:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de la mise à jour de l\'événement', 
-      error: err.message 
+    res.status(500).json({
+      message: "Erreur lors de la mise à jour de l'événement",
+      error: err.message,
     });
   }
 };
@@ -360,20 +377,20 @@ exports.delete = async (req, res) => {
 
     // Vérifier que l'événement peut être supprimé
     if (event.statut === 'en_cours') {
-      return res.status(400).json({ 
-        message: 'Impossible de supprimer un événement en cours' 
+      return res.status(400).json({
+        message: 'Impossible de supprimer un événement en cours',
       });
     }
 
     // Soft delete
     await event.update({ actif: false });
-    
+
     res.json({ message: 'Événement supprimé avec succès' });
   } catch (err) {
     console.error('Erreur delete event:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de la suppression de l\'événement', 
-      error: err.message 
+    res.status(500).json({
+      message: "Erreur lors de la suppression de l'événement",
+      error: err.message,
     });
   }
 };
@@ -385,8 +402,8 @@ exports.invite = async (req, res) => {
     const { id: evenement_id } = req.params;
 
     if (!contact_ids || !Array.isArray(contact_ids) || contact_ids.length === 0) {
-      return res.status(400).json({ 
-        message: 'Au moins un contact doit être spécifié' 
+      return res.status(400).json({
+        message: 'Au moins un contact doit être spécifié',
       });
     }
 
@@ -398,12 +415,12 @@ exports.invite = async (req, res) => {
     // Vérifier la capacité
     if (event.capacite_max) {
       const rsvpsExistants = await Rsvp.count({
-        where: { evenement_id, statut: { [Op.in]: ['invité', 'confirmé'] } }
+        where: { evenement_id, statut: { [Op.in]: ['invité', 'confirmé'] } },
       });
-      
+
       if (rsvpsExistants + contact_ids.length > event.capacite_max) {
-        return res.status(400).json({ 
-          message: `Capacité maximale dépassée. Places disponibles: ${event.capacite_max - rsvpsExistants}` 
+        return res.status(400).json({
+          message: `Capacité maximale dépassée. Places disponibles: ${event.capacite_max - rsvpsExistants}`,
         });
       }
     }
@@ -413,7 +430,7 @@ exports.invite = async (req, res) => {
     for (const contact_id of contact_ids) {
       // Vérifier si le contact n'est pas déjà invité
       const rsvpExistant = await Rsvp.findOne({
-        where: { contact_id, evenement_id }
+        where: { contact_id, evenement_id },
       });
 
       if (!rsvpExistant) {
@@ -422,7 +439,7 @@ exports.invite = async (req, res) => {
           evenement_id,
           statut: 'invité',
           message_personnalise: message_personnalise || null,
-          date_invitation: new Date()
+          date_invitation: new Date(),
         });
         rsvps.push(rsvp);
       }
@@ -431,13 +448,13 @@ exports.invite = async (req, res) => {
     res.status(201).json({
       message: `${rsvps.length} invitation(s) créée(s) avec succès`,
       rsvps_crees: rsvps.length,
-      total_invites: await Rsvp.count({ where: { evenement_id } })
+      total_invites: await Rsvp.count({ where: { evenement_id } }),
     });
   } catch (err) {
     console.error('Erreur invite:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de l\'invitation des contacts', 
-      error: err.message 
+    res.status(500).json({
+      message: "Erreur lors de l'invitation des contacts",
+      error: err.message,
     });
   }
 };
@@ -451,10 +468,10 @@ exports.updateRsvp = async (req, res) => {
     const rsvp = await Rsvp.findByPk(rsvpId, {
       include: [
         { model: Contact, as: 'contact' },
-        { model: Evenement, as: 'evenement' }
-      ]
+        { model: Evenement, as: 'evenement' },
+      ],
     });
-    
+
     if (!rsvp) {
       return res.status(404).json({ message: 'RSVP non trouvé' });
     }
@@ -462,24 +479,24 @@ exports.updateRsvp = async (req, res) => {
     // Vérifier que le statut est valide
     const statutsValides = ['invité', 'confirmé', 'absent', 'annule'];
     if (!statutsValides.includes(statut)) {
-      return res.status(400).json({ 
-        message: 'Statut invalide' 
+      return res.status(400).json({
+        message: 'Statut invalide',
       });
     }
 
     // Vérifier la capacité si on confirme
     if (statut === 'confirmé' && rsvp.evenement.capacite_max) {
       const confirmesExistants = await Rsvp.count({
-        where: { 
-          evenement_id: rsvp.evenement_id, 
+        where: {
+          evenement_id: rsvp.evenement_id,
           statut: 'confirmé',
-          id: { [Op.ne]: rsvpId }
-        }
+          id: { [Op.ne]: rsvpId },
+        },
       });
-      
+
       if (confirmesExistants >= rsvp.evenement.capacite_max) {
-        return res.status(400).json({ 
-          message: 'Capacité maximale atteinte pour cet événement' 
+        return res.status(400).json({
+          message: 'Capacité maximale atteinte pour cet événement',
         });
       }
     }
@@ -487,7 +504,7 @@ exports.updateRsvp = async (req, res) => {
     await rsvp.update({
       statut,
       commentaire: commentaire || null,
-      date_confirmation: statut === 'confirmé' ? (date_confirmation || new Date()) : null
+      date_confirmation: statut === 'confirmé' ? date_confirmation || new Date() : null,
     });
 
     res.json({
@@ -495,15 +512,15 @@ exports.updateRsvp = async (req, res) => {
       rsvp: await Rsvp.findByPk(rsvpId, {
         include: [
           { model: Contact, as: 'contact' },
-          { model: Evenement, as: 'evenement' }
-        ]
-      })
+          { model: Evenement, as: 'evenement' },
+        ],
+      }),
     });
   } catch (err) {
     console.error('Erreur updateRsvp:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de la mise à jour du RSVP', 
-      error: err.message 
+    res.status(500).json({
+      message: 'Erreur lors de la mise à jour du RSVP',
+      error: err.message,
     });
   }
 };
@@ -512,17 +529,17 @@ exports.updateRsvp = async (req, res) => {
 exports.getEventStats = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const event = await Evenement.findByPk(id, {
       include: [
         {
           model: Rsvp,
           as: 'rsvps',
-          include: [{ model: Contact, as: 'contact' }]
-        }
-      ]
+          include: [{ model: Contact, as: 'contact' }],
+        },
+      ],
     });
-    
+
     if (!event) {
       return res.status(404).json({ message: 'Événement non trouvé' });
     }
@@ -530,24 +547,27 @@ exports.getEventStats = async (req, res) => {
     // Statistiques détaillées
     const stats = {
       total_invites: event.rsvps?.length || 0,
-      confirmes: event.rsvps?.filter(r => r.statut === 'confirmé').length || 0,
-      absents: event.rsvps?.filter(r => r.statut === 'absent').length || 0,
-      en_attente: event.rsvps?.filter(r => r.statut === 'invité').length || 0,
-      annules: event.rsvps?.filter(r => r.statut === 'annule').length || 0,
+      confirmes: event.rsvps?.filter((r) => r.statut === 'confirmé').length || 0,
+      absents: event.rsvps?.filter((r) => r.statut === 'absent').length || 0,
+      en_attente: event.rsvps?.filter((r) => r.statut === 'invité').length || 0,
+      annules: event.rsvps?.filter((r) => r.statut === 'annule').length || 0,
       taux_confirmation: 0,
       taux_participation: 0,
-      taux_annulation: 0
+      taux_annulation: 0,
     };
 
     if (stats.total_invites > 0) {
-      stats.taux_confirmation = (stats.confirmes / stats.total_invites * 100).toFixed(2);
-      stats.taux_participation = ((stats.confirmes + stats.absents) / stats.total_invites * 100).toFixed(2);
-      stats.taux_annulation = (stats.annules / stats.total_invites * 100).toFixed(2);
+      stats.taux_confirmation = ((stats.confirmes / stats.total_invites) * 100).toFixed(2);
+      stats.taux_participation = (
+        ((stats.confirmes + stats.absents) / stats.total_invites) *
+        100
+      ).toFixed(2);
+      stats.taux_annulation = ((stats.annules / stats.total_invites) * 100).toFixed(2);
     }
 
     // Statistiques par type de client
     const statsParTypeClient = {};
-    event.rsvps?.forEach(rsvp => {
+    event.rsvps?.forEach((rsvp) => {
       const type = rsvp.contact?.type_client || 'non_defini';
       if (!statsParTypeClient[type]) {
         statsParTypeClient[type] = { total: 0, confirmes: 0, absents: 0 };
@@ -559,7 +579,7 @@ exports.getEventStats = async (req, res) => {
 
     // Statistiques par handicap
     const statsParHandicap = {};
-    event.rsvps?.forEach(rsvp => {
+    event.rsvps?.forEach((rsvp) => {
       const handicap = rsvp.contact?.handicap || 'non_defini';
       if (!statsParHandicap[handicap]) {
         statsParHandicap[handicap] = { total: 0, confirmes: 0 };
@@ -575,17 +595,17 @@ exports.getEventStats = async (req, res) => {
         date: event.date,
         lieu: event.lieu,
         capacite_max: event.capacite_max,
-        statut: event.statut
+        statut: event.statut,
       },
       statistiques: stats,
       repartition_par_type_client: statsParTypeClient,
-      repartition_par_handicap: statsParHandicap
+      repartition_par_handicap: statsParHandicap,
     });
   } catch (err) {
     console.error('Erreur getEventStats:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de la récupération des statistiques', 
-      error: err.message 
+    res.status(500).json({
+      message: 'Erreur lors de la récupération des statistiques',
+      error: err.message,
     });
   }
 };
@@ -602,11 +622,11 @@ exports.cancelEvent = async (req, res) => {
     }
 
     if (event.statut === 'annule') {
-      return res.status(400).json({ message: 'L\'événement est déjà annulé' });
+      return res.status(400).json({ message: "L'événement est déjà annulé" });
     }
 
     if (event.statut === 'termine') {
-      return res.status(400).json({ message: 'Impossible d\'annuler un événement terminé' });
+      return res.status(400).json({ message: "Impossible d'annuler un événement terminé" });
     }
 
     // Annuler l'événement
@@ -616,30 +636,30 @@ exports.cancelEvent = async (req, res) => {
         ...event.parametres,
         raison_annulation,
         annule_le: new Date().toISOString(),
-        annule_par: req.user.id
-      }
+        annule_par: req.user.id,
+      },
     });
 
     // Mettre à jour tous les RSVP en attente
     await Rsvp.update(
       { statut: 'annule' },
-      { 
-        where: { 
-          evenement_id: id, 
-          statut: 'invité' 
-        } 
+      {
+        where: {
+          evenement_id: id,
+          statut: 'invité',
+        },
       }
     );
 
     res.json({
       message: 'Événement annulé avec succès',
-      event: await Evenement.findByPk(id)
+      event: await Evenement.findByPk(id),
     });
   } catch (err) {
     console.error('Erreur cancelEvent:', err);
-    res.status(500).json({ 
-      message: 'Erreur lors de l\'annulation de l\'événement', 
-      error: err.message 
+    res.status(500).json({
+      message: "Erreur lors de l'annulation de l'événement",
+      error: err.message,
     });
   }
 };
@@ -648,13 +668,13 @@ exports.cancelEvent = async (req, res) => {
 async function createRecurringEvents(event, config) {
   const { frequence, nombre_occurrences, date_fin } = config;
   const occurrences = [];
-  
+
   let currentDate = new Date(event.date);
   let count = 0;
-  
+
   while (count < (nombre_occurrences || 12)) {
     if (date_fin && currentDate > new Date(date_fin)) break;
-    
+
     // Calculer la prochaine date selon la fréquence
     switch (frequence) {
       case 'quotidien':
@@ -672,7 +692,7 @@ async function createRecurringEvents(event, config) {
       default:
         return; // Fréquence non supportée
     }
-    
+
     // Créer l'occurrence
     const occurrence = await Evenement.create({
       titre: `${event.titre} (${frequence})`,
@@ -687,15 +707,15 @@ async function createRecurringEvents(event, config) {
       parametres: {
         ...event.parametres,
         evenement_parent_id: event.id,
-        occurrence_number: count + 1
+        occurrence_number: count + 1,
       },
       statut: 'planifié',
-      actif: true
+      actif: true,
     });
-    
+
     occurrences.push(occurrence);
     count++;
   }
-  
+
   return occurrences;
-} 
+}

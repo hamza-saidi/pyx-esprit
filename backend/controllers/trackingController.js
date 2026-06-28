@@ -7,7 +7,7 @@ exports.trackOpen = async (req, res) => {
   try {
     // Trouver l'envoi correspondant
     const envoi = await EnvoiEmail.findOne({
-      where: { token_tracking: token }
+      where: { token_tracking: token },
     });
 
     if (!envoi) {
@@ -18,17 +18,17 @@ exports.trackOpen = async (req, res) => {
     // Mettre à jour les statistiques d'ouverture
     const now = new Date();
     const currentOpens = envoi.nombre_ouvertures || 0;
-    
+
     const updates = {
       statut: 'ouvert',
       date_ouverture: now,
-      nombre_ouvertures: currentOpens + 1
+      nombre_ouvertures: currentOpens + 1,
     };
 
     await envoi.update(updates);
 
     // Mettre à jour les statistiques de la campagne (non bloquant)
-    mettreAJourStatistiquesCampagne(envoi.campagne_id).catch(err => {
+    mettreAJourStatistiquesCampagne(envoi.campagne_id).catch((err) => {
       console.error('[TRACKING] Error updating global campaign stats after open:', err);
     });
 
@@ -42,8 +42,8 @@ exports.trackOpen = async (req, res) => {
       'Content-Type': 'image/png',
       'Content-Length': pixel.length,
       'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
+      Pragma: 'no-cache',
+      Expires: '0',
     });
 
     return res.send(pixel);
@@ -69,7 +69,7 @@ exports.trackClick = async (req, res) => {
 
     // Trouver l'envoi correspondant
     const envoi = await EnvoiEmail.findOne({
-      where: { token_tracking: token }
+      where: { token_tracking: token },
     });
 
     if (!envoi) {
@@ -77,27 +77,30 @@ exports.trackClick = async (req, res) => {
       return res.status(404).send('Email non trouvé');
     }
 
-    console.log(`[TRACKING] Click detected for campaign ${envoi.campagne_id}, contact ${envoi.contact_id}, URL: ${url}`);
+    console.log(
+      `[TRACKING] Click detected for campaign ${envoi.campagne_id}, contact ${envoi.contact_id}, URL: ${url}`
+    );
 
     // Mettre à jour les statistiques de clic
     const now = new Date();
-    
+
     // S'assurer que nombre_clics n'est pas NULL
     const currentClicks = envoi.nombre_clics || 0;
-    
+
     const updates = {
       statut: 'cliqué',
       date_clic: now,
-      nombre_clics: currentClicks + 1
+      nombre_clics: currentClicks + 1,
     };
 
     // Ajouter le lien cliqué à la liste (gestion robuste du JSON)
     let liensCliques = [];
     try {
       if (envoi.liens_cliques) {
-        liensCliques = typeof envoi.liens_cliques === 'string' 
-          ? JSON.parse(envoi.liens_cliques) 
-          : Array.from(envoi.liens_cliques);
+        liensCliques =
+          typeof envoi.liens_cliques === 'string'
+            ? JSON.parse(envoi.liens_cliques)
+            : Array.from(envoi.liens_cliques);
       }
     } catch (e) {
       console.error('[TRACKING] Error parsing liens_cliques:', e);
@@ -112,7 +115,7 @@ exports.trackClick = async (req, res) => {
     await envoi.update(updates);
 
     // Mettre à jour les statistiques globales de la campagne (non bloquant pour le redirect)
-    mettreAJourStatistiquesCampagne(envoi.campagne_id).catch(err => {
+    mettreAJourStatistiquesCampagne(envoi.campagne_id).catch((err) => {
       console.error('[TRACKING] Error updating global campaign stats:', err);
     });
 
@@ -134,36 +137,38 @@ async function mettreAJourStatistiquesCampagne(campagneId) {
     // Compter les envois par statut
     const stats = await EnvoiEmail.findAll({
       where: { campagne_id: campagneId },
-      attributes: [
-        'statut',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
-      group: ['statut']
+      attributes: ['statut', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      group: ['statut'],
     });
 
     // Compter les ouvertures et clics séparément
     const ouverts = await EnvoiEmail.count({
-      where: { 
+      where: {
         campagne_id: campagneId,
-        date_ouverture: { [Op.not]: null }
-      }
+        date_ouverture: { [Op.not]: null },
+      },
     });
 
     const clics = await EnvoiEmail.count({
-      where: { 
+      where: {
         campagne_id: campagneId,
-        date_clic: { [Op.not]: null }
-      }
+        date_clic: { [Op.not]: null },
+      },
     });
 
     // Calculer les totaux
     let totalEnvoyes = 0;
     let totalErreurs = 0;
 
-    stats.forEach(stat => {
+    stats.forEach((stat) => {
       const count = parseInt(stat.dataValues.count);
 
-      if (stat.statut === 'envoyé' || stat.statut === 'livré' || stat.statut === 'ouvert' || stat.statut === 'cliqué') {
+      if (
+        stat.statut === 'envoyé' ||
+        stat.statut === 'livré' ||
+        stat.statut === 'ouvert' ||
+        stat.statut === 'cliqué'
+      ) {
         totalEnvoyes += count;
       }
       if (stat.statut === 'erreur') {
@@ -172,16 +177,21 @@ async function mettreAJourStatistiquesCampagne(campagneId) {
     });
 
     // Mettre à jour les statistiques
-    await StatistiqueCampagne.update({
-      nb_envoyes: totalEnvoyes,
-      nb_ouverts: ouverts,
-      nb_clics: clics,
-      nb_erreurs: totalErreurs
-    }, {
-      where: { campagne_id: campagneId }
-    });
+    await StatistiqueCampagne.update(
+      {
+        nb_envoyes: totalEnvoyes,
+        nb_ouverts: ouverts,
+        nb_clics: clics,
+        nb_erreurs: totalErreurs,
+      },
+      {
+        where: { campagne_id: campagneId },
+      }
+    );
 
-    console.log(`Statistiques mises à jour pour campagne ${campagneId}: ${totalEnvoyes} envoyés, ${ouverts} ouverts, ${clics} clics`);
+    console.log(
+      `Statistiques mises à jour pour campagne ${campagneId}: ${totalEnvoyes} envoyés, ${ouverts} ouverts, ${clics} clics`
+    );
   } catch (error) {
     console.error('Erreur lors de la mise à jour des statistiques de campagne:', error);
   }

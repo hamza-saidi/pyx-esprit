@@ -8,21 +8,49 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
   const normalizeGender = (value) => {
     if (value === undefined || value === null) return null;
     const v = String(value).trim().toLowerCase();
-    const males = new Set(['h','homme','male','m','masculin','man','men','garçon','garcon','monsieur']);
-    const females = new Set(['f','femme','female','feminin','féminin','feminine','woman','women','w','lady','girl','madame','mme','femmes']);
+    const males = new Set([
+      'h',
+      'homme',
+      'male',
+      'm',
+      'masculin',
+      'man',
+      'men',
+      'garçon',
+      'garcon',
+      'monsieur',
+    ]);
+    const females = new Set([
+      'f',
+      'femme',
+      'female',
+      'feminin',
+      'féminin',
+      'feminine',
+      'woman',
+      'women',
+      'w',
+      'lady',
+      'girl',
+      'madame',
+      'mme',
+      'femmes',
+    ]);
     if (males.has(v)) return { __normalized: 'Homme' };
     if (females.has(v)) return { __normalized: 'Femme' };
     return null;
   };
-  
+
   let criteres = rawCriteres;
   // Robustly handle stringified or double-stringified JSON
   while (typeof criteres === 'string' && criteres.trim() !== '') {
-    try { 
-      const parsed = JSON.parse(criteres); 
+    try {
+      const parsed = JSON.parse(criteres);
       if (parsed === null || typeof parsed !== 'object') break;
       criteres = parsed;
-    } catch { break; }
+    } catch {
+      break;
+    }
   }
 
   const whereConditions = [];
@@ -41,26 +69,44 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
       let cond = null;
 
       if (field === 'tags') {
-        const ids = Array.isArray(value) ? value : String(value).split(',').map(Number).filter(Boolean);
+        const ids = Array.isArray(value)
+          ? value
+          : String(value).split(',').map(Number).filter(Boolean);
         if (ids.length > 0) {
           const subquery = `(SELECT ct.contact_id FROM contact_tag ct WHERE ct.tag_id IN (${ids.join(',')}))`;
-          cond = { id: { [operator === 'excludes' ? Op.notIn : Op.in]: sequelize.literal(subquery) } };
+          cond = {
+            id: { [operator === 'excludes' ? Op.notIn : Op.in]: sequelize.literal(subquery) },
+          };
         }
       } else if (field === 'actif') {
-         const b = value === 'true' || value === true;
-         cond = { actif: operator === 'is' ? b : !b };
+        const b = value === 'true' || value === true;
+        cond = { actif: operator === 'is' ? b : !b };
       } else if (field === 'sexe') {
         const norm = normalizeGender(value);
         const val = norm ? norm.__normalized : value;
         if (val === 'Homme') {
-          cond = { sexe: { [operator === 'is_not' ? Op.notIn : Op.in]: ['Homme', 'H', 'M', 'Male', 'Masculin'] } };
+          cond = {
+            sexe: {
+              [operator === 'is_not' ? Op.notIn : Op.in]: ['Homme', 'H', 'M', 'Male', 'Masculin'],
+            },
+          };
         } else if (val === 'Femme') {
-          cond = { sexe: { [operator === 'is_not' ? Op.notIn : Op.in]: ['Femme', 'F', 'Female', 'Feminin', 'Féminin'] } };
+          cond = {
+            sexe: {
+              [operator === 'is_not' ? Op.notIn : Op.in]: [
+                'Femme',
+                'F',
+                'Female',
+                'Feminin',
+                'Féminin',
+              ],
+            },
+          };
         } else {
           cond = { sexe: { [operator === 'is_not' ? Op.not : Op.eq]: val } };
         }
       } else {
-        const op = operator === 'contains' ? Op.like : (operator === 'is_not' ? Op.not : Op.eq);
+        const op = operator === 'contains' ? Op.like : operator === 'is_not' ? Op.not : Op.eq;
         const val = operator === 'contains' ? `%${value}%` : value;
         cond = { [field]: { [op]: val } };
       }
@@ -75,7 +121,7 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
 
   // 2. Legacy/Direct criteria (backwards compatibility)
   const legacyWhere = {};
-  
+
   // Normalisations
   if (criteres.sexe && !criteres.filterRules) {
     const norm = normalizeGender(criteres.sexe);
@@ -87,10 +133,18 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
     if (['non', 'false', '0'].includes(v)) criteres.actif = false;
   }
 
-  const equalityKeys = ['type_client', 'ville', 'sexe', 'nationalite', 'actif', 'category_id', 'distribution_id'];
+  const equalityKeys = [
+    'type_client',
+    'ville',
+    'sexe',
+    'nationalite',
+    'actif',
+    'category_id',
+    'distribution_id',
+  ];
   equalityKeys.forEach((key) => {
     // Skip if already handled by filterRules to avoid double filtering
-    if (criteres.filterRules && criteres.filterRules.some(r => r.field === key)) return;
+    if (criteres.filterRules && criteres.filterRules.some((r) => r.field === key)) return;
 
     const value = criteres[key];
     if (Array.isArray(value)) {
@@ -99,8 +153,10 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
     }
     if (value && typeof value === 'object' && value.__normalized) {
       const normalized = value.__normalized;
-      if (normalized === 'Homme') legacyWhere[key] = { [Op.in]: ['Homme', 'H', 'M', 'Male', 'Masculin'] };
-      else if (normalized === 'Femme') legacyWhere[key] = { [Op.in]: ['Femme', 'F', 'Female', 'Feminin', 'Féminin'] };
+      if (normalized === 'Homme')
+        legacyWhere[key] = { [Op.in]: ['Homme', 'H', 'M', 'Male', 'Masculin'] };
+      else if (normalized === 'Femme')
+        legacyWhere[key] = { [Op.in]: ['Femme', 'F', 'Female', 'Feminin', 'Féminin'] };
       else legacyWhere[key] = normalized;
       return;
     }
@@ -119,16 +175,30 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
           { email: { [Op.like]: `%${s}%` } },
           { ville: { [Op.like]: `%${s}%` } },
           { home_club: { [Op.like]: `%${s}%` } },
-        ]
+        ],
       });
     }
   }
 
-  if (criteres.handicap_min !== '' && criteres.handicap_min !== undefined && criteres.handicap_min !== null) {
-    legacyWhere.handicap = { ...(legacyWhere.handicap || {}), [Op.gte]: Number(criteres.handicap_min) };
+  if (
+    criteres.handicap_min !== '' &&
+    criteres.handicap_min !== undefined &&
+    criteres.handicap_min !== null
+  ) {
+    legacyWhere.handicap = {
+      ...(legacyWhere.handicap || {}),
+      [Op.gte]: Number(criteres.handicap_min),
+    };
   }
-  if (criteres.handicap_max !== '' && criteres.handicap_max !== undefined && criteres.handicap_max !== null) {
-    legacyWhere.handicap = { ...(legacyWhere.handicap || {}), [Op.lte]: Number(criteres.handicap_max) };
+  if (
+    criteres.handicap_max !== '' &&
+    criteres.handicap_max !== undefined &&
+    criteres.handicap_max !== null
+  ) {
+    legacyWhere.handicap = {
+      ...(legacyWhere.handicap || {}),
+      [Op.lte]: Number(criteres.handicap_max),
+    };
   }
 
   if (Object.keys(legacyWhere).length > 0) {
@@ -136,14 +206,16 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
   }
 
   // 3. Tags (legacy/direct) - Only if not in filterRules
-  if (!criteres.filterRules || !criteres.filterRules.some(r => r.field === 'tags')) {
+  if (!criteres.filterRules || !criteres.filterRules.some((r) => r.field === 'tags')) {
     if (Array.isArray(criteres.tag_ids) && criteres.tag_ids.length > 0) {
       const ids = criteres.tag_ids.map(Number).filter(Boolean);
       if (ids.length > 0) {
         whereConditions.push({
           id: {
-            [Op.in]: sequelize.literal(`(SELECT contact_id FROM contact_tag WHERE tag_id IN (${ids.join(',')}))`)
-          }
+            [Op.in]: sequelize.literal(
+              `(SELECT contact_id FROM contact_tag WHERE tag_id IN (${ids.join(',')}))`
+            ),
+          },
         });
       }
     }
@@ -168,18 +240,20 @@ exports.getAll = async (req, res) => {
     const segments = await Segment.findAll();
 
     // Calculer le nombre de clients pour chaque segment (incluant tags, catégories, distributions, handicap)
-    const segmentsWithCount = await Promise.all(segments.map(async (segment) => {
-      const { where, include } = buildContactQueryFromCriteria(segment.criteres);
-      let count = 0;
-      try {
-        count = await Contact.count({ where, include, distinct: true });
-      } catch (countError) {
-        console.error('Erreur lors du comptage pour', segment.nom, ':', countError.message);
-        count = 0;
-      }
+    const segmentsWithCount = await Promise.all(
+      segments.map(async (segment) => {
+        const { where, include } = buildContactQueryFromCriteria(segment.criteres);
+        let count = 0;
+        try {
+          count = await Contact.count({ where, include, distinct: true });
+        } catch (countError) {
+          console.error('Erreur lors du comptage pour', segment.nom, ':', countError.message);
+          count = 0;
+        }
 
-      return { ...segment.toJSON(), nb_clients: count };
-    }));
+        return { ...segment.toJSON(), nb_clients: count };
+      })
+    );
 
     res.json(segmentsWithCount);
   } catch (err) {
@@ -214,11 +288,14 @@ exports.delete = async (req, res) => {
     const segment = await Segment.findByPk(req.params.id);
     if (!segment) return res.status(404).json({ message: 'Segment non trouvé' });
     // Vérifier références dans campagnes
-    const blocking = await CampagneEmail.findAll({ where: { segment_id: segment.id }, attributes: ['id', 'titre', 'statut'] });
+    const blocking = await CampagneEmail.findAll({
+      where: { segment_id: segment.id },
+      attributes: ['id', 'titre', 'statut'],
+    });
     if (blocking.length > 0) {
       return res.status(409).json({
         message: `Impossible de supprimer: segment utilisé par ${blocking.length} campagne(s). Supprimez ou détachez ces campagnes d'abord.`,
-        campaigns: blocking
+        campaigns: blocking,
       });
     }
     await segment.destroy();
@@ -257,7 +334,7 @@ exports.getContacts = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-}; 
+};
 
 // Calculer un nombre de contacts à la volée depuis des critères (prévisualisation)
 exports.previewCount = async (req, res) => {

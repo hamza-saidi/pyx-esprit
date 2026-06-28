@@ -44,4 +44,4 @@ router.post('/:id/notes', authenticateToken, contactController.addNote);
 router.put('/:id/notes/:noteId', authenticateToken, contactController.updateNote);
 router.delete('/:id/notes/:noteId', authenticateToken, contactController.deleteNote);
 
-module.exports = router; 
+module.exports = router;

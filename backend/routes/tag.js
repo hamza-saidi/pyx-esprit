@@ -17,4 +17,4 @@ router.post('/merge', authenticateToken, tagController.merge);
 // Lister les contacts d'un tag
 router.get('/:id/contacts', authenticateToken, tagController.getContacts);
 
-module.exports = router; 
+module.exports = router;

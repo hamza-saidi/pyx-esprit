@@ -17,7 +17,7 @@ const attachmentStorage = multer.diskStorage({
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const ext = path.extname(file.originalname || '');
     cb(null, `${unique}${ext}`);
-  }
+  },
 });
 const uploadAttachment = multer({ storage: attachmentStorage });
 
@@ -25,7 +25,12 @@ const uploadAttachment = multer({ storage: attachmentStorage });
 router.use(authenticateToken);
 
 // Upload attachment
-router.post('/attachments', authenticateToken, uploadAttachment.single('file'), campagneController.uploadAttachment);
+router.post(
+  '/attachments',
+  authenticateToken,
+  uploadAttachment.single('file'),
+  campagneController.uploadAttachment
+);
 router.get('/attachments/:id', authenticateToken, campagneController.downloadAttachment);
 
 // Récupérer toutes les campagnes (avec pagination et filtres)

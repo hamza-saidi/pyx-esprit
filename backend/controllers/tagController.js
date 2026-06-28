@@ -56,14 +56,14 @@ exports.delete = async (req, res) => {
 exports.getContacts = async (req, res) => {
   try {
     const tag = await Tag.findByPk(req.params.id, {
-      include: [{ model: Contact, as: 'contacts', through: { attributes: [] } }]
+      include: [{ model: Contact, as: 'contacts', through: { attributes: [] } }],
     });
     if (!tag) return res.status(404).json({ message: 'Tag non trouvé' });
     res.json(tag.contacts);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-}; 
+};
 
 // Aggregated data for tag cloud (contact counts per tag)
 exports.getCloudMetrics = async (req, res) => {
@@ -74,23 +74,30 @@ exports.getCloudMetrics = async (req, res) => {
         'nom',
         [sequelize.fn('COUNT', sequelize.col('contacts.id')), 'contactCount'],
       ],
-      include: [{
-        model: Contact,
-        as: 'contacts',
-        attributes: [],
-        through: { attributes: [] },
-        required: false,
-      }],
+      include: [
+        {
+          model: Contact,
+          as: 'contacts',
+          attributes: [],
+          through: { attributes: [] },
+          required: false,
+        },
+      ],
       group: ['Tag.id'],
-      order: [[literal('contactCount'), 'DESC'], ['nom', 'ASC']],
+      order: [
+        [literal('contactCount'), 'DESC'],
+        ['nom', 'ASC'],
+      ],
       subQuery: false,
     });
 
-    res.json(tags.map((tag) => ({
-      id: tag.id,
-      nom: tag.nom,
-      contactCount: Number(tag.get('contactCount')) || 0,
-    })));
+    res.json(
+      tags.map((tag) => ({
+        id: tag.id,
+        nom: tag.nom,
+        contactCount: Number(tag.get('contactCount')) || 0,
+      }))
+    );
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -114,9 +121,9 @@ exports.merge = async (req, res) => {
     const targetContactTags = await ContactTag.findAll({
       where: { tag_id: targetId },
       attributes: ['contact_id'],
-      transaction
+      transaction,
     });
-    const targetContactIds = new Set(targetContactTags.map(ct => ct.contact_id));
+    const targetContactIds = new Set(targetContactTags.map((ct) => ct.contact_id));
 
     // 2. Pour chaque tag source
     for (const sourceId of sourceIds) {
@@ -125,16 +132,19 @@ exports.merge = async (req, res) => {
       // Récupérer les associations du tag source
       const sourceContactTags = await ContactTag.findAll({
         where: { tag_id: sourceId },
-        transaction
+        transaction,
       });
 
       for (const sct of sourceContactTags) {
         // Si le contact n'a pas déjà le tag cible, on "déplace" l'association
         if (!targetContactIds.has(sct.contact_id)) {
-          await ContactTag.create({
-            contact_id: sct.contact_id,
-            tag_id: targetId
-          }, { transaction });
+          await ContactTag.create(
+            {
+              contact_id: sct.contact_id,
+              tag_id: targetId,
+            },
+            { transaction }
+          );
           targetContactIds.add(sct.contact_id);
         }
       }

@@ -1,4 +1,15 @@
-const { Contact, Tag, Note, Category, Distribution, Segment, EnvoiEmail, Rsvp, ContactTag, Abonnement } = require('../models');
+const {
+  Contact,
+  Tag,
+  Note,
+  Category,
+  Distribution,
+  Segment,
+  EnvoiEmail,
+  Rsvp,
+  ContactTag,
+  Abonnement,
+} = require('../models');
 const { parseFile, generateCsv, generateExcel } = require('../utils/csv');
 const BatchProcessor = require('../utils/batchProcessor');
 const { Op } = require('sequelize');
@@ -6,16 +17,20 @@ const automationService = require('../services/automationService');
 
 // Helper: ensure tags from category/distribution are attached to a contact
 async function ensureCategoryDistributionTags(contact) {
-  await contact.reload({ include: [
-    { model: Category, as: 'category' },
-    { model: Distribution, as: 'distribution' },
-    { model: Tag, as: 'tags', through: { attributes: [] } }
-  ]});
+  await contact.reload({
+    include: [
+      { model: Category, as: 'category' },
+      { model: Distribution, as: 'distribution' },
+      { model: Tag, as: 'tags', through: { attributes: [] } },
+    ],
+  });
   const desiredTagNames = [];
-  if (contact.category && contact.category.nom) desiredTagNames.push(String(contact.category.nom).trim());
-  if (contact.distribution && contact.distribution.nom) desiredTagNames.push(String(contact.distribution.nom).trim());
+  if (contact.category && contact.category.nom)
+    desiredTagNames.push(String(contact.category.nom).trim());
+  if (contact.distribution && contact.distribution.nom)
+    desiredTagNames.push(String(contact.distribution.nom).trim());
   if (desiredTagNames.length === 0) return [];
-  const existingTagNames = new Set((contact.tags || []).map(t => t.nom));
+  const existingTagNames = new Set((contact.tags || []).map((t) => t.nom));
   const addedTagNames = [];
   for (const tagName of desiredTagNames) {
     if (!tagName) continue;
@@ -30,10 +45,8 @@ async function ensureCategoryDistributionTags(contact) {
 // Helper: ensure a specific tag is attached to a contact
 async function ensureTag(contact, tagName) {
   if (!tagName) return [];
-  await contact.reload({ include: [
-    { model: Tag, as: 'tags', through: { attributes: [] } }
-  ]});
-  const existingTagNames = new Set((contact.tags || []).map(t => t.nom));
+  await contact.reload({ include: [{ model: Tag, as: 'tags', through: { attributes: [] } }] });
+  const existingTagNames = new Set((contact.tags || []).map((t) => t.nom));
   if (existingTagNames.has(tagName)) return [];
   const [tag] = await Tag.findOrCreate({ where: { nom: tagName }, defaults: { nom: tagName } });
   await contact.addTag(tag);
@@ -53,26 +66,27 @@ exports.create = async (req, res) => {
     }
 
     const contact = await Contact.create(req.body);
-    
+
     // Trigger: Contact created
     automationService.triggerAutomation('contact_added', { contact });
-    
-    try { 
+
+    try {
       let allAddedTagNames = [];
       const catDistTags = await ensureCategoryDistributionTags(contact);
       allAddedTagNames.push(...catDistTags);
-      
+
       // Associate explicit tags if provided
       if (Array.isArray(req.body.tags_id) && req.body.tags_id.length > 0) {
         console.log(`[DEBUG] Adding tags ${req.body.tags_id} to contact ${contact.id}`);
         await contact.addTags(req.body.tags_id);
         const addedTags = await Tag.findAll({ where: { id: req.body.tags_id } });
-        allAddedTagNames.push(...addedTags.map(t => t.nom));
+        allAddedTagNames.push(...addedTags.map((t) => t.nom));
       }
-      
+
       // Add CMT2026 and Golfeurs Allemagne tags for public registrations
-      const isPublicRegistration = (req.path && req.path.includes('/public')) || 
-                                   (req.originalUrl && req.originalUrl.includes('/public'));
+      const isPublicRegistration =
+        (req.path && req.path.includes('/public')) ||
+        (req.originalUrl && req.originalUrl.includes('/public'));
       if (isPublicRegistration) {
         allAddedTagNames.push(...(await ensureTag(contact, 'CMT2026')));
         allAddedTagNames.push(...(await ensureTag(contact, 'Golfeurs Allemagne')));
@@ -81,8 +95,8 @@ exports.create = async (req, res) => {
       if (allAddedTagNames.length > 0) {
         automationService.triggerAutomation('tag_added', { contact, tagNames: allAddedTagNames });
       }
-    } catch(_) {}
-    
+    } catch (_) {}
+
     res.status(201).json(contact);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -93,7 +107,23 @@ exports.create = async (req, res) => {
 // Helper: build where clause from query params (reused for list and exports)
 const getContactsWhereClause = async (query) => {
   const {
-    tagIds, actif, nom, prenom, email, telephone, statut, ville, pays, entreprise, search, categoryId, distributionId, segmentIds, filterRules, filterMatch, onlyMembers
+    tagIds,
+    actif,
+    nom,
+    prenom,
+    email,
+    telephone,
+    statut,
+    ville,
+    pays,
+    entreprise,
+    search,
+    categoryId,
+    distributionId,
+    segmentIds,
+    filterRules,
+    filterMatch,
+    onlyMembers,
   } = query;
 
   const sequelize = Contact.sequelize;
@@ -101,7 +131,9 @@ const getContactsWhereClause = async (query) => {
 
   // 1. Basic Filters
   if (actif !== undefined && actif !== '') {
-    whereConditions.push({ actif: actif === 'true' || actif === true || actif === 1 || actif === '1' });
+    whereConditions.push({
+      actif: actif === 'true' || actif === true || actif === 1 || actif === '1',
+    });
   }
   if (nom) whereConditions.push({ nom: { [Op.like]: `%${nom}%` } });
   if (prenom) whereConditions.push({ prenom: { [Op.like]: `%${prenom}%` } });
@@ -111,7 +143,7 @@ const getContactsWhereClause = async (query) => {
   if (ville) whereConditions.push({ ville: { [Op.like]: `%${ville}%` } });
   if (pays) whereConditions.push({ pays: { [Op.like]: `%${pays}%` } });
   if (entreprise) whereConditions.push({ entreprise: { [Op.like]: `%${entreprise}%` } });
-  
+
   if (onlyMembers === 'true' || onlyMembers === true) {
     whereConditions.push({
       [Op.or]: [
@@ -122,20 +154,24 @@ const getContactsWhereClause = async (query) => {
               SELECT ct.contact_id FROM contact_tag ct
               INNER JOIN tag t ON t.id = ct.tag_id
               WHERE t.nom = 'ABONNES GOLF CITRUS'
-            )`)
-          }
-        }
-      ]
+            )`),
+          },
+        },
+      ],
     });
   }
 
   // 2. Category / Distribution
   if (categoryId) {
-    const list = Array.isArray(categoryId) ? categoryId : String(categoryId).split(',').filter(Boolean);
+    const list = Array.isArray(categoryId)
+      ? categoryId
+      : String(categoryId).split(',').filter(Boolean);
     whereConditions.push({ category_id: list.length > 1 ? { [Op.in]: list } : list[0] });
   }
   if (distributionId) {
-    const list = Array.isArray(distributionId) ? distributionId : String(distributionId).split(',').filter(Boolean);
+    const list = Array.isArray(distributionId)
+      ? distributionId
+      : String(distributionId).split(',').filter(Boolean);
     whereConditions.push({ distribution_id: list.length > 1 ? { [Op.in]: list } : list[0] });
   }
 
@@ -150,15 +186,19 @@ const getContactsWhereClause = async (query) => {
         { telephone: { [Op.like]: s } },
         { ville: { [Op.like]: s } },
         { entreprise: { [Op.like]: s } },
-        { pays: { [Op.like]: s } }
-      ]
+        { pays: { [Op.like]: s } },
+      ],
     });
   }
 
   // 4. Advanced filterRules
   let rules = [];
   if (filterRules) {
-    try { rules = typeof filterRules === 'string' ? JSON.parse(filterRules) : filterRules; } catch (e) { rules = []; }
+    try {
+      rules = typeof filterRules === 'string' ? JSON.parse(filterRules) : filterRules;
+    } catch (e) {
+      rules = [];
+    }
 
     if (Array.isArray(rules) && rules.length > 0) {
       const ruleConditions = [];
@@ -168,22 +208,32 @@ const getContactsWhereClause = async (query) => {
         let cond = null;
 
         if (field === 'tags') {
-          const ids = Array.isArray(value) ? value : String(value).split(',').map(Number).filter(Boolean);
+          const ids = Array.isArray(value)
+            ? value
+            : String(value).split(',').map(Number).filter(Boolean);
           if (ids.length > 0) {
             const subquery = `(SELECT ct.contact_id FROM contact_tag ct WHERE ct.tag_id IN (${ids.join(',')}))`;
-            cond = { id: { [operator === 'excludes' ? Op.notIn : Op.in]: sequelize.literal(subquery) } };
+            cond = {
+              id: { [operator === 'excludes' ? Op.notIn : Op.in]: sequelize.literal(subquery) },
+            };
           }
         } else if (field === 'segments') {
-          const ids = Array.isArray(value) ? value : String(value).split(',').map(Number).filter(Boolean);
+          const ids = Array.isArray(value)
+            ? value
+            : String(value).split(',').map(Number).filter(Boolean);
           if (ids.length > 0) {
             const segments = await Segment.findAll({ where: { id: { [Op.in]: ids } } });
-            const segmentConditions = segments.map(s => {
-              const { buildContactQueryFromCriteria } = require('./segmentController');
-              const { where } = buildContactQueryFromCriteria(s.criteres);
-              const hasConditions = where && (Object.keys(where).length > 0 || Object.getOwnPropertySymbols(where).length > 0);
-              return hasConditions ? where : null;
-            }).filter(Boolean);
-            
+            const segmentConditions = segments
+              .map((s) => {
+                const { buildContactQueryFromCriteria } = require('./segmentController');
+                const { where } = buildContactQueryFromCriteria(s.criteres);
+                const hasConditions =
+                  where &&
+                  (Object.keys(where).length > 0 || Object.getOwnPropertySymbols(where).length > 0);
+                return hasConditions ? where : null;
+              })
+              .filter(Boolean);
+
             if (segmentConditions.length > 0) {
               const innerMatch = filterMatch === 'any' ? Op.or : Op.and;
               const segmentCond = { [innerMatch]: segmentConditions };
@@ -194,7 +244,7 @@ const getContactsWhereClause = async (query) => {
           const b = value === 'true' || value === true;
           cond = { actif: operator === 'is' ? b : !b };
         } else {
-          const op = operator === 'contains' ? Op.like : (operator === 'is_not' ? Op.not : Op.eq);
+          const op = operator === 'contains' ? Op.like : operator === 'is_not' ? Op.not : Op.eq;
           const val = operator === 'contains' ? `%${value}%` : value;
           cond = { [field]: { [op]: val } };
         }
@@ -209,9 +259,12 @@ const getContactsWhereClause = async (query) => {
   }
 
   // 5. Explicit tagIds (intersection) or segmentIds (legacy support)
-  const hasTagRule = Array.isArray(rules) && rules.some(r => r.field === 'tags');
+  const hasTagRule = Array.isArray(rules) && rules.some((r) => r.field === 'tags');
   if (tagIds && !hasTagRule) {
-    const ids = String(tagIds).split(',').map(Number).filter(n => n > 0);
+    const ids = String(tagIds)
+      .split(',')
+      .map(Number)
+      .filter((n) => n > 0);
     if (ids.length > 0) {
       whereConditions.push({
         id: {
@@ -220,30 +273,53 @@ const getContactsWhereClause = async (query) => {
             WHERE ct.tag_id IN (${ids.join(',')})
             GROUP BY ct.contact_id 
             HAVING COUNT(DISTINCT ct.tag_id) = ${ids.length}
-          )`)
-        }
+          )`),
+        },
       });
     }
   }
-  const hasSegmentRule = Array.isArray(rules) && rules.some(r => r.field === 'segments');
+  const hasSegmentRule = Array.isArray(rules) && rules.some((r) => r.field === 'segments');
   if (segmentIds && !hasSegmentRule) {
-     const ids = String(segmentIds).split(',').map(Number).filter(n => n > 0);
-     if (ids.length > 0) {
-       const segments = await Segment.findAll({ where: { id: { [Op.in]: ids } } });
-       const segmentConditions = segments.map(s => {
+    const ids = String(segmentIds)
+      .split(',')
+      .map(Number)
+      .filter((n) => n > 0);
+    if (ids.length > 0) {
+      const segments = await Segment.findAll({ where: { id: { [Op.in]: ids } } });
+      const segmentConditions = segments
+        .map((s) => {
           let crit = s.criteres;
-          if (typeof crit === 'string') try { crit = JSON.parse(crit); } catch { crit = {}; }
+          if (typeof crit === 'string')
+            try {
+              crit = JSON.parse(crit);
+            } catch {
+              crit = {};
+            }
           const sw = {};
-          ['type_client','ville','nationalite','actif','category_id','distribution_id'].forEach(k => {
+          [
+            'type_client',
+            'ville',
+            'nationalite',
+            'actif',
+            'category_id',
+            'distribution_id',
+          ].forEach((k) => {
             if (crit[k] !== undefined && crit[k] !== '') sw[k] = crit[k];
           });
-           if (Array.isArray(crit.tag_ids) && crit.tag_ids.length > 0) {
-             sw.id = { [Op.in]: sequelize.literal(`(SELECT contact_id FROM contact_tag WHERE tag_id IN (${crit.tag_ids.join(',')}))`) };
-           }
-           return sw;
-        }).filter(c => (c && (Object.keys(c).length > 0 || Object.getOwnPropertySymbols(c).length > 0)));
-        if (segmentConditions.length > 0) whereConditions.push({ [Op.and]: segmentConditions });
-     }
+          if (Array.isArray(crit.tag_ids) && crit.tag_ids.length > 0) {
+            sw.id = {
+              [Op.in]: sequelize.literal(
+                `(SELECT contact_id FROM contact_tag WHERE tag_id IN (${crit.tag_ids.join(',')}))`
+              ),
+            };
+          }
+          return sw;
+        })
+        .filter(
+          (c) => c && (Object.keys(c).length > 0 || Object.getOwnPropertySymbols(c).length > 0)
+        );
+      if (segmentConditions.length > 0) whereConditions.push({ [Op.and]: segmentConditions });
+    }
   }
 
   return whereConditions.length > 0 ? { [Op.and]: whereConditions } : {};
@@ -262,7 +338,7 @@ exports.getAll = async (req, res) => {
       { model: Note, as: 'notes' },
       { model: Category, as: 'category' },
       { model: Distribution, as: 'distribution' },
-      { model: Abonnement, as: 'abonnement' }
+      { model: Abonnement, as: 'abonnement' },
     ];
 
     const { count, rows } = await Contact.findAndCountAll({
@@ -271,7 +347,7 @@ exports.getAll = async (req, res) => {
       offset,
       limit: parseInt(limit),
       order: [[sort, order]],
-      distinct: true
+      distinct: true,
     });
     console.log('[DEBUG] Results found:', count);
     res.json({ total: count, page: parseInt(page), limit: parseInt(limit), data: rows });
@@ -280,7 +356,6 @@ exports.getAll = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
 
 // Contacts avec emails potentiellement obsolètes (basé sur les erreurs d'envoi)
 // GET /contacts/obsolete?days=90&minErrors=2
@@ -294,18 +369,18 @@ exports.getObsoleteEmails = async (req, res) => {
     const rows = await EnvoiEmail.findAll({
       where: {
         statut: 'erreur',
-        date_envoi: { [Op.gte]: since }
+        date_envoi: { [Op.gte]: since },
       },
       attributes: [
         'contact_id',
         [sequelize.fn('COUNT', sequelize.col('id')), 'nb_erreurs'],
-        [sequelize.fn('MAX', sequelize.col('date_envoi')), 'dernier_envoi']
+        [sequelize.fn('MAX', sequelize.col('date_envoi')), 'dernier_envoi'],
       ],
       group: ['contact_id'],
-      having: sequelize.literal(`COUNT(id) >= ${minErrors}`)
+      having: sequelize.literal(`COUNT(id) >= ${minErrors}`),
     });
 
-    const contactIds = rows.map(r => r.contact_id).filter(Boolean);
+    const contactIds = rows.map((r) => r.contact_id).filter(Boolean);
     if (!contactIds.length) {
       return res.json({ total: 0, data: [] });
     }
@@ -315,8 +390,8 @@ exports.getObsoleteEmails = async (req, res) => {
       include: [
         { model: Tag, as: 'tags', through: { attributes: [] } },
         { model: Category, as: 'category' },
-        { model: Distribution, as: 'distribution' }
-      ]
+        { model: Distribution, as: 'distribution' },
+      ],
     });
 
     res.json({ total: contacts.length, data: contacts });
@@ -335,47 +410,77 @@ exports.getStats = async (req, res) => {
     // Totals
     const totalContacts = await Contact.count();
     const activeContacts = await Contact.count({ where: { actif: true } });
-    const newThisMonth = await Contact.count({ where: { date_creation: { [Op.gte]: startOfMonth } } });
+    const newThisMonth = await Contact.count({
+      where: { date_creation: { [Op.gte]: startOfMonth } },
+    });
 
     // By sexe
     const sexeRows = await Contact.findAll({
       attributes: ['sexe', [Contact.sequelize.fn('COUNT', Contact.sequelize.col('sexe')), 'count']],
-      group: ['sexe']
+      group: ['sexe'],
     });
     const bySexe = {};
-    sexeRows.forEach(r => { bySexe[r.sexe || 'Non spécifié'] = Number(r.get('count')) || 0; });
+    sexeRows.forEach((r) => {
+      bySexe[r.sexe || 'Non spécifié'] = Number(r.get('count')) || 0;
+    });
 
     // Top categories
     const catRows = await Contact.findAll({
-      attributes: ['category_id', [Contact.sequelize.fn('COUNT', Contact.sequelize.col('category_id')), 'count']],
-      include: [{ model: require('../models').Category, as: 'category', attributes: ['id', 'nom'], required: false }],
+      attributes: [
+        'category_id',
+        [Contact.sequelize.fn('COUNT', Contact.sequelize.col('category_id')), 'count'],
+      ],
+      include: [
+        {
+          model: require('../models').Category,
+          as: 'category',
+          attributes: ['id', 'nom'],
+          required: false,
+        },
+      ],
       group: ['category_id', 'category.id', 'category.nom'],
       order: [[Contact.sequelize.literal('count'), 'DESC']],
-      limit: 10
+      limit: 10,
     });
     const topCategories = catRows
-      .filter(r => r.category)
-      .map(r => ({ id: r.category.id, nom: r.category.nom, count: Number(r.get('count')) || 0 }));
+      .filter((r) => r.category)
+      .map((r) => ({ id: r.category.id, nom: r.category.nom, count: Number(r.get('count')) || 0 }));
 
     // Top distributions
     const distRows = await Contact.findAll({
-      attributes: ['distribution_id', [Contact.sequelize.fn('COUNT', Contact.sequelize.col('distribution_id')), 'count']],
-      include: [{ model: require('../models').Distribution, as: 'distribution', attributes: ['id', 'nom'], required: false }],
+      attributes: [
+        'distribution_id',
+        [Contact.sequelize.fn('COUNT', Contact.sequelize.col('distribution_id')), 'count'],
+      ],
+      include: [
+        {
+          model: require('../models').Distribution,
+          as: 'distribution',
+          attributes: ['id', 'nom'],
+          required: false,
+        },
+      ],
       group: ['distribution_id', 'distribution.id', 'distribution.nom'],
       order: [[Contact.sequelize.literal('count'), 'DESC']],
-      limit: 10
+      limit: 10,
     });
     const topDistributions = distRows
-      .filter(r => r.distribution)
-      .map(r => ({ id: r.distribution.id, nom: r.distribution.nom, count: Number(r.get('count')) || 0 }));
+      .filter((r) => r.distribution)
+      .map((r) => ({
+        id: r.distribution.id,
+        nom: r.distribution.nom,
+        count: Number(r.get('count')) || 0,
+      }));
 
     // By country (pays)
     const paysRows = await Contact.findAll({
       attributes: ['pays', [Contact.sequelize.fn('COUNT', Contact.sequelize.col('pays')), 'count']],
-      group: ['pays']
+      group: ['pays'],
     });
     const byPays = {};
-    paysRows.forEach(r => { byPays[r.pays || 'Non spécifié'] = Number(r.get('count')) || 0; });
+    paysRows.forEach((r) => {
+      byPays[r.pays || 'Non spécifié'] = Number(r.get('count')) || 0;
+    });
 
     // Top tags (via join table)
     const sequelize = Contact.sequelize;
@@ -387,7 +492,7 @@ exports.getStats = async (req, res) => {
       ORDER BY count DESC
       LIMIT 15
     `);
-    const topTags = tagCounts.map(r => ({ id: r.id, nom: r.nom, count: Number(r.count) || 0 }));
+    const topTags = tagCounts.map((r) => ({ id: r.id, nom: r.nom, count: Number(r.count) || 0 }));
 
     res.json({
       totalContacts,
@@ -397,7 +502,7 @@ exports.getStats = async (req, res) => {
       byPays,
       topCategories,
       topDistributions,
-      topTags
+      topTags,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -411,8 +516,8 @@ exports.getOne = async (req, res) => {
         { model: Tag, as: 'tags', through: { attributes: [] } },
         { model: Note, as: 'notes' },
         { model: Category, as: 'category' },
-        { model: Distribution, as: 'distribution' }
-      ]
+        { model: Distribution, as: 'distribution' },
+      ],
     });
     if (!contact) return res.status(404).json({ message: 'Contact non trouvé' });
     res.json(contact);
@@ -433,14 +538,14 @@ exports.update = async (req, res) => {
       }
     }
     await contact.update(req.body);
-    try { 
+    try {
       await ensureCategoryDistributionTags(contact);
       // Update explicit tags if provided
       if (Array.isArray(req.body.tags_id)) {
         console.log(`[DEBUG] Syncing tags ${req.body.tags_id} for contact ${contact.id}`);
         await contact.setTags(req.body.tags_id);
       }
-    } catch(_) {}
+    } catch (_) {}
     res.json(contact);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -451,7 +556,9 @@ exports.delete = async (req, res) => {
   try {
     const contact = await Contact.findByPk(req.params.id);
     if (!contact) return res.status(404).json({ message: 'Contact non trouvé' });
-    const force = String(req.query.force || '').toLowerCase() === '1' || String(req.query.force || '').toLowerCase() === 'true';
+    const force =
+      String(req.query.force || '').toLowerCase() === '1' ||
+      String(req.query.force || '').toLowerCase() === 'true';
     try {
       await contact.destroy();
       return res.json({ message: 'Contact supprimé' });
@@ -461,16 +568,17 @@ exports.delete = async (req, res) => {
       const isFk = /foreign key constraint/i.test(msg);
       if (!isFk) throw e;
       if (!force) {
-        return res.status(409).json({ 
-          message: 'Ce contact est référencé par des envois d\'emails. Utilisez force=1 pour supprimer aussi son historique d\'envoi.',
-          code: 'FK_CONSTRAINT'
+        return res.status(409).json({
+          message:
+            "Ce contact est référencé par des envois d'emails. Utilisez force=1 pour supprimer aussi son historique d'envoi.",
+          code: 'FK_CONSTRAINT',
         });
       }
       // Cascade delete envoi_email rows for this contact, then delete
       const { EnvoiEmail } = require('../models');
       await EnvoiEmail.destroy({ where: { contact_id: contact.id } });
       await contact.destroy();
-      return res.json({ message: 'Contact et historique d\'envoi supprimés' });
+      return res.json({ message: "Contact et historique d'envoi supprimés" });
     }
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -497,10 +605,10 @@ exports.addTag = async (req, res) => {
     const tag = await Tag.findByPk(req.body.tagId);
     if (!contact || !tag) return res.status(404).json({ message: 'Contact ou tag non trouvé' });
     await contact.addTag(tag);
-    
+
     // Trigger: Tag added
     automationService.triggerAutomation('tag_added', { contact, tagName: tag.nom });
-    
+
     res.json({ message: 'Tag associé' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -526,7 +634,7 @@ exports.addNote = async (req, res) => {
     const note = await Note.create({
       contact_id: contact.id,
       contenu: req.body.contenu,
-      auteur: req.body.auteur || 'Système'
+      auteur: req.body.auteur || 'Système',
     });
     res.status(201).json(note);
   } catch (err) {
@@ -558,96 +666,102 @@ exports.deleteNote = async (req, res) => {
 exports.importFile = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Fichier manquant' });
-    
+
     console.log(`Importing file: ${req.file.originalname}`);
     console.log(`File size: ${req.file.size} bytes`);
     console.log(`File mimetype: ${req.file.mimetype}`);
-    
+
     let contacts;
     try {
       contacts = await parseFile(req.file.path);
-      
+
       if (contacts.length === 0) {
         return res.status(400).json({ message: 'Aucun contact valide trouvé dans le fichier' });
       }
     } catch (parseError) {
       console.error('File parsing error:', parseError);
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: `Erreur lors du parsing du fichier: ${parseError.message}`,
-        details: 'Vérifiez que le fichier est un Excel (.xlsx/.xls) ou CSV valide'
+        details: 'Vérifiez que le fichier est un Excel (.xlsx/.xls) ou CSV valide',
       });
     }
-    
+
     // Process categories, distributions, tags, and segments
-    const categoryNames = [...new Set(contacts.map(c => c._category_name).filter(Boolean))];
-    const distributionNames = [...new Set(contacts.map(c => c._distribution_name).filter(Boolean))];
-    
+    const categoryNames = [...new Set(contacts.map((c) => c._category_name).filter(Boolean))];
+    const distributionNames = [
+      ...new Set(contacts.map((c) => c._distribution_name).filter(Boolean)),
+    ];
+
     // Extract all unique tags and segments
-    const allTags = contacts.flatMap(c => c._tags || []).filter(Boolean);
-    const allSegments = contacts.flatMap(c => c._segments || []).filter(Boolean);
+    const allTags = contacts.flatMap((c) => c._tags || []).filter(Boolean);
+    const allSegments = contacts.flatMap((c) => c._segments || []).filter(Boolean);
     const uniqueTags = [...new Set(allTags)];
     const uniqueSegments = [...new Set(allSegments)];
-    
+
     // Create categories and distributions if they don't exist
     const categoryMap = {};
     for (const categoryName of categoryNames) {
       const [category] = await Category.findOrCreate({
         where: { nom: categoryName },
-        defaults: { nom: categoryName }
+        defaults: { nom: categoryName },
       });
       categoryMap[categoryName] = category.id;
     }
-    
+
     const distributionMap = {};
     for (const distributionName of distributionNames) {
       const [distribution] = await Distribution.findOrCreate({
         where: { nom: distributionName },
-        defaults: { nom: distributionName }
+        defaults: { nom: distributionName },
       });
       distributionMap[distributionName] = distribution.id;
     }
-    
+
     // Create tags if they don't exist
     const tagMap = {};
     for (const tagName of uniqueTags) {
       const [tag] = await Tag.findOrCreate({
         where: { nom: tagName },
-        defaults: { nom: tagName }
+        defaults: { nom: tagName },
       });
       tagMap[tagName] = tag.id;
     }
-    
+
     // Create segments if they don't exist
     const segmentMap = {};
     for (const segmentName of uniqueSegments) {
       const [segment] = await Segment.findOrCreate({
         where: { nom: segmentName },
-        defaults: { nom: segmentName, criteres: {} }
+        defaults: { nom: segmentName, criteres: {} },
       });
       segmentMap[segmentName] = segment.id;
     }
-    
+
     // Check for existing emails to avoid duplicates in database (or to update if requested)
     const existingEmails = await Contact.findAll({
       where: {
-        email: contacts.map(c => c.email)
+        email: contacts.map((c) => c.email),
       },
-      attributes: ['email']
+      attributes: ['email'],
     });
-    
-    const existingEmailSet = new Set(existingEmails.map(c => c.email.toLowerCase()));
-    const updateExisting = (req.query.updateExisting === 'true') || (req.body && String(req.body.updateExisting) === 'true');
-    const newContacts = contacts.filter(c => !existingEmailSet.has(c.email.toLowerCase()));
-    const contactsToUpdate = updateExisting ? contacts.filter(c => existingEmailSet.has(c.email.toLowerCase())) : [];
+
+    const existingEmailSet = new Set(existingEmails.map((c) => c.email.toLowerCase()));
+    const updateExisting =
+      req.query.updateExisting === 'true' ||
+      (req.body && String(req.body.updateExisting) === 'true');
+    const newContacts = contacts.filter((c) => !existingEmailSet.has(c.email.toLowerCase()));
+    const contactsToUpdate = updateExisting
+      ? contacts.filter((c) => existingEmailSet.has(c.email.toLowerCase()))
+      : [];
 
     // Batch Tag IDs (from UI)
     let batchTagIds = [];
     if (req.body.batchTagIds) {
       batchTagIds = String(req.body.batchTagIds).split(',').map(Number).filter(Boolean);
     }
-    
+
     // Map contacts to include category_id and distribution_id, and prepare tags/segments
-    const processedContacts = newContacts.map(contact => {
+    const processedContacts = newContacts.map((contact) => {
       const processed = { ...contact };
       if (contact._category_name && categoryMap[contact._category_name]) {
         processed.category_id = categoryMap[contact._category_name];
@@ -655,14 +769,18 @@ exports.importFile = async (req, res) => {
       if (contact._distribution_name && distributionMap[contact._distribution_name]) {
         processed.distribution_id = distributionMap[contact._distribution_name];
       }
-      
+
       // Store tag and segment IDs for later association
-      processed._tagIds = [...new Set([
-        ...((contact._tags || []).map(tagName => tagMap[tagName]).filter(Boolean)),
-        ...batchTagIds
-      ])];
-      processed._segmentIds = (contact._segments || []).map(segmentName => segmentMap[segmentName]).filter(Boolean);
-      
+      processed._tagIds = [
+        ...new Set([
+          ...(contact._tags || []).map((tagName) => tagMap[tagName]).filter(Boolean),
+          ...batchTagIds,
+        ]),
+      ];
+      processed._segmentIds = (contact._segments || [])
+        .map((segmentName) => segmentMap[segmentName])
+        .filter(Boolean);
+
       // Remove temporary fields
       delete processed._category_name;
       delete processed._distribution_name;
@@ -670,30 +788,32 @@ exports.importFile = async (req, res) => {
       delete processed._segments;
       return processed;
     });
-    
+
     // Use BatchProcessor to handle large imports efficiently
     const optimalBatchSize = BatchProcessor.getOptimalBatchSize(processedContacts.length);
     const batchProcessor = new BatchProcessor(optimalBatchSize);
-    
-    console.log(`Using optimal batch size of ${optimalBatchSize} for ${processedContacts.length} contacts`);
-    
+
+    console.log(
+      `Using optimal batch size of ${optimalBatchSize} for ${processedContacts.length} contacts`
+    );
+
     const created = await batchProcessor.processContacts(processedContacts, {
       Contact,
       Category,
       Distribution,
-      Tag
+      Tag,
     });
 
     // Trigger automations for newly created contacts
     if (created && created.length > 0) {
       console.log(`[IMPORT] Triggering automations for ${created.length} new contacts`);
-      created.forEach(contact => {
+      created.forEach((contact) => {
         automationService.triggerAutomation('contact_added', { contact });
         // If they have tags from the import, those will be handled inside triggerAutomation if we pass tagNames
         // but batchProcessor adds tags directly. For simplicity, we trigger 'contact_added'.
       });
     }
-    
+
     // Optionally update existing contacts when updateExisting=true
     let updatedCount = 0;
     if (contactsToUpdate.length > 0) {
@@ -708,28 +828,34 @@ exports.importFile = async (req, res) => {
         if (raw.ville) updates.ville = raw.ville;
         if (raw.entreprise) updates.entreprise = raw.entreprise;
         if (raw.statut) updates.statut = raw.statut;
-        if (raw._category_name && categoryMap[raw._category_name]) updates.category_id = categoryMap[raw._category_name];
-        if (raw._distribution_name && distributionMap[raw._distribution_name]) updates.distribution_id = distributionMap[raw._distribution_name];
-        
+        if (raw._category_name && categoryMap[raw._category_name])
+          updates.category_id = categoryMap[raw._category_name];
+        if (raw._distribution_name && distributionMap[raw._distribution_name])
+          updates.distribution_id = distributionMap[raw._distribution_name];
+
         await contact.update(updates);
-        
+
         // Handle tags for updated contacts too
-        const contactTagIds = [...new Set([
-          ...((raw._tags || []).map(tagName => tagMap[tagName]).filter(Boolean)),
-          ...batchTagIds
-        ])];
+        const contactTagIds = [
+          ...new Set([
+            ...(raw._tags || []).map((tagName) => tagMap[tagName]).filter(Boolean),
+            ...batchTagIds,
+          ]),
+        ];
         if (contactTagIds.length > 0) {
           await contact.addTags(contactTagIds);
           // Trigger: Tag added for updated contact
-          const tagNamesAdded = (raw._tags || []).concat(uniqueTags.filter(t => batchTagIds.includes(tagMap[t])));
+          const tagNamesAdded = (raw._tags || []).concat(
+            uniqueTags.filter((t) => batchTagIds.includes(tagMap[t]))
+          );
           automationService.triggerAutomation('tag_added', { contact, tagNames: tagNamesAdded });
         }
-        
+
         updatedCount++;
       }
     }
-    
-    res.json({ 
+
+    res.json({
       message: `${created.length} contacts importés, ${updatedCount} mis à jour`,
       total_processed: contacts.length,
       contacts_created: created.length,
@@ -741,7 +867,7 @@ exports.importFile = async (req, res) => {
       segments_created: uniqueSegments.length,
       batches_processed: Math.ceil(processedContacts.length / 100),
       file_type: req.file.originalname.split('.').pop().toUpperCase(),
-      import_time: new Date().toISOString()
+      import_time: new Date().toISOString(),
     });
   } catch (err) {
     console.error('Import error:', err);
@@ -758,13 +884,12 @@ exports.exportCsv = async (req, res) => {
       include: [
         { model: Category, as: 'category' },
         { model: Distribution, as: 'distribution' },
-        { model: Tag, as: 'tags', through: { attributes: [] } }
+        { model: Tag, as: 'tags', through: { attributes: [] } },
       ],
-      order: [['date_creation', 'DESC']]
+      order: [['date_creation', 'DESC']],
     });
 
-    
-    const exportData = contacts.map(contact => ({
+    const exportData = contacts.map((contact) => ({
       Prenom: contact.prenom,
       Nom: contact.nom,
       Email: contact.email,
@@ -776,8 +901,8 @@ exports.exportCsv = async (req, res) => {
       Statut: contact.statut,
       Categorie: contact.category?.nom || '',
       Distribution: contact.distribution?.nom || '',
-      Tags: (contact.tags || []).map(t => t.nom).join(', '),
-      DateCreation: contact.date_creation
+      Tags: (contact.tags || []).map((t) => t.nom).join(', '),
+      DateCreation: contact.date_creation,
     }));
     const meta = {
       ExportedBy: req.user?.email || 'inconnu',
@@ -788,20 +913,20 @@ exports.exportCsv = async (req, res) => {
         distributionId: req.query.distributionId || '',
         tagIds: req.query.tagIds || '',
         segmentIds: req.query.segmentIds || '',
-        filterRules: req.query.filterRules || ''
-      }
+        filterRules: req.query.filterRules || '',
+      },
     };
     const metaLines = [
       `# Exported By,${meta.ExportedBy}`,
       `# Exported At,${meta.ExportedAt}`,
       `# Filters,search=${meta.Filters.search};categoryId=${meta.Filters.categoryId};distributionId=${meta.Filters.distributionId};tagIds=${meta.Filters.tagIds};segmentIds=${meta.Filters.segmentIds};filterRules=${meta.Filters.filterRules}`,
-      `# Columns: Prenom, Nom, Email, Telephone, Sexe, Ville, Entreprise, Type, Statut, Categorie, Distribution, Tags, DateCreation`
+      `# Columns: Prenom, Nom, Email, Telephone, Sexe, Ville, Entreprise, Type, Statut, Categorie, Distribution, Tags, DateCreation`,
     ].join('\n');
-    
+
     const csvBody = generateCsv(exportData);
     const csv = `${metaLines}\n${csvBody}`;
     res.header('Content-Type', 'text/csv');
-    res.attachment(`contacts_${new Date().toISOString().slice(0,10)}.csv`);
+    res.attachment(`contacts_${new Date().toISOString().slice(0, 10)}.csv`);
     res.send(csv);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -818,13 +943,12 @@ exports.exportExcel = async (req, res) => {
       include: [
         { model: Category, as: 'category' },
         { model: Distribution, as: 'distribution' },
-        { model: Tag, as: 'tags', through: { attributes: [] } }
+        { model: Tag, as: 'tags', through: { attributes: [] } },
       ],
-      order: [['date_creation', 'DESC']]
+      order: [['date_creation', 'DESC']],
     });
 
-
-    const rows = contacts.map(c => ({
+    const rows = contacts.map((c) => ({
       Prenom: c.prenom,
       Nom: c.nom,
       Email: c.email,
@@ -836,8 +960,8 @@ exports.exportExcel = async (req, res) => {
       Statut: c.statut,
       Categorie: c.category?.nom || '',
       Distribution: c.distribution?.nom || '',
-      Tags: (c.tags || []).map(t => t.nom).join(', '),
-      DateCreation: c.date_creation
+      Tags: (c.tags || []).map((t) => t.nom).join(', '),
+      DateCreation: c.date_creation,
     }));
 
     const XLSX = require('xlsx');
@@ -847,25 +971,53 @@ exports.exportExcel = async (req, res) => {
     const metaData = [
       ['Exported By', req.user?.email || 'inconnu'],
       ['Exported At', new Date().toISOString()],
-      ['Filters', `search=${req.query.search||''}; categoryId=${req.query.categoryId||''}; distributionId=${req.query.distributionId||''}; tagIds=${req.query.tagIds||''}; segmentIds=${req.query.segmentIds||''}; filterRules=${req.query.filterRules||''}`]
+      [
+        'Filters',
+        `search=${req.query.search || ''}; categoryId=${req.query.categoryId || ''}; distributionId=${req.query.distributionId || ''}; tagIds=${req.query.tagIds || ''}; segmentIds=${req.query.segmentIds || ''}; filterRules=${req.query.filterRules || ''}`,
+      ],
     ];
     const wsMeta = XLSX.utils.aoa_to_sheet(metaData);
     XLSX.utils.book_append_sheet(wb, wsMeta, 'Meta');
 
     // Contacts sheet
-    const ws = XLSX.utils.json_to_sheet(rows, { header: [
-      'Prenom','Nom','Email','Telephone','Sexe','Ville','Entreprise','Type','Statut','Categorie','Distribution','Tags','DateCreation'
-    ]});
+    const ws = XLSX.utils.json_to_sheet(rows, {
+      header: [
+        'Prenom',
+        'Nom',
+        'Email',
+        'Telephone',
+        'Sexe',
+        'Ville',
+        'Entreprise',
+        'Type',
+        'Statut',
+        'Categorie',
+        'Distribution',
+        'Tags',
+        'DateCreation',
+      ],
+    });
     // Column widths
     ws['!cols'] = [
-      { wch: 14 }, { wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 18 },
-      { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 20 }
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 28 },
+      { wch: 16 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 20 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, 'Contacts');
 
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.attachment(`contacts_${new Date().toISOString().slice(0,10)}.xlsx`);
+    res.attachment(`contacts_${new Date().toISOString().slice(0, 10)}.xlsx`);
     return res.send(buffer);
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -876,57 +1028,57 @@ exports.exportExcel = async (req, res) => {
 exports.exportTemplate = async (req, res) => {
   try {
     const isMinimal = req.query.minimal === 'true';
-    
+
     let templateData;
     if (isMinimal) {
       templateData = [
         {
-          'Prénom': 'Jean',
-          'Nom': 'Dupont',
-          'Email': 'jean.dupont@example.com',
-          'Téléphone': '+33123456789'
+          Prénom: 'Jean',
+          Nom: 'Dupont',
+          Email: 'jean.dupont@example.com',
+          Téléphone: '+33123456789',
         },
         {
-          'Prénom': 'Marie',
-          'Nom': 'Martin',
-          'Email': 'marie.martin@example.com',
-          'Téléphone': '+32456789012'
-        }
+          Prénom: 'Marie',
+          Nom: 'Martin',
+          Email: 'marie.martin@example.com',
+          Téléphone: '+32456789012',
+        },
       ];
     } else {
       // Create a full template with both French and English column structures
       templateData = [
         {
           // French column names
-          'Prénom': 'Jean',
-          'Nom': 'Dupont',
-          'Email': 'jean.dupont@example.com',
-          'Téléphone': '+33123456789',
-        'Sexe': 'Homme',
-        'Statut': 'client',
-        'Ville': 'Paris',
-        'Entreprise': 'ABC Corp',
-        'Catégorie': 'Membres VIP',
-        'Distribution': 'Agence France',
-        'Tags': 'VIP, Golf, Paris'
-      },
-      {
-        // English column names (also supported)
-        'firstname': 'Marie',
-        'lastname': 'Martin',
-        'email': 'marie.martin@example.com',
-        'telephone': '+32456789012',
-        'sex': 'Femme',
-        'status': 'prospect',
-        'city': 'Bruxelles',
-        'company': 'XYZ Ltd',
-        'category': 'Mailing Agences',
-        'distribution': 'Agence Belgique',
-        'tags': 'Nouveau, Bruxelles'
-      }
+          Prénom: 'Jean',
+          Nom: 'Dupont',
+          Email: 'jean.dupont@example.com',
+          Téléphone: '+33123456789',
+          Sexe: 'Homme',
+          Statut: 'client',
+          Ville: 'Paris',
+          Entreprise: 'ABC Corp',
+          Catégorie: 'Membres VIP',
+          Distribution: 'Agence France',
+          Tags: 'VIP, Golf, Paris',
+        },
+        {
+          // English column names (also supported)
+          firstname: 'Marie',
+          lastname: 'Martin',
+          email: 'marie.martin@example.com',
+          telephone: '+32456789012',
+          sex: 'Femme',
+          status: 'prospect',
+          city: 'Bruxelles',
+          company: 'XYZ Ltd',
+          category: 'Mailing Agences',
+          distribution: 'Agence Belgique',
+          tags: 'Nouveau, Bruxelles',
+        },
       ];
     }
-    
+
     const excelBuffer = generateExcel(templateData);
     res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.attachment('template_contacts.xlsx');
@@ -934,7 +1086,7 @@ exports.exportTemplate = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-}; 
+};
 
 // Bulk: generate tags for all contacts from their category and distribution
 exports.generateAutoTagsForAll = async (req, res) => {
@@ -943,17 +1095,17 @@ exports.generateAutoTagsForAll = async (req, res) => {
     let page = 0;
     let processed = 0;
     // Loop by batches to avoid loading all at once
-    // eslint-disable-next-line no-constant-condition
+
     while (true) {
       const contacts = await Contact.findAll({
         include: [
           { model: Category, as: 'category' },
           { model: Distribution, as: 'distribution' },
-          { model: Tag, as: 'tags', through: { attributes: [] } }
+          { model: Tag, as: 'tags', through: { attributes: [] } },
         ],
         limit: pageSize,
         offset: page * pageSize,
-        order: [['id','ASC']]
+        order: [['id', 'ASC']],
       });
       if (!contacts.length) break;
       for (const contact of contacts) {
@@ -979,7 +1131,9 @@ exports.getHealthStats = async (req, res) => {
     // 1. Invalid Emails (basic syntax check)
     // We'll use a standard regex for MySQL
     const invalidCount = await Contact.count({
-      where: sequelize.literal("email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'")
+      where: sequelize.literal(
+        "email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'"
+      ),
     });
 
     // 2. Bounced Emails (unique contacts with bounce/error status)
@@ -987,8 +1141,8 @@ exports.getHealthStats = async (req, res) => {
       distinct: true,
       col: 'contact_id',
       where: {
-        statut: { [Op.in]: ['bounce', 'erreur', 'spam'] }
-      }
+        statut: { [Op.in]: ['bounce', 'erreur', 'spam'] },
+      },
     });
 
     // 3. Inactive Contacts (received emails but 0 opens in last 6 months)
@@ -1004,15 +1158,15 @@ exports.getHealthStats = async (req, res) => {
             GROUP BY contact_id 
             HAVING SUM(CASE WHEN date_ouverture IS NOT NULL OR date_clic IS NOT NULL THEN 1 ELSE 0 END) = 0
             AND MAX(date_envoi) < '${sixMonthsAgoStr}'
-          )`)
-        }
-      }
+          )`),
+        },
+      },
     });
 
     res.json({
       invalid: invalidCount,
       bounced: bouncedCount,
-      inactive: inactiveCount
+      inactive: inactiveCount,
     });
   } catch (err) {
     console.error('[HealthStats] Error:', err);
@@ -1034,29 +1188,34 @@ exports.bulkHealthAction = async (req, res) => {
     if (category === 'invalid') {
       const contacts = await Contact.findAll({
         attributes: ['id'],
-        where: sequelize.literal("email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'"),
-        raw: true
+        where: sequelize.literal(
+          "email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'"
+        ),
+        raw: true,
       });
-      contactIds = contacts.map(c => c.id);
+      contactIds = contacts.map((c) => c.id);
     } else if (category === 'bounced') {
       const envois = await EnvoiEmail.findAll({
         attributes: [[sequelize.fn('DISTINCT', sequelize.col('contact_id')), 'contact_id']],
         where: { statut: { [Op.in]: ['bounce', 'erreur', 'spam'] } },
-        raw: true
+        raw: true,
       });
-      contactIds = envois.map(e => e.contact_id);
+      contactIds = envois.map((e) => e.contact_id);
     } else if (category === 'inactive') {
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
       const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 19).replace('T', ' ');
-      
-      const results = await sequelize.query(`
+
+      const results = await sequelize.query(
+        `
         SELECT contact_id FROM envoi_email 
         GROUP BY contact_id 
         HAVING SUM(CASE WHEN date_ouverture IS NOT NULL OR date_clic IS NOT NULL THEN 1 ELSE 0 END) = 0
         AND MAX(date_envoi) < '${sixMonthsAgoStr}'
-      `, { type: sequelize.QueryTypes.SELECT });
-      contactIds = results.map(r => r.contact_id);
+      `,
+        { type: sequelize.QueryTypes.SELECT }
+      );
+      contactIds = results.map((r) => r.contact_id);
     }
 
     if (!contactIds.length) {
@@ -1065,19 +1224,31 @@ exports.bulkHealthAction = async (req, res) => {
 
     let processed = 0;
     if (action === 'disable') {
-      const [count] = await Contact.update({ actif: false }, { where: { id: { [Op.in]: contactIds } } });
+      const [count] = await Contact.update(
+        { actif: false },
+        { where: { id: { [Op.in]: contactIds } } }
+      );
       processed = count;
     } else if (action === 'delete') {
       // Use transaction to ensure all associated records are deleted or none
       await sequelize.transaction(async (t) => {
         // 1. Delete associated records that would block contact deletion
-        await EnvoiEmail.destroy({ where: { contact_id: { [Op.in]: contactIds } }, transaction: t });
+        await EnvoiEmail.destroy({
+          where: { contact_id: { [Op.in]: contactIds } },
+          transaction: t,
+        });
         await Note.destroy({ where: { contact_id: { [Op.in]: contactIds } }, transaction: t });
         await Rsvp.destroy({ where: { contact_id: { [Op.in]: contactIds } }, transaction: t });
-        await ContactTag.destroy({ where: { contact_id: { [Op.in]: contactIds } }, transaction: t });
-        
+        await ContactTag.destroy({
+          where: { contact_id: { [Op.in]: contactIds } },
+          transaction: t,
+        });
+
         // 2. Delete the contacts
-        const count = await Contact.destroy({ where: { id: { [Op.in]: contactIds } }, transaction: t });
+        const count = await Contact.destroy({
+          where: { id: { [Op.in]: contactIds } },
+          transaction: t,
+        });
         processed = count;
       });
     } else if (action === 'tag' && tagId) {
