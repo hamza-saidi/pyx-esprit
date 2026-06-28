@@ -9,8 +9,8 @@ node_modules/
 .env.test.local
 .env.production.local
 backend/.env
+backend/.env.bak
 frontend/.env
-**/ .env*
 
 # Build directories
 dist/
@@ -57,6 +57,15 @@ uploads/
 **/uploads/*
 !**/uploads/README.md
 
-# Testing
+# Testing & Coverage
 coverage/
 .nyc_output/
+backend/coverage/
+
+# Docker — Ignore le .env docker avec vrais secrets (pas le template)
+.env.docker
+docker-compose.override.yml
+
+# Diagnostic files (générés par le serveur)
+backend/STARTUP_OK.txt
+backend/FATAL_ERROR.txt
