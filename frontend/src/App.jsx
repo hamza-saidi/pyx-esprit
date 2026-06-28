@@ -10,7 +10,7 @@ import MainLayout from './components/MainLayout';
 const Contacts = React.lazy(() => import('./pages/Contacts'));
 const Tags = React.lazy(() => import('./pages/Tags'));
 const Segments = React.lazy(() => import('./pages/Segments'));
-const Campagnes = React.lazy(() => import('./pages/Campagnes'));
+const Campagnes = React.lazy(() => import('./pages/Campaigns'));
 const Statistics = React.lazy(() => import('./pages/Statistics'));
 const Birthdays = React.lazy(() => import('./pages/Birthdays'));
 const Templates = React.lazy(() => import('./pages/Templates'));
