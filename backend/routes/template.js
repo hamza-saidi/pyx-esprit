@@ -62,7 +62,16 @@ router.get('/media/recent', authenticateToken, (req, res) => {
 
 // Public serve media so images render in emails and previews
 router.get('/media/:name', (req, res) => {
-  const filePath = path.join(__dirname, '..', 'uploads', req.params.name);
+  // Whitelist characters first to reject any encoded path separator outright,
+  // then re-verify the resolved path stays inside uploadsDir (defense in depth
+  // against path traversal, e.g. "..\\..\\backend\\.env").
+  if (!/^[A-Za-z0-9_.-]+$/.test(req.params.name)) {
+    return res.status(400).send('Invalid file name');
+  }
+  const filePath = path.join(uploadsDir, req.params.name);
+  if (!filePath.startsWith(uploadsDir + path.sep)) {
+    return res.status(400).send('Invalid file name');
+  }
   if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
   res.sendFile(filePath);
 });

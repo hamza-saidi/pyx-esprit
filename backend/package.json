@@ -29,6 +29,7 @@
     "collectCoverageFrom": [
       "utils/jwt.js",
       "utils/queryBuilder.js",
+      "utils/pick.js",
       "middleware/csrf.js"
     ],
     "coverageThreshold": {

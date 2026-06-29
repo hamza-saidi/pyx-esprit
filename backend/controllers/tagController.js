@@ -1,10 +1,13 @@
 const { Tag, Contact, ContactTag, sequelize } = require('../models');
 const { literal } = require('sequelize');
+const { pick } = require('../utils/pick');
+
+const TAG_FIELDS = ['nom'];
 
 // CRUD
 exports.create = async (req, res) => {
   try {
-    const tag = await Tag.create(req.body);
+    const tag = await Tag.create(pick(req.body, TAG_FIELDS));
     res.status(201).json(tag);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -34,7 +37,7 @@ exports.update = async (req, res) => {
   try {
     const tag = await Tag.findByPk(req.params.id);
     if (!tag) return res.status(404).json({ message: 'Tag non trouvé' });
-    await tag.update(req.body);
+    await tag.update(pick(req.body, TAG_FIELDS));
     res.json(tag);
   } catch (err) {
     res.status(400).json({ message: err.message });

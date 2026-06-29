@@ -1,6 +1,9 @@
 const { ModeleEmail } = require('../models');
 const { Op } = require('sequelize');
 const OpenAI = require('openai');
+const { pick } = require('../utils/pick');
+
+const TEMPLATE_FIELDS = ['nom', 'contenu_html', 'blocks_json', 'design_json'];
 
 // CRUD
 exports.create = async (req, res) => {
@@ -70,7 +73,7 @@ exports.update = async (req, res) => {
   try {
     const template = await ModeleEmail.findByPk(req.params.id);
     if (!template) return res.status(404).json({ message: 'Modèle non trouvé' });
-    await template.update(req.body);
+    await template.update(pick(req.body, TEMPLATE_FIELDS));
     res.json(template);
   } catch (err) {
     res.status(400).json({ message: err.message });

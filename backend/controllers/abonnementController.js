@@ -1,8 +1,11 @@
 const { Abonnement, Contact } = require('../models');
+const { pick } = require('../utils/pick');
+
+const ABONNEMENT_FIELDS = ['nom', 'prix', 'duree_mois', 'description', 'actif'];
 
 exports.create = async (req, res) => {
   try {
-    const abonnement = await Abonnement.create(req.body);
+    const abonnement = await Abonnement.create(pick(req.body, ABONNEMENT_FIELDS));
     res.status(201).json(abonnement);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -34,7 +37,7 @@ exports.update = async (req, res) => {
   try {
     const abonnement = await Abonnement.findByPk(req.params.id);
     if (!abonnement) return res.status(404).json({ message: 'Abonnement non trouvé' });
-    await abonnement.update(req.body);
+    await abonnement.update(pick(req.body, ABONNEMENT_FIELDS));
     res.json(abonnement);
   } catch (err) {
     res.status(400).json({ message: err.message });

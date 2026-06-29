@@ -14,6 +14,41 @@ const { parseFile, generateCsv, generateExcel } = require('../utils/csv');
 const BatchProcessor = require('../utils/batchProcessor');
 const { Op } = require('sequelize');
 const automationService = require('../services/automationService');
+const { pick } = require('../utils/pick');
+
+// Excludes id/club_id (tenant isolation) and date_creation (server-managed)
+const CONTACT_FIELDS = [
+  'prenom',
+  'nom',
+  'email',
+  'telephone',
+  'sexe',
+  'handicap',
+  'home_club',
+  'date_naissance',
+  'nationalite',
+  'type_client',
+  'ville',
+  'entreprise',
+  'remarques',
+  'actif',
+  'adresse',
+  'code_postal',
+  'pays',
+  'statut',
+  'source',
+  'metadata',
+  'historique',
+  'date_inscription',
+  'consentement_rgpd',
+  'abonnement_id',
+  'date_debut_abonnement',
+  'date_expiration_abonnement',
+  'statut_abonnement',
+  'dernier_paiement_info',
+  'category_id',
+  'distribution_id',
+];
 
 // Helper: ensure tags from category/distribution are attached to a contact
 async function ensureCategoryDistributionTags(contact) {
@@ -65,7 +100,7 @@ exports.create = async (req, res) => {
       return res.status(400).json({ message: 'Un contact avec cet email existe déjà' });
     }
 
-    const contact = await Contact.create(req.body);
+    const contact = await Contact.create(pick(req.body, CONTACT_FIELDS));
 
     // Trigger: Contact created
     automationService.triggerAutomation('contact_added', { contact });
@@ -208,9 +243,11 @@ const getContactsWhereClause = async (query) => {
         let cond = null;
 
         if (field === 'tags') {
-          const ids = Array.isArray(value)
-            ? value
-            : String(value).split(',').map(Number).filter(Boolean);
+          const rawIds = Array.isArray(value) ? value : String(value).split(',');
+          // SECURITY: validate every id is a positive integer before
+          // interpolating into the literal subquery - rejects SQL injection
+          // attempts via a crafted filterRules.value array.
+          const ids = rawIds.map(Number).filter((n) => Number.isInteger(n) && n > 0);
           if (ids.length > 0) {
             const subquery = `(SELECT ct.contact_id FROM contact_tag ct WHERE ct.tag_id IN (${ids.join(',')}))`;
             cond = {
@@ -264,12 +301,12 @@ const getContactsWhereClause = async (query) => {
     const ids = String(tagIds)
       .split(',')
       .map(Number)
-      .filter((n) => n > 0);
+      .filter((n) => Number.isInteger(n) && n > 0);
     if (ids.length > 0) {
       whereConditions.push({
         id: {
           [Op.in]: sequelize.literal(`(
-            SELECT ct.contact_id FROM contact_tag ct 
+            SELECT ct.contact_id FROM contact_tag ct
             WHERE ct.tag_id IN (${ids.join(',')})
             GROUP BY ct.contact_id 
             HAVING COUNT(DISTINCT ct.tag_id) = ${ids.length}
@@ -307,11 +344,18 @@ const getContactsWhereClause = async (query) => {
             if (crit[k] !== undefined && crit[k] !== '') sw[k] = crit[k];
           });
           if (Array.isArray(crit.tag_ids) && crit.tag_ids.length > 0) {
-            sw.id = {
-              [Op.in]: sequelize.literal(
-                `(SELECT contact_id FROM contact_tag WHERE tag_id IN (${crit.tag_ids.join(',')}))`
-              ),
-            };
+            // SECURITY: crit comes from a Segment's stored criteres JSON -
+            // validate every id is a positive integer before interpolating
+            // into the literal subquery (was a confirmed SQL injection: a
+            // crafted tag_ids value would execute as raw SQL here).
+            const safeTagIds = crit.tag_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+            if (safeTagIds.length > 0) {
+              sw.id = {
+                [Op.in]: sequelize.literal(
+                  `(SELECT contact_id FROM contact_tag WHERE tag_id IN (${safeTagIds.join(',')}))`
+                ),
+              };
+            }
           }
           return sw;
         })
@@ -362,7 +406,9 @@ exports.getAll = async (req, res) => {
 exports.getObsoleteEmails = async (req, res) => {
   try {
     const days = Number(req.query.days || 90);
-    const minErrors = Number(req.query.minErrors || 2);
+    const minErrors = Number.isFinite(Number(req.query.minErrors))
+      ? Number(req.query.minErrors)
+      : 2;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const sequelize = Contact.sequelize;
 
@@ -537,7 +583,7 @@ exports.update = async (req, res) => {
         return res.status(400).json({ message: 'Un contact avec cet email existe déjà' });
       }
     }
-    await contact.update(req.body);
+    await contact.update(pick(req.body, CONTACT_FIELDS));
     try {
       await ensureCategoryDistributionTags(contact);
       // Update explicit tags if provided
@@ -645,7 +691,7 @@ exports.updateNote = async (req, res) => {
   try {
     const note = await Note.findByPk(req.params.noteId);
     if (!note) return res.status(404).json({ message: 'Note non trouvée' });
-    await note.update(req.body);
+    await note.update(pick(req.body, ['contenu', 'auteur']));
     res.json(note);
   } catch (err) {
     res.status(400).json({ message: err.message });

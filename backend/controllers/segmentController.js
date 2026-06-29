@@ -1,5 +1,8 @@
 const { Segment, Contact, Tag, CampagneEmail } = require('../models');
 const { Op } = require('sequelize');
+const { pick } = require('../utils/pick');
+
+const SEGMENT_FIELDS = ['nom', 'criteres'];
 
 // Construit la requête Sequelize (where, include) à partir des critères
 // Construit la requête Sequelize (where, include) à partir des critères
@@ -69,9 +72,11 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
       let cond = null;
 
       if (field === 'tags') {
-        const ids = Array.isArray(value)
-          ? value
-          : String(value).split(',').map(Number).filter(Boolean);
+        const rawIds = Array.isArray(value) ? value : String(value).split(',');
+        // SECURITY: every id must be a validated positive integer before being
+        // interpolated into the literal subquery below - otherwise an attacker
+        // could inject arbitrary SQL via a segment's stored filterRules.value.
+        const ids = rawIds.map(Number).filter((n) => Number.isInteger(n) && n > 0);
         if (ids.length > 0) {
           const subquery = `(SELECT ct.contact_id FROM contact_tag ct WHERE ct.tag_id IN (${ids.join(',')}))`;
           cond = {
@@ -208,7 +213,7 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
   // 3. Tags (legacy/direct) - Only if not in filterRules
   if (!criteres.filterRules || !criteres.filterRules.some((r) => r.field === 'tags')) {
     if (Array.isArray(criteres.tag_ids) && criteres.tag_ids.length > 0) {
-      const ids = criteres.tag_ids.map(Number).filter(Boolean);
+      const ids = criteres.tag_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0);
       if (ids.length > 0) {
         whereConditions.push({
           id: {
@@ -228,7 +233,7 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
 // CRUD
 exports.create = async (req, res) => {
   try {
-    const segment = await Segment.create(req.body);
+    const segment = await Segment.create(pick(req.body, SEGMENT_FIELDS));
     res.status(201).json(segment);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -276,7 +281,7 @@ exports.update = async (req, res) => {
   try {
     const segment = await Segment.findByPk(req.params.id);
     if (!segment) return res.status(404).json({ message: 'Segment non trouvé' });
-    await segment.update(req.body);
+    await segment.update(pick(req.body, SEGMENT_FIELDS));
     res.json(segment);
   } catch (err) {
     res.status(400).json({ message: err.message });
