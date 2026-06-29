@@ -1,22 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const templateController = require('../controllers/templateController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuthAndTenant } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { getPublicBaseUrl } = require('../utils/url');
 
 // CRUD
-router.post('/', authenticateToken, templateController.create);
-router.get('/', authenticateToken, templateController.getAll);
-router.get('/:id', authenticateToken, templateController.getOne);
-router.put('/:id', authenticateToken, templateController.update);
-router.delete('/:id', authenticateToken, templateController.delete);
+router.post('/', requireAuthAndTenant, templateController.create);
+router.get('/', requireAuthAndTenant, templateController.getAll);
+router.get('/:id', requireAuthAndTenant, templateController.getOne);
+router.put('/:id', requireAuthAndTenant, templateController.update);
+router.delete('/:id', requireAuthAndTenant, templateController.delete);
 
 // Suggestion (AI stub)
-router.post('/suggest', authenticateToken, templateController.suggest);
-router.post('/text-to-html', authenticateToken, templateController.textToHtml);
+router.post('/suggest', requireAuthAndTenant, templateController.suggest);
+router.post('/text-to-html', requireAuthAndTenant, templateController.textToHtml);
 
 // Media library: upload & list recent assets
 const uploadsDir = path.join(__dirname, '..', 'uploads');
@@ -34,7 +34,7 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-router.post('/media/upload', authenticateToken, upload.single('file'), (req, res) => {
+router.post('/media/upload', requireAuthAndTenant, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'Fichier manquant' });
   const fileUrl = `${getPublicBaseUrl(req)}/api/templates/media/${req.file.filename}`;
   res.json({
@@ -45,7 +45,7 @@ router.post('/media/upload', authenticateToken, upload.single('file'), (req, res
   });
 });
 
-router.get('/media/recent', authenticateToken, (req, res) => {
+router.get('/media/recent', requireAuthAndTenant, (req, res) => {
   const dir = path.join(__dirname, '..', 'uploads');
   if (!fs.existsSync(dir)) return res.json([]);
   const files = fs

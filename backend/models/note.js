@@ -7,6 +7,7 @@ module.exports = (sequelize, DataTypes) => {
       contenu: { type: DataTypes.TEXT, allowNull: false },
       auteur: { type: DataTypes.STRING(100) },
       date_creation: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+      club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {
       tableName: 'note',
@@ -15,6 +16,7 @@ module.exports = (sequelize, DataTypes) => {
   );
   Note.associate = (models) => {
     Note.belongsTo(models.Contact, { foreignKey: 'contact_id', as: 'contact' });
+    Note.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };
   return Note;
 };

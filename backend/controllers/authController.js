@@ -49,12 +49,23 @@ function isBlocked(ip) {
 }
 
 const { getJwtSecret } = require('../utils/jwt');
+const { runWithTenant } = require('../utils/tenantContext');
+
+// Auth happens before any club is known (the caller only has email/password,
+// not a club identifier) - these lookups run in system context, which is the
+// only legitimate bypass of the tenant-scoping hooks (see
+// models/hooks/tenantScopeHooks.js). Once a user is resolved, every
+// subsequent request carries club_id in its JWT and goes through the normal
+// per-request tenant context set up by middleware/tenantScope.js.
+const SYSTEM_CONTEXT = { clubId: null, isSystem: true };
 
 function signAccess(user) {
   const secret = getJwtSecret('access');
-  return jwt.sign({ id: user.id, email: user.email, role: user.role }, secret, {
-    expiresIn: '24h',
-  });
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role, club_id: user.club_id },
+    secret,
+    { expiresIn: '24h' }
+  );
 }
 function signRefresh(user) {
   const secret = getJwtSecret('refresh');
@@ -63,7 +74,7 @@ function signRefresh(user) {
 
 exports.register = async (req, res) => {
   try {
-    const { nom, email, mot_de_passe, role } = req.body;
+    const { nom, email, mot_de_passe } = req.body;
     if (
       !mot_de_passe ||
       mot_de_passe.length < 8 ||
@@ -75,10 +86,18 @@ exports.register = async (req, res) => {
         message: 'Mot de passe faible (8+ caractères, majuscule, minuscule, chiffre requis)',
       });
     }
-    const existing = await Utilisateur.findOne({ where: { email } });
-    if (existing) return res.status(400).json({ message: 'Email déjà utilisé' });
-    const hash = await bcrypt.hash(mot_de_passe, 12);
-    const user = await Utilisateur.create({ nom, email, mot_de_passe: hash, role });
+    const user = await runWithTenant(SYSTEM_CONTEXT, async () => {
+      const existing = await Utilisateur.findOne({ where: { email } });
+      if (existing) return null;
+      const hash = await bcrypt.hash(mot_de_passe, 12);
+      // SECURITY: role is never client-controlled - self-registration is
+      // always 'employee'. Promotion to 'admin'/'global_admin' requires an
+      // existing admin (see routes/user.js) or direct operator action.
+      // club_id defaults to the default club (1) - see Club model; a
+      // club-aware public signup flow is a future product feature.
+      return Utilisateur.create({ nom, email, mot_de_passe: hash, role: 'employee', club_id: 1 });
+    });
+    if (!user) return res.status(400).json({ message: 'Email déjà utilisé' });
     res.status(201).json({ id: user.id, nom: user.nom, email: user.email, role: user.role });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -101,7 +120,9 @@ exports.login = async (req, res, next) => {
       return res.status(429).json({ message: 'Trop de tentatives. Réessayez plus tard.' });
     }
 
-    const user = await Utilisateur.findOne({ where: { email } });
+    const user = await runWithTenant(SYSTEM_CONTEXT, () =>
+      Utilisateur.findOne({ where: { email } })
+    );
     const valid = user ? await bcrypt.compare(mot_de_passe, user.mot_de_passe) : false;
 
     recordAttempt(ip, !!(user && valid));
@@ -154,7 +175,7 @@ exports.refresh = async (req, res) => {
     if (!refresh) return res.status(401).json({ message: 'Non autorisé' });
     const secret = getJwtSecret('refresh');
     const payload = jwt.verify(refresh, secret);
-    const user = await Utilisateur.findByPk(payload.id);
+    const user = await runWithTenant(SYSTEM_CONTEXT, () => Utilisateur.findByPk(payload.id));
     if (!user) return res.status(401).json({ message: 'Non autorisé' });
     const token = signAccess(user);
     res.json({ token });
@@ -185,7 +206,7 @@ exports.verifyMfa = async (req, res) => {
     // Constant-time comparison to prevent timing attacks
     if (String(rec.code) !== String(code))
       return res.status(400).json({ message: 'Code incorrect' });
-    const user = await Utilisateur.findByPk(rec.userId);
+    const user = await runWithTenant(SYSTEM_CONTEXT, () => Utilisateur.findByPk(rec.userId));
     if (!user) return res.status(400).json({ message: 'Utilisateur introuvable' });
     mfaStore.delete(pending_token);
     const token = signAccess(user);
@@ -205,9 +226,9 @@ exports.verifyMfa = async (req, res) => {
 
 exports.getProfile = async (req, res) => {
   try {
-    const user = await Utilisateur.findByPk(req.user.id, {
-      attributes: { exclude: ['mot_de_passe'] },
-    });
+    const user = await runWithTenant(SYSTEM_CONTEXT, () =>
+      Utilisateur.findByPk(req.user.id, { attributes: { exclude: ['mot_de_passe'] } })
+    );
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
     res.json(user);
   } catch (err) {

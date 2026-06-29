@@ -9,6 +9,7 @@
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
 const bcrypt = require('bcryptjs');
+const { runWithTenant } = require('./utils/tenantContext');
 
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_USER = process.env.DB_USER || 'root';
@@ -56,23 +57,31 @@ async function main() {
   await db.sequelize.sync({ force: false, alter: false });
   console.log('✅ All tables synced.');
 
-  // ── Step 3: Seed admin user ───────────────────────────────────────────────
-  console.log('\n🔧 Seeding admin user...');
-  const { Utilisateur } = db;
+  // ── Step 3: Seed default club + admin user ────────────────────────────────
+  console.log('\n🔧 Seeding default club and admin user...');
+  const { Utilisateur, Club } = db;
 
-  const existing = await Utilisateur.findOne({ where: { email: 'maycem2003@gmail.com' } });
-  if (existing) {
-    console.log('ℹ️  Admin user already exists – skipping seed.');
-  } else {
-    const hashed = await bcrypt.hash('12345', 10);
-    await Utilisateur.create({
-      nom: 'Maycem Admin',
-      email: 'maycem2003@gmail.com',
-      mot_de_passe: hashed,
-      role: 'admin',
+  await runWithTenant({ clubId: 1, isSystem: false }, async () => {
+    const [club] = await Club.findOrCreate({
+      where: { id: 1 },
+      defaults: { nom: 'Club par défaut', slug: 'default', statut: 'actif' },
     });
-    console.log('✅ Admin user created: maycem2003@gmail.com / 12345');
-  }
+
+    const existing = await Utilisateur.findOne({ where: { email: 'maycem2003@gmail.com' } });
+    if (existing) {
+      console.log('ℹ️  Admin user already exists – skipping seed.');
+    } else {
+      const hashed = await bcrypt.hash('12345', 10);
+      await Utilisateur.create({
+        nom: 'Maycem Admin',
+        email: 'maycem2003@gmail.com',
+        mot_de_passe: hashed,
+        role: 'admin',
+        club_id: club.id,
+      });
+      console.log('✅ Admin user created: maycem2003@gmail.com / 12345');
+    }
+  });
 
   await db.sequelize.close();
   console.log('\n🎉 Setup complete!\n');

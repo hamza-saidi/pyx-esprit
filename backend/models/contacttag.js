@@ -10,6 +10,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         primaryKey: true,
       },
+      club_id: {
+        type: DataTypes.INTEGER,
+        defaultValue: 1,
+      },
     },
     {
       tableName: 'contact_tag',

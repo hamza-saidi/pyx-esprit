@@ -8,6 +8,7 @@ module.exports = (sequelize, DataTypes) => {
       nb_ouverts: { type: DataTypes.INTEGER, defaultValue: 0 },
       nb_clics: { type: DataTypes.INTEGER, defaultValue: 0 },
       nb_desabonnements: { type: DataTypes.INTEGER, defaultValue: 0 },
+      club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {
       tableName: 'statistique_campagne',
@@ -20,6 +21,7 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'campagne_id',
       as: 'campagne',
     });
+    StatistiqueCampagne.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };
 
   return StatistiqueCampagne;

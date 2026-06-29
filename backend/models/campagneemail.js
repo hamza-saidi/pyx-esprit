@@ -54,6 +54,7 @@ module.exports = (sequelize, DataTypes) => {
       as: 'statistiques',
     });
     CampagneEmail.hasMany(models.EnvoiEmail, { foreignKey: 'campagne_id', as: 'envois' });
+    CampagneEmail.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };
 
   return CampagneEmail;

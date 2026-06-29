@@ -30,6 +30,7 @@ module.exports = (sequelize, DataTypes) => {
       message_erreur: { type: DataTypes.TEXT },
       token_tracking: { type: DataTypes.STRING(255), unique: true }, // Pour le tracking des ouvertures/clics
       actif: { type: DataTypes.BOOLEAN, defaultValue: true },
+      club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {
       tableName: 'envoi_email',
@@ -40,6 +41,7 @@ module.exports = (sequelize, DataTypes) => {
   EnvoiEmail.associate = (models) => {
     EnvoiEmail.belongsTo(models.CampagneEmail, { foreignKey: 'campagne_id', as: 'campagne' });
     EnvoiEmail.belongsTo(models.Contact, { foreignKey: 'contact_id', as: 'contact' });
+    EnvoiEmail.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };
 
   return EnvoiEmail;

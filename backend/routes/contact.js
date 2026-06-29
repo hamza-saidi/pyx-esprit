@@ -1,47 +1,47 @@
 const express = require('express');
 const router = express.Router();
 const contactController = require('../controllers/contactController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuthAndTenant } = require('../middleware/auth');
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 
 // Public registration endpoint (no auth)
 router.post('/public', contactController.create);
 // CRUD
-router.post('/', authenticateToken, contactController.create);
-router.get('/', authenticateToken, contactController.getAll);
-router.get('/obsolete', authenticateToken, contactController.getObsoleteEmails);
-router.get('/:id', authenticateToken, contactController.getOne);
-router.put('/:id', authenticateToken, contactController.update);
-router.delete('/:id', authenticateToken, contactController.delete);
+router.post('/', requireAuthAndTenant, contactController.create);
+router.get('/', requireAuthAndTenant, contactController.getAll);
+router.get('/obsolete', requireAuthAndTenant, contactController.getObsoleteEmails);
+router.get('/:id', requireAuthAndTenant, contactController.getOne);
+router.put('/:id', requireAuthAndTenant, contactController.update);
+router.delete('/:id', requireAuthAndTenant, contactController.delete);
 
 // Désactiver
-router.patch('/:id/disable', authenticateToken, contactController.disable);
+router.patch('/:id/disable', requireAuthAndTenant, contactController.disable);
 
 // Tags
-router.post('/:id/tags', authenticateToken, contactController.addTag);
-router.delete('/:id/tags', authenticateToken, contactController.removeTag);
+router.post('/:id/tags', requireAuthAndTenant, contactController.addTag);
+router.delete('/:id/tags', requireAuthAndTenant, contactController.removeTag);
 
 // Import/export files
-router.post('/import', authenticateToken, upload.single('file'), contactController.importFile);
-router.get('/export/csv', authenticateToken, contactController.exportCsv);
-router.get('/export/excel', authenticateToken, contactController.exportExcel);
+router.post('/import', requireAuthAndTenant, upload.single('file'), contactController.importFile);
+router.get('/export/csv', requireAuthAndTenant, contactController.exportCsv);
+router.get('/export/excel', requireAuthAndTenant, contactController.exportExcel);
 // Dashboard stats
-router.get('/stats/summary', authenticateToken, contactController.getStats);
-router.get('/export/template', authenticateToken, contactController.exportTemplate);
+router.get('/stats/summary', requireAuthAndTenant, contactController.getStats);
+router.get('/export/template', requireAuthAndTenant, contactController.exportTemplate);
 
 // Audience Health
-router.get('/health/stats', authenticateToken, contactController.getHealthStats);
-router.post('/health/bulk-action', authenticateToken, contactController.bulkHealthAction);
+router.get('/health/stats', requireAuthAndTenant, contactController.getHealthStats);
+router.post('/health/bulk-action', requireAuthAndTenant, contactController.bulkHealthAction);
 
 // Bulk maintenance
-router.post('/auto-tags', authenticateToken, contactController.generateAutoTagsForAll);
+router.post('/auto-tags', requireAuthAndTenant, contactController.generateAutoTagsForAll);
 
 // Recherche avancée, pagination, tri : GET /?nom=&email=&statut=&ville=&pays=&page=&limit=&sort=&order=
 
 // Notes
-router.post('/:id/notes', authenticateToken, contactController.addNote);
-router.put('/:id/notes/:noteId', authenticateToken, contactController.updateNote);
-router.delete('/:id/notes/:noteId', authenticateToken, contactController.deleteNote);
+router.post('/:id/notes', requireAuthAndTenant, contactController.addNote);
+router.put('/:id/notes/:noteId', requireAuthAndTenant, contactController.updateNote);
+router.delete('/:id/notes/:noteId', requireAuthAndTenant, contactController.deleteNote);
 
 module.exports = router;

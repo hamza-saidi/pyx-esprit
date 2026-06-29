@@ -7,7 +7,7 @@ module.exports = (sequelize, DataTypes) => {
       email: { type: DataTypes.STRING(100), allowNull: false, unique: true },
       mot_de_passe: { type: DataTypes.STRING(255), allowNull: false },
       role: {
-        type: DataTypes.ENUM('admin', 'employee'),
+        type: DataTypes.ENUM('admin', 'employee', 'global_admin'),
         allowNull: false,
         defaultValue: 'employee',
       },
@@ -22,6 +22,7 @@ module.exports = (sequelize, DataTypes) => {
 
   Utilisateur.associate = (models) => {
     Utilisateur.hasMany(models.CampagneEmail, { foreignKey: 'createur_id', as: 'campagnes' });
+    Utilisateur.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };
 
   return Utilisateur;

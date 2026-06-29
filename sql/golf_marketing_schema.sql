@@ -1,8 +1,25 @@
 -- MySQL Schema for Golf Huub Marketing Platform
--- Fully synchronized with Sequelize models and production-ready with optimal indexes.
+-- Fully synchronized with Sequelize models, multi-tenant (club_id) and
+-- production-ready with optimal indexes.
+-- Used to bootstrap the CI test database (see .github/workflows/ci.yml) -
+-- in normal dev/prod use, backend/utils/migrationRunner.js applies
+-- backend/migrations/*.js automatically on server boot instead.
 
 CREATE DATABASE IF NOT EXISTS golf_marketing;
 USE golf_marketing;
+
+-- 0. Club (tenant root - never itself tenant-scoped)
+CREATE TABLE IF NOT EXISTS club (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nom VARCHAR(150) NOT NULL,
+    slug VARCHAR(150) NOT NULL UNIQUE,
+    email_contact VARCHAR(150),
+    statut ENUM('actif', 'suspendu', 'archive') NOT NULL DEFAULT 'actif',
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO club (id, nom, slug, statut) VALUES (1, 'Club par défaut', 'default', 'actif')
+    ON DUPLICATE KEY UPDATE id = id;
 
 -- 1. Utilisateurs (Platform users/employees)
 CREATE TABLE IF NOT EXISTS utilisateur (
@@ -10,37 +27,52 @@ CREATE TABLE IF NOT EXISTS utilisateur (
     nom VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
     mot_de_passe VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'employee') NOT NULL DEFAULT 'employee',
-    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+    role ENUM('admin', 'employee', 'global_admin') NOT NULL DEFAULT 'employee',
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    INDEX idx_utilisateur_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 2. Abonnements (Membership plans)
+-- 2. Abonnements (Membership plans) - unique per club, not globally
 CREATE TABLE IF NOT EXISTS abonnement (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nom VARCHAR(100) NOT NULL UNIQUE,
+    nom VARCHAR(100) NOT NULL,
     prix DECIMAL(10, 2) DEFAULT 0.00,
     duree_mois INT DEFAULT 12,
     description TEXT,
     actif BOOLEAN DEFAULT TRUE,
-    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    UNIQUE KEY uniq_abonnement_club_nom (club_id, nom),
+    INDEX idx_abonnement_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 3. Categories (Contact category tags/segments)
+-- 3. Categories (Contact category tags/segments) - unique per club
 CREATE TABLE IF NOT EXISTS category (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nom VARCHAR(100) NOT NULL UNIQUE,
+    nom VARCHAR(100) NOT NULL,
     description TEXT,
     actif BOOLEAN DEFAULT TRUE,
-    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    UNIQUE KEY uniq_category_club_nom (club_id, nom),
+    INDEX idx_category_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 4. Distributions (Distribution lists)
+-- 4. Distributions (Distribution lists) - unique per club
 CREATE TABLE IF NOT EXISTS distribution (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nom VARCHAR(100) NOT NULL UNIQUE,
+    nom VARCHAR(100) NOT NULL,
     description TEXT,
     actif BOOLEAN DEFAULT TRUE,
-    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    UNIQUE KEY uniq_distribution_club_nom (club_id, nom),
+    INDEX idx_distribution_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 5. Contacts (Audience/Players)
@@ -70,7 +102,7 @@ CREATE TABLE IF NOT EXISTS contact (
     historique JSON,
     date_inscription DATETIME,
     consentement_rgpd BOOLEAN DEFAULT FALSE,
-    
+
     -- Foreign Keys
     abonnement_id INT,
     category_id INT,
@@ -79,11 +111,13 @@ CREATE TABLE IF NOT EXISTS contact (
     date_expiration_abonnement DATETIME,
     statut_abonnement ENUM('actif', 'expiré', 'en_attente_paiement', 'aucun') DEFAULT 'aucun',
     dernier_paiement_info VARCHAR(255),
-    
+    club_id INT DEFAULT 1,
+
     FOREIGN KEY (abonnement_id) REFERENCES abonnement(id) ON DELETE SET NULL,
     FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE SET NULL,
     FOREIGN KEY (distribution_id) REFERENCES distribution(id) ON DELETE SET NULL,
-    
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+
     -- Performance Indexes
     INDEX idx_contact_email (email),
     INDEX idx_contact_sexe (sexe),
@@ -91,24 +125,31 @@ CREATE TABLE IF NOT EXISTS contact (
     INDEX idx_contact_ville (ville),
     INDEX idx_contact_type_client (type_client),
     INDEX idx_contact_statut (statut),
-    INDEX idx_contact_actif (actif)
+    INDEX idx_contact_actif (actif),
+    INDEX idx_contact_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 6. Tags
 CREATE TABLE IF NOT EXISTS tag (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nom VARCHAR(50) NOT NULL UNIQUE
+    nom VARCHAR(50) NOT NULL,
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    INDEX idx_tag_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 7. Contact-Tag Junction Table (Many-to-Many)
+-- 7. Contact-Tag Junction Table (Many-to-Many) - club_id denormalized from contact
 CREATE TABLE IF NOT EXISTS contact_tag (
     contact_id INT,
     tag_id INT,
+    club_id INT DEFAULT 1,
     PRIMARY KEY (contact_id, tag_id),
     FOREIGN KEY (contact_id) REFERENCES contact(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tag(id) ON DELETE CASCADE,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
     -- Index for looking up contacts by tag
-    INDEX idx_contact_tag_tag (tag_id)
+    INDEX idx_contact_tag_tag (tag_id),
+    INDEX idx_contact_tag_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 8. Segments (Dynamic audience logic filters)
@@ -116,7 +157,10 @@ CREATE TABLE IF NOT EXISTS segment (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
     criteres JSON NOT NULL,
-    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    INDEX idx_segment_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 9. Campagnes Email
@@ -142,17 +186,20 @@ CREATE TABLE IF NOT EXISTS campagne_email (
     nb_envoyes INT DEFAULT 0,
     nb_erreurs INT DEFAULT 0,
     actif BOOLEAN DEFAULT TRUE,
-    
+    club_id INT DEFAULT 1,
+
     FOREIGN KEY (createur_id) REFERENCES utilisateur(id),
     FOREIGN KEY (segment_id) REFERENCES segment(id) ON DELETE SET NULL,
-    
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+
     -- Performance Indexes
     INDEX idx_campagne_statut (statut),
     INDEX idx_campagne_date_prog (date_programmation),
-    INDEX idx_campagne_actif (actif)
+    INDEX idx_campagne_actif (actif),
+    INDEX idx_campagne_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 10. Statistiques de Campagne
+-- 10. Statistiques de Campagne - club_id denormalized from campagne_email
 CREATE TABLE IF NOT EXISTS statistique_campagne (
     id INT AUTO_INCREMENT PRIMARY KEY,
     campagne_id INT UNIQUE,
@@ -160,10 +207,13 @@ CREATE TABLE IF NOT EXISTS statistique_campagne (
     nb_ouverts INT DEFAULT 0,
     nb_clics INT DEFAULT 0,
     nb_desabonnements INT DEFAULT 0,
-    FOREIGN KEY (campagne_id) REFERENCES campagne_email(id) ON DELETE CASCADE
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (campagne_id) REFERENCES campagne_email(id) ON DELETE CASCADE,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    INDEX idx_statistique_campagne_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 11. Envois Emails (individual email queue & tracking stats)
+-- 11. Envois Emails (individual email queue & tracking stats) - club_id denormalized from contact
 CREATE TABLE IF NOT EXISTS envoi_email (
     id INT AUTO_INCREMENT PRIMARY KEY,
     campagne_id INT,
@@ -180,15 +230,18 @@ CREATE TABLE IF NOT EXISTS envoi_email (
     message_erreur TEXT,
     token_tracking VARCHAR(255) UNIQUE,
     actif BOOLEAN DEFAULT TRUE,
-    
+    club_id INT DEFAULT 1,
+
     FOREIGN KEY (campagne_id) REFERENCES campagne_email(id) ON DELETE SET NULL,
     FOREIGN KEY (contact_id) REFERENCES contact(id) ON DELETE CASCADE,
-    
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+
     -- Performance Indexes
     INDEX idx_envoi_campagne (campagne_id),
     INDEX idx_envoi_contact (contact_id),
     INDEX idx_envoi_statut (statut),
-    INDEX idx_envoi_date_envoi (date_envoi)
+    INDEX idx_envoi_date_envoi (date_envoi),
+    INDEX idx_envoi_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 12. Evenements
@@ -198,18 +251,24 @@ CREATE TABLE IF NOT EXISTS evenement (
     date DATETIME NOT NULL,
     lieu VARCHAR(100) NOT NULL,
     description TEXT,
-    index_requis DECIMAL(4,1)
+    index_requis DECIMAL(4,1),
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    INDEX idx_evenement_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 13. RSVP (Event bookings)
+-- 13. RSVP (Event bookings) - club_id denormalized from contact/evenement
 CREATE TABLE IF NOT EXISTS rsvp (
     id INT AUTO_INCREMENT PRIMARY KEY,
     contact_id INT,
     evenement_id INT,
     statut ENUM('invité', 'confirmé', 'absent') DEFAULT 'invité',
+    club_id INT DEFAULT 1,
     FOREIGN KEY (contact_id) REFERENCES contact(id) ON DELETE CASCADE,
     FOREIGN KEY (evenement_id) REFERENCES evenement(id) ON DELETE CASCADE,
-    UNIQUE KEY uq_rsvp_contact_event (contact_id, evenement_id)
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    UNIQUE KEY uq_rsvp_contact_event (contact_id, evenement_id),
+    INDEX idx_rsvp_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 14. Modeles d'Email
@@ -219,17 +278,23 @@ CREATE TABLE IF NOT EXISTS modele_email (
     contenu_html LONGTEXT NOT NULL,
     blocks_json JSON,
     design_json JSON,
-    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    INDEX idx_modele_email_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 15. Notes
+-- 15. Notes - club_id denormalized from contact
 CREATE TABLE IF NOT EXISTS note (
     id INT AUTO_INCREMENT PRIMARY KEY,
     contact_id INT NOT NULL,
     contenu TEXT NOT NULL,
     auteur VARCHAR(100),
     date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (contact_id) REFERENCES contact(id) ON DELETE CASCADE
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (contact_id) REFERENCES contact(id) ON DELETE CASCADE,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    INDEX idx_note_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 16. Automations (Automated workflows)
@@ -241,5 +306,8 @@ CREATE TABLE IF NOT EXISTS automations (
     config JSON,
     derniere_execution DATETIME,
     date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
-    date_modification DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    date_modification DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    club_id INT DEFAULT 1,
+    FOREIGN KEY (club_id) REFERENCES club(id) ON DELETE RESTRICT,
+    INDEX idx_automations_club_id (club_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

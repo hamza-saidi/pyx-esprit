@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { Distribution } = require('../models');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuthAndTenant } = require('../middleware/auth');
 
-router.use(authenticateToken);
+router.use(requireAuthAndTenant);
 
 router.get('/', async (req, res) => {
   try {

@@ -28,6 +28,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {
       tableName: 'automations',
@@ -36,6 +37,10 @@ module.exports = (sequelize, DataTypes) => {
       updatedAt: 'date_modification',
     }
   );
+
+  Automation.associate = (models) => {
+    Automation.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
+  };
 
   return Automation;
 };

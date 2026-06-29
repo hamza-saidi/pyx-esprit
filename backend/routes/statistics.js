@@ -1,21 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const statisticsController = require('../controllers/statisticsController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuthAndTenant } = require('../middleware/auth');
 
 // Obtenir les stats d'une campagne
-router.get('/campaign/:campaignId', authenticateToken, statisticsController.getByCampaign);
+router.get('/campaign/:campaignId', requireAuthAndTenant, statisticsController.getByCampaign);
 
 // Tableau de bord principal
-router.get('/dashboard', authenticateToken, statisticsController.getDashboard);
+router.get('/dashboard', requireAuthAndTenant, statisticsController.getDashboard);
 
 // Comparaison entre périodes
-router.get('/comparaison', authenticateToken, statisticsController.getComparaisonPeriodes);
+router.get('/comparaison', requireAuthAndTenant, statisticsController.getComparaisonPeriodes);
 
 // Statistiques par segment
-router.get('/segment/:segmentId', authenticateToken, statisticsController.getStatsBySegment);
+router.get('/segment/:segmentId', requireAuthAndTenant, statisticsController.getStatsBySegment);
 
 // Statistiques des événements
-router.get('/events', authenticateToken, statisticsController.getEventStats);
+router.get('/events', requireAuthAndTenant, statisticsController.getEventStats);
 
 module.exports = router;

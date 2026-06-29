@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const abonnementController = require('../controllers/abonnementController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuthAndTenant } = require('../middleware/auth');
 
-router.get('/', authenticateToken, abonnementController.getAll);
-router.get('/:id', authenticateToken, abonnementController.getOne);
-router.post('/', authenticateToken, abonnementController.create);
-router.put('/:id', authenticateToken, abonnementController.update);
-router.delete('/:id', authenticateToken, abonnementController.delete);
+router.get('/', requireAuthAndTenant, abonnementController.getAll);
+router.get('/:id', requireAuthAndTenant, abonnementController.getOne);
+router.post('/', requireAuthAndTenant, abonnementController.create);
+router.put('/:id', requireAuthAndTenant, abonnementController.update);
+router.delete('/:id', requireAuthAndTenant, abonnementController.delete);
 
 module.exports = router;

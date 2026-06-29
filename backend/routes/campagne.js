@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const campagneController = require('../controllers/campagneController');
-const { authenticateToken } = require('../middleware/auth');
+const { requireAuthAndTenant } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -22,16 +22,16 @@ const attachmentStorage = multer.diskStorage({
 const uploadAttachment = multer({ storage: attachmentStorage });
 
 // Toutes les routes nécessitent une authentification
-router.use(authenticateToken);
+router.use(requireAuthAndTenant);
 
 // Upload attachment
 router.post(
   '/attachments',
-  authenticateToken,
+  requireAuthAndTenant,
   uploadAttachment.single('file'),
   campagneController.uploadAttachment
 );
-router.get('/attachments/:id', authenticateToken, campagneController.downloadAttachment);
+router.get('/attachments/:id', requireAuthAndTenant, campagneController.downloadAttachment);
 
 // Récupérer toutes les campagnes (avec pagination et filtres)
 router.get('/', campagneController.getAll);

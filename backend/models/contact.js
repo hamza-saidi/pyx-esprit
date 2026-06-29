@@ -55,6 +55,7 @@ module.exports = (sequelize, DataTypes) => {
     Contact.belongsTo(models.Category, { foreignKey: 'category_id', as: 'category' });
     Contact.belongsTo(models.Distribution, { foreignKey: 'distribution_id', as: 'distribution' });
     Contact.belongsTo(models.Abonnement, { foreignKey: 'abonnement_id', as: 'abonnement' });
+    Contact.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };
 
   return Contact;

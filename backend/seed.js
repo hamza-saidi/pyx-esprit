@@ -1,10 +1,20 @@
 const faker = require('faker');
 const bcrypt = require('bcryptjs');
 const db = require('./models');
+const { runWithTenant } = require('./utils/tenantContext');
 
 async function seed() {
   await db.sequelize.sync({ force: true });
 
+  // sync({force:true}) recreates empty tables - it does not run the
+  // migrations' seed data, so the default club row must be created here
+  // before anything that has a club_id foreign key.
+  await db.Club.create({ id: 1, nom: 'Club par défaut', slug: 'default', statut: 'actif' });
+
+  return runWithTenant({ clubId: 1, isSystem: false }, () => seedTenantData());
+}
+
+async function seedTenantData() {
   // Utilisateurs
   const users = [];
   for (let i = 0; i < 5; i++) {

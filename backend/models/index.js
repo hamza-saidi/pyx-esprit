@@ -52,6 +52,10 @@ Object.keys(db).forEach((modelName) => {
   }
 });
 
+// Multi-tenancy fail-secure safety net (see models/hooks/tenantScopeHooks.js)
+const { applyTenantHooks } = require('./hooks/tenantScopeHooks');
+applyTenantHooks(db);
+
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

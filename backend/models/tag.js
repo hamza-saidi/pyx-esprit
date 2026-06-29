@@ -4,6 +4,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
       nom: { type: DataTypes.STRING(50), allowNull: false },
+      club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {
       tableName: 'tag',
@@ -17,6 +18,7 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'tag_id',
       as: 'contacts',
     });
+    Tag.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };
 
   return Tag;

@@ -15,6 +15,7 @@ const BatchProcessor = require('../utils/batchProcessor');
 const { Op } = require('sequelize');
 const automationService = require('../services/automationService');
 const { pick } = require('../utils/pick');
+const { runWithTenant } = require('../utils/tenantContext');
 
 // Excludes id/club_id (tenant isolation) and date_creation (server-managed)
 const CONTACT_FIELDS = [
@@ -90,52 +91,62 @@ async function ensureTag(contact, tagName) {
 
 // CRUD Contact
 exports.create = async (req, res) => {
-  try {
-    // Email uniqueness check (case-insensitive logic delegated to DB collation)
-    if (!req.body.email) {
-      return res.status(400).json({ message: 'Email requis' });
-    }
-    const existing = await Contact.findOne({ where: { email: req.body.email } });
-    if (existing) {
-      return res.status(400).json({ message: 'Un contact avec cet email existe déjà' });
-    }
+  // The authenticated route (POST /contacts) already runs inside the tenant
+  // context set up by requireAuthAndTenant middleware. The public route
+  // (POST /contacts/public, no auth) has none, so it must establish one
+  // itself - pinned to the default club until a club-aware public signup
+  // URL scheme exists (out of scope for this phase).
+  const isPublicRegistration =
+    (req.path && req.path.includes('/public')) ||
+    (req.originalUrl && req.originalUrl.includes('/public'));
+  const run = (fn) =>
+    isPublicRegistration ? runWithTenant({ clubId: 1, isSystem: false }, fn) : fn();
 
-    const contact = await Contact.create(pick(req.body, CONTACT_FIELDS));
-
-    // Trigger: Contact created
-    automationService.triggerAutomation('contact_added', { contact });
-
+  return run(async () => {
     try {
-      let allAddedTagNames = [];
-      const catDistTags = await ensureCategoryDistributionTags(contact);
-      allAddedTagNames.push(...catDistTags);
-
-      // Associate explicit tags if provided
-      if (Array.isArray(req.body.tags_id) && req.body.tags_id.length > 0) {
-        console.log(`[DEBUG] Adding tags ${req.body.tags_id} to contact ${contact.id}`);
-        await contact.addTags(req.body.tags_id);
-        const addedTags = await Tag.findAll({ where: { id: req.body.tags_id } });
-        allAddedTagNames.push(...addedTags.map((t) => t.nom));
+      // Email uniqueness check (case-insensitive logic delegated to DB collation)
+      if (!req.body.email) {
+        return res.status(400).json({ message: 'Email requis' });
+      }
+      const existing = await Contact.findOne({ where: { email: req.body.email } });
+      if (existing) {
+        return res.status(400).json({ message: 'Un contact avec cet email existe déjà' });
       }
 
-      // Add CMT2026 and Golfeurs Allemagne tags for public registrations
-      const isPublicRegistration =
-        (req.path && req.path.includes('/public')) ||
-        (req.originalUrl && req.originalUrl.includes('/public'));
-      if (isPublicRegistration) {
-        allAddedTagNames.push(...(await ensureTag(contact, 'CMT2026')));
-        allAddedTagNames.push(...(await ensureTag(contact, 'Golfeurs Allemagne')));
-      }
+      const contact = await Contact.create(pick(req.body, CONTACT_FIELDS));
 
-      if (allAddedTagNames.length > 0) {
-        automationService.triggerAutomation('tag_added', { contact, tagNames: allAddedTagNames });
-      }
-    } catch (_) {}
+      // Trigger: Contact created
+      automationService.triggerAutomation('contact_added', { contact });
 
-    res.status(201).json(contact);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
+      try {
+        let allAddedTagNames = [];
+        const catDistTags = await ensureCategoryDistributionTags(contact);
+        allAddedTagNames.push(...catDistTags);
+
+        // Associate explicit tags if provided
+        if (Array.isArray(req.body.tags_id) && req.body.tags_id.length > 0) {
+          console.log(`[DEBUG] Adding tags ${req.body.tags_id} to contact ${contact.id}`);
+          await contact.addTags(req.body.tags_id);
+          const addedTags = await Tag.findAll({ where: { id: req.body.tags_id } });
+          allAddedTagNames.push(...addedTags.map((t) => t.nom));
+        }
+
+        // Add CMT2026 and Golfeurs Allemagne tags for public registrations
+        if (isPublicRegistration) {
+          allAddedTagNames.push(...(await ensureTag(contact, 'CMT2026')));
+          allAddedTagNames.push(...(await ensureTag(contact, 'Golfeurs Allemagne')));
+        }
+
+        if (allAddedTagNames.length > 0) {
+          automationService.triggerAutomation('tag_added', { contact, tagNames: allAddedTagNames });
+        }
+      } catch (_) {}
+
+      res.status(201).json(contact);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
+    }
+  });
 };
 
 // Recherche avancée + pagination + tri

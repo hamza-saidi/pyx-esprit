@@ -8,6 +8,7 @@ module.exports = (sequelize, DataTypes) => {
       lieu: { type: DataTypes.STRING(100), allowNull: false },
       description: { type: DataTypes.TEXT },
       index_requis: { type: DataTypes.DECIMAL(4, 1) },
+      club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {
       tableName: 'evenement',
@@ -17,6 +18,7 @@ module.exports = (sequelize, DataTypes) => {
 
   Evenement.associate = (models) => {
     Evenement.hasMany(models.Rsvp, { foreignKey: 'evenement_id', as: 'rsvps' });
+    Evenement.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };
 
   return Evenement;

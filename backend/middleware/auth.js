@@ -30,4 +30,10 @@ function authorizeRoles(...roles) {
   };
 }
 
-module.exports = { authenticateToken, authorizeRoles };
+// Single point to wire into routes that need both JWT auth and multi-tenant
+// scoping, so a route can never end up authenticated but un-scoped by
+// forgetting to chain tenantScope separately.
+const tenantScope = require('./tenantScope');
+const requireAuthAndTenant = [authenticateToken, tenantScope];
+
+module.exports = { authenticateToken, authorizeRoles, requireAuthAndTenant };
