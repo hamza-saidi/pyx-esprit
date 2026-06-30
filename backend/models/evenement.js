@@ -8,6 +8,16 @@ module.exports = (sequelize, DataTypes) => {
       lieu: { type: DataTypes.STRING(100), allowNull: false },
       description: { type: DataTypes.TEXT },
       index_requis: { type: DataTypes.DECIMAL(4, 1) },
+      capacite_max: { type: DataTypes.INTEGER, allowNull: true },
+      type_evenement: { type: DataTypes.STRING(50), defaultValue: 'tournoi' },
+      prix: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+      tags_ids: { type: DataTypes.JSON, allowNull: true },
+      parametres: { type: DataTypes.JSON, allowNull: true },
+      statut: {
+        type: DataTypes.ENUM('planifié', 'en_cours', 'annule', 'termine'),
+        defaultValue: 'planifié',
+      },
+      actif: { type: DataTypes.BOOLEAN, defaultValue: true },
       club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {

@@ -53,6 +53,10 @@ function errorHandler(err, req, res, next) {
   } else if (err.message && err.message.includes('Not allowed by CORS')) {
     statusCode = 403;
     userMessage = 'Origine non autorisée.';
+  } else if (err.isOperational) {
+    // Deliberately user-facing message (NotFoundError/ConflictError/...) -
+    // safe to show as-is even in production, unlike generic exceptions.
+    userMessage = err.message;
   }
 
   // ── Final response ────────────────────────────────────────────────────────
@@ -63,6 +67,10 @@ function errorHandler(err, req, res, next) {
 
   if (fieldErrors) {
     response.errors = fieldErrors;
+  }
+
+  if (err.details) {
+    Object.assign(response, err.details);
   }
 
   // Only add debug info in development

@@ -1,8 +1,9 @@
 const { Segment, Contact, Tag, CampagneEmail } = require('../models');
 const { Op } = require('sequelize');
-const { pick } = require('../utils/pick');
-
-const SEGMENT_FIELDS = ['nom', 'criteres'];
+const createSegment = require('../use-cases/segment/createSegment');
+const updateSegment = require('../use-cases/segment/updateSegment');
+const getSegment = require('../use-cases/segment/getSegment');
+const deleteSegment = require('../use-cases/segment/deleteSegment');
 
 // Construit la requête Sequelize (where, include) à partir des critères
 // Construit la requête Sequelize (where, include) à partir des critères
@@ -231,12 +232,12 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
 }
 
 // CRUD
-exports.create = async (req, res) => {
+exports.create = async (req, res, next) => {
   try {
-    const segment = await Segment.create(pick(req.body, SEGMENT_FIELDS));
+    const segment = await createSegment(req.body, { clubId: req.clubId });
     res.status(201).json(segment);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
@@ -267,46 +268,30 @@ exports.getAll = async (req, res) => {
   }
 };
 
-exports.getOne = async (req, res) => {
+exports.getOne = async (req, res, next) => {
   try {
-    const segment = await Segment.findByPk(req.params.id);
-    if (!segment) return res.status(404).json({ message: 'Segment non trouvé' });
+    const segment = await getSegment(req.params.id, { clubId: req.clubId });
     res.json(segment);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.update = async (req, res) => {
+exports.update = async (req, res, next) => {
   try {
-    const segment = await Segment.findByPk(req.params.id);
-    if (!segment) return res.status(404).json({ message: 'Segment non trouvé' });
-    await segment.update(pick(req.body, SEGMENT_FIELDS));
+    const segment = await updateSegment(req.params.id, req.body, { clubId: req.clubId });
     res.json(segment);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.delete = async (req, res) => {
+exports.delete = async (req, res, next) => {
   try {
-    const segment = await Segment.findByPk(req.params.id);
-    if (!segment) return res.status(404).json({ message: 'Segment non trouvé' });
-    // Vérifier références dans campagnes
-    const blocking = await CampagneEmail.findAll({
-      where: { segment_id: segment.id },
-      attributes: ['id', 'titre', 'statut'],
-    });
-    if (blocking.length > 0) {
-      return res.status(409).json({
-        message: `Impossible de supprimer: segment utilisé par ${blocking.length} campagne(s). Supprimez ou détachez ces campagnes d'abord.`,
-        campaigns: blocking,
-      });
-    }
-    await segment.destroy();
+    await deleteSegment(req.params.id, { clubId: req.clubId });
     res.json({ message: 'Segment supprimé' });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 

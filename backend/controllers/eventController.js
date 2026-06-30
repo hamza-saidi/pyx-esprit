@@ -1,123 +1,15 @@
 const { Evenement, Rsvp, Contact, Tag, sequelize } = require('../models');
 const { Op } = require('sequelize');
-
-// Validation helper
-const validateEventData = (data) => {
-  const errors = [];
-
-  if (!data.titre || data.titre.trim().length < 3) {
-    errors.push('Le titre doit contenir au moins 3 caractères');
-  }
-
-  if (!data.date || new Date(data.date) <= new Date()) {
-    errors.push("La date de l'événement doit être dans le futur");
-  }
-
-  if (!data.lieu || data.lieu.trim().length < 2) {
-    errors.push('Le lieu doit contenir au moins 2 caractères');
-  }
-
-  if (data.index_requis && (data.index_requis < -54 || data.index_requis > 54)) {
-    errors.push("L'index requis doit être entre -54 et +54");
-  }
-
-  if (data.capacite_max && data.capacite_max < 1) {
-    errors.push('La capacité maximale doit être supérieure à 0');
-  }
-
-  return errors;
-};
+const createEvent = require('../use-cases/event/createEvent');
+const updateEvent = require('../use-cases/event/updateEvent');
 
 // CRUD événements avec validation avancée
-exports.create = async (req, res) => {
+exports.create = async (req, res, next) => {
   try {
-    const {
-      titre,
-      date,
-      lieu,
-      description,
-      index_requis,
-      capacite_max,
-      type_evenement,
-      prix,
-      tags_ids,
-      parametres,
-      evenement_recurrent,
-    } = req.body;
-
-    // Validation des données
-    const validationErrors = validateEventData(req.body);
-    if (validationErrors.length > 0) {
-      return res.status(400).json({
-        message: 'Données invalides',
-        errors: validationErrors,
-      });
-    }
-
-    // Vérifier les conflits de date/lieu
-    const conflit = await Evenement.findOne({
-      where: {
-        lieu: lieu.trim(),
-        date: {
-          [Op.between]: [
-            new Date(new Date(date).getTime() - 2 * 60 * 60 * 1000), // 2h avant
-            new Date(new Date(date).getTime() + 4 * 60 * 60 * 1000), // 4h après
-          ],
-        },
-        actif: true,
-      },
-    });
-
-    if (conflit) {
-      return res.status(400).json({
-        message: "Conflit d'horaire détecté avec un autre événement au même lieu",
-      });
-    }
-
-    // Créer l'événement
-    const event = await Evenement.create({
-      titre: titre.trim(),
-      date: new Date(date),
-      lieu: lieu.trim(),
-      description: description?.trim(),
-      index_requis: index_requis || null,
-      capacite_max: capacite_max || null,
-      type_evenement: type_evenement || 'tournoi',
-      prix: prix || 0,
-      tags_ids: tags_ids || [],
-      parametres: {
-        ...parametres,
-        evenement_recurrent: evenement_recurrent || false,
-        created_by: req.user.id,
-        created_at: new Date().toISOString(),
-      },
-      statut: 'planifié',
-      actif: true,
-    });
-
-    // Si c'est un événement récurrent, créer les occurrences futures
-    if (evenement_recurrent && evenement_recurrent.frequence) {
-      await createRecurringEvents(event, evenement_recurrent);
-    }
-
-    res.status(201).json({
-      message: 'Événement créé avec succès',
-      event: await Evenement.findByPk(event.id, {
-        include: [
-          {
-            model: Rsvp,
-            as: 'rsvps',
-            include: [{ model: Contact, as: 'contact' }],
-          },
-        ],
-      }),
-    });
+    const event = await createEvent(req.body, { clubId: req.clubId, userId: req.user.id });
+    res.status(201).json({ message: 'Événement créé avec succès', event });
   } catch (err) {
-    console.error('Erreur create event:', err);
-    res.status(500).json({
-      message: "Erreur lors de la création de l'événement",
-      error: err.message,
-    });
+    next(err);
   }
 };
 
@@ -281,88 +173,12 @@ exports.getOne = async (req, res) => {
   }
 };
 
-exports.update = async (req, res) => {
+exports.update = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    const event = await Evenement.findByPk(id);
-    if (!event) {
-      return res.status(404).json({ message: 'Événement non trouvé' });
-    }
-
-    // Vérifier que l'événement peut être modifié
-    if (['termine', 'annule'].includes(event.statut)) {
-      return res.status(400).json({
-        message: 'Impossible de modifier un événement terminé ou annulé',
-      });
-    }
-
-    // Validation des données de mise à jour
-    if (updateData.titre || updateData.date || updateData.lieu) {
-      const validationData = {
-        titre: updateData.titre || event.titre,
-        date: updateData.date || event.date,
-        lieu: updateData.lieu || event.lieu,
-        index_requis: updateData.index_requis || event.index_requis,
-        capacite_max: updateData.capacite_max || event.capacite_max,
-      };
-
-      const validationErrors = validateEventData(validationData);
-      if (validationErrors.length > 0) {
-        return res.status(400).json({
-          message: 'Données invalides',
-          errors: validationErrors,
-        });
-      }
-    }
-
-    // Vérifier les conflits si on change la date ou le lieu
-    if (updateData.date || updateData.lieu) {
-      const nouvelleDate = updateData.date ? new Date(updateData.date) : event.date;
-      const nouveauLieu = updateData.lieu || event.lieu;
-
-      const conflit = await Evenement.findOne({
-        where: {
-          id: { [Op.ne]: id },
-          lieu: nouveauLieu,
-          date: {
-            [Op.between]: [
-              new Date(nouvelleDate.getTime() - 2 * 60 * 60 * 1000),
-              new Date(nouvelleDate.getTime() + 4 * 60 * 60 * 1000),
-            ],
-          },
-          actif: true,
-        },
-      });
-
-      if (conflit) {
-        return res.status(400).json({
-          message: "Conflit d'horaire détecté avec un autre événement au même lieu",
-        });
-      }
-    }
-
-    await event.update(updateData);
-
-    res.json({
-      message: 'Événement mis à jour avec succès',
-      event: await Evenement.findByPk(id, {
-        include: [
-          {
-            model: Rsvp,
-            as: 'rsvps',
-            include: [{ model: Contact, as: 'contact' }],
-          },
-        ],
-      }),
-    });
+    const event = await updateEvent(req.params.id, req.body, { clubId: req.clubId });
+    res.json({ message: 'Événement mis à jour avec succès', event });
   } catch (err) {
-    console.error('Erreur update event:', err);
-    res.status(500).json({
-      message: "Erreur lors de la mise à jour de l'événement",
-      error: err.message,
-    });
+    next(err);
   }
 };
 
@@ -663,59 +479,3 @@ exports.cancelEvent = async (req, res) => {
     });
   }
 };
-
-// Fonction utilitaire pour créer des événements récurrents
-async function createRecurringEvents(event, config) {
-  const { frequence, nombre_occurrences, date_fin } = config;
-  const occurrences = [];
-
-  let currentDate = new Date(event.date);
-  let count = 0;
-
-  while (count < (nombre_occurrences || 12)) {
-    if (date_fin && currentDate > new Date(date_fin)) break;
-
-    // Calculer la prochaine date selon la fréquence
-    switch (frequence) {
-      case 'quotidien':
-        currentDate.setDate(currentDate.getDate() + 1);
-        break;
-      case 'hebdomadaire':
-        currentDate.setDate(currentDate.getDate() + 7);
-        break;
-      case 'mensuel':
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        break;
-      case 'annuel':
-        currentDate.setFullYear(currentDate.getFullYear() + 1);
-        break;
-      default:
-        return; // Fréquence non supportée
-    }
-
-    // Créer l'occurrence
-    const occurrence = await Evenement.create({
-      titre: `${event.titre} (${frequence})`,
-      date: new Date(currentDate),
-      lieu: event.lieu,
-      description: event.description,
-      index_requis: event.index_requis,
-      capacite_max: event.capacite_max,
-      type_evenement: event.type_evenement,
-      prix: event.prix,
-      tags_ids: event.tags_ids,
-      parametres: {
-        ...event.parametres,
-        evenement_parent_id: event.id,
-        occurrence_number: count + 1,
-      },
-      statut: 'planifié',
-      actif: true,
-    });
-
-    occurrences.push(occurrence);
-    count++;
-  }
-
-  return occurrences;
-}

@@ -86,6 +86,7 @@ app.use('/api/categories', require('./routes/category'));
 app.use('/api/distributions', require('./routes/distribution'));
 app.use('/api/tracking', require('./routes/tracking'));
 app.use('/api/abonnements', require('./routes/abonnement'));
+app.use('/api/events', require('./routes/event'));
 
 // Error handling middleware
 app.use(errorHandler);

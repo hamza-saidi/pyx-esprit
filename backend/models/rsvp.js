@@ -5,7 +5,14 @@ module.exports = (sequelize, DataTypes) => {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
       contact_id: { type: DataTypes.INTEGER },
       evenement_id: { type: DataTypes.INTEGER },
-      statut: { type: DataTypes.ENUM('invité', 'confirmé', 'absent'), defaultValue: 'invité' },
+      statut: {
+        type: DataTypes.ENUM('invité', 'confirmé', 'absent', 'annule'),
+        defaultValue: 'invité',
+      },
+      message_personnalise: { type: DataTypes.TEXT, allowNull: true },
+      date_invitation: { type: DataTypes.DATE, allowNull: true },
+      commentaire: { type: DataTypes.TEXT, allowNull: true },
+      date_confirmation: { type: DataTypes.DATE, allowNull: true },
       club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {

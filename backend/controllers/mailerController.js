@@ -3,6 +3,11 @@ const fs = require('fs');
 const emailService = require('../services/emailService');
 const { Contact, Tag, EnvoiEmail } = require('../models');
 const { Op } = require('sequelize');
+const { runWithTenant } = require('../utils/tenantContext');
+
+// /unsubscribe is public (a link in an email, no JWT) - authorization is by
+// possession of the unique token_tracking value, not by club membership.
+const SYSTEM_CONTEXT = { clubId: null, isSystem: true };
 
 // POST /api/mailer/send
 // Accepts: to, subject, html, signatureHtml (optional), and files as attachments
@@ -215,56 +220,59 @@ const parseMetadata = (source) => {
   return {};
 };
 
-exports.unsubscribe = async (req, res) => {
-  try {
-    const token = req.params.token || req.body.token || req.query.token;
-    if (!token) {
+exports.unsubscribe = async (req, res) =>
+  runWithTenant(SYSTEM_CONTEXT, async () => {
+    try {
+      const token = req.params.token || req.body.token || req.query.token;
+      if (!token) {
+        return res
+          .status(400)
+          .json({ success: false, message: 'Lien de désabonnement invalide (token manquant).' });
+      }
+
+      const envoi = await EnvoiEmail.findOne({ where: { token_tracking: token } });
+      if (!envoi) {
+        return res
+          .status(404)
+          .json({ success: false, message: 'Lien de désabonnement invalide ou expiré.' });
+      }
+
+      const contact = await Contact.findByPk(envoi.contact_id);
+      if (!contact) {
+        return res
+          .status(404)
+          .json({ success: false, message: 'Contact introuvable pour ce lien.' });
+      }
+
+      const metadata = parseMetadata(contact.metadata);
+      metadata.unsubscribedAt = new Date().toISOString();
+      metadata.unsubscribedToken = token;
+      metadata.unsubscribedCampaignId = envoi.campagne_id;
+
+      const updates = {
+        metadata,
+      };
+
+      if (contact.actif) {
+        updates.actif = false;
+      }
+
+      if (contact.consentement_rgpd) {
+        updates.consentement_rgpd = false;
+      }
+
+      await contact.update(updates);
+      await envoi.update({ actif: false });
+
+      return res.json({
+        success: true,
+        email: contact.email,
+        message: 'Votre adresse a bien été désabonnée de nos communications.',
+      });
+    } catch (err) {
+      console.error('Erreur désabonnement:', err);
       return res
-        .status(400)
-        .json({ success: false, message: 'Lien de désabonnement invalide (token manquant).' });
+        .status(500)
+        .json({ success: false, message: 'Une erreur est survenue lors du désabonnement.' });
     }
-
-    const envoi = await EnvoiEmail.findOne({ where: { token_tracking: token } });
-    if (!envoi) {
-      return res
-        .status(404)
-        .json({ success: false, message: 'Lien de désabonnement invalide ou expiré.' });
-    }
-
-    const contact = await Contact.findByPk(envoi.contact_id);
-    if (!contact) {
-      return res.status(404).json({ success: false, message: 'Contact introuvable pour ce lien.' });
-    }
-
-    const metadata = parseMetadata(contact.metadata);
-    metadata.unsubscribedAt = new Date().toISOString();
-    metadata.unsubscribedToken = token;
-    metadata.unsubscribedCampaignId = envoi.campagne_id;
-
-    const updates = {
-      metadata,
-    };
-
-    if (contact.actif) {
-      updates.actif = false;
-    }
-
-    if (contact.consentement_rgpd) {
-      updates.consentement_rgpd = false;
-    }
-
-    await contact.update(updates);
-    await envoi.update({ actif: false });
-
-    return res.json({
-      success: true,
-      email: contact.email,
-      message: 'Votre adresse a bien été désabonnée de nos communications.',
-    });
-  } catch (err) {
-    console.error('Erreur désabonnement:', err);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Une erreur est survenue lors du désabonnement.' });
-  }
-};
+  });
