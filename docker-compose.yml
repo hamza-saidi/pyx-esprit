@@ -1,7 +1,7 @@
 # ==========================================================
 # docker-compose.yml — Golf Huub (Environnement Complet)
-# Orchestre : MySQL + Backend Node.js + Frontend React/Nginx
-# 
+# Orchestre : MySQL + Redis + Backend Node.js + Frontend React/Nginx
+#
 # Usage :
 #   Développement : docker compose up
 #   Production    : docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
@@ -41,6 +41,23 @@ services:
     networks:
       - golf_network
 
+  # ── Redis (queue campaigns, mfaStore, rate limiting) ──────
+  redis:
+    image: redis:7-alpine
+    container_name: golf_huub_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - golf_network
+
   # ── Backend Node.js / Express ─────────────────────────────
   backend:
     build:
@@ -73,6 +90,9 @@ services:
       GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
       GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
       GRAPH_SENDER_EMAIL: ${GRAPH_SENDER_EMAIL:-}
+      # Redis — queue et session store (optionnel, active BullMQ si configuré)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "5000:5000"
     volumes:
@@ -84,7 +104,9 @@ services:
       - /app/node_modules   # Exclure node_modules du montage host
     depends_on:
       db:
-        condition: service_healthy  # Attendre que MySQL accepte les connexions
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/csrf-token', r => process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 30s
@@ -118,6 +140,8 @@ volumes:
     name: golf_huub_mysql_data
   uploads_data:
     name: golf_huub_uploads
+  redis_data:
+    name: golf_huub_redis
 
 # ── Réseau interne isolé ──────────────────────────────────
 networks:

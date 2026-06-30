@@ -1,10 +1,16 @@
 /**
  * services/queueService.js
  *
- * Centralized Queue Service.
- * Implements a hybrid/adapter pattern:
- * - Uses BullMQ if Redis configuration is active (production scalability).
- * - Falls back to a local database/in-memory task runner (seamless developer setup).
+ * Campaign send queue - hybrid adapter:
+ * - BullMQ + Redis when REDIS_HOST or REDIS_URL is configured (recommended
+ *   for production: persisted jobs, retries, concurrency control, cluster-safe)
+ * - In-process setImmediate fallback when Redis is absent (dev/CI without
+ *   a Redis service)
+ *
+ * IMPORTANT: the BullMQ Worker callback runs on its own async chain with
+ * no connection to the original HTTP request. The tenant clubId is stored
+ * inside the job payload so the worker can re-establish the tenant context
+ * explicitly - see the runWithTenant call in the worker processor.
  */
 
 const logger = require('../utils/logger');
@@ -12,9 +18,9 @@ const emailService = require('./emailService');
 const { runWithTenant } = require('../utils/tenantContext');
 
 let bullQueue = null;
+let bullWorker = null;
 let useBull = false;
 
-// Attempt to initialize BullMQ if Redis is configured
 if (process.env.REDIS_HOST || process.env.REDIS_URL) {
   try {
     const { Queue, Worker } = require('bullmq');
@@ -26,21 +32,22 @@ if (process.env.REDIS_HOST || process.env.REDIS_URL) {
           host: process.env.REDIS_HOST || '127.0.0.1',
           port: Number(process.env.REDIS_PORT || 6379),
           password: process.env.REDIS_PASSWORD || undefined,
+          maxRetriesPerRequest: null, // required by BullMQ
+          enableReadyCheck: false,
         };
 
     const connection = new Redis(redisConfig);
 
-    bullQueue = new Queue('emailCampaigns', { connection });
-    useBull = true;
+    connection.on('error', (err) => {
+      logger.error('[QUEUE] Redis connection error:', { error: err.message });
+    });
 
-    // Worker initialization
-    const worker = new Worker(
+    bullQueue = new Queue('emailCampaigns', { connection });
+
+    bullWorker = new Worker(
       'emailCampaigns',
       async (job) => {
         logger.info(`[QUEUE] Worker processing job ${job.id} for campaign ${job.data.campaignId}`);
-        // BullMQ dequeues this on its own async chain, with no relation to
-        // the HTTP request that originally enqueued it - there is no tenant
-        // context here unless we re-establish one from the job data.
         const { campaignId, clubId } = job.data;
         await runWithTenant({ clubId, isSystem: false }, () =>
           emailService.envoyerCampagne(campaignId)
@@ -49,36 +56,49 @@ if (process.env.REDIS_HOST || process.env.REDIS_URL) {
       { connection, concurrency: 1 }
     );
 
-    worker.on('completed', (job) => {
-      logger.info(`[QUEUE] Campaign job ${job.id} completed successfully.`);
+    bullWorker.on('completed', (job) => {
+      logger.info(`[QUEUE] Campaign job ${job.id} completed.`);
     });
 
-    worker.on('failed', (job, err) => {
+    bullWorker.on('failed', (job, err) => {
       logger.error(`[QUEUE] Campaign job ${job?.id} failed:`, { error: err.message });
     });
 
-    logger.info('🚀 QUEUE: BullMQ successfully initialized with Redis connection.');
+    // Graceful shutdown - close worker before process exits so in-flight
+    // jobs are not left orphaned in Redis.
+    process.once('SIGTERM', async () => {
+      logger.info('[QUEUE] SIGTERM received - closing BullMQ worker and queue...');
+      await bullWorker.close();
+      await bullQueue.close();
+      logger.info('[QUEUE] BullMQ shut down cleanly.');
+    });
+
+    useBull = true;
+    logger.info('🚀 QUEUE: BullMQ initialized with Redis.');
   } catch (err) {
-    logger.warn(
-      '⚠️ QUEUE: Failed to initialize BullMQ. Falling back to internal DB-backed queue handler.',
-      {
-        error: err.message,
-      }
+    // If Redis is explicitly configured but fails to initialize, log an
+    // error rather than silently falling back - the operator needs to know
+    // their Redis configuration is broken.
+    logger.error(
+      '❌ QUEUE: Redis is configured (REDIS_HOST/REDIS_URL is set) but BullMQ failed to initialize. ' +
+        'Campaign sends will use the in-process fallback - NOT cluster-safe. Fix the Redis connection.',
+      { error: err.message }
     );
     useBull = false;
   }
 } else {
-  logger.info('📌 QUEUE: Redis is not configured. Running in internal DB/in-memory queue mode.');
+  logger.info(
+    '📌 QUEUE: Redis not configured. Campaign sends run in-process (not cluster-safe, OK for dev).'
+  );
 }
 
 /**
  * Enqueues a campaign send job.
  *
  * @param {number|string} campaignId
- * @param {number} clubId - required so whichever async path actually sends
- *   the campaign (BullMQ worker on its own chain, or the local setImmediate
- *   fallback) can re-establish the right tenant context explicitly instead
- *   of relying on it having propagated.
+ * @param {number} clubId  Required - stored in the job payload so the worker
+ *   can re-establish the tenant context on its own async chain (BullMQ
+ *   workers run independently of the HTTP request that enqueued the job).
  * @returns {Promise<boolean>}
  */
 async function enqueueCampaign(campaignId, clubId) {
@@ -86,26 +106,32 @@ async function enqueueCampaign(campaignId, clubId) {
 
   if (useBull && bullQueue) {
     try {
-      const job = await bullQueue.add(`campaign-${campaignId}`, { campaignId, clubId });
-      logger.info(`[QUEUE] Enqueued campaign ${campaignId} with Job ID: ${job.id}`);
+      const job = await bullQueue.add(
+        `campaign-${campaignId}`,
+        { campaignId, clubId },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: { age: 60 * 60 * 24 }, // keep 24h for debugging
+          removeOnFail: { age: 60 * 60 * 24 * 7 }, // keep failures 7 days
+        }
+      );
+      logger.info(`[QUEUE] Enqueued campaign ${campaignId} → BullMQ job ${job.id}`);
       return true;
     } catch (err) {
-      logger.error(`[QUEUE] Failed to add campaign ${campaignId} to BullMQ:`, {
+      logger.error(`[QUEUE] Failed to add campaign ${campaignId} to BullMQ, using fallback:`, {
         error: err.message,
       });
     }
   }
 
-  // Fallback: process asynchronously in next tick (in-memory)
-  logger.info(`[QUEUE] Local fallback: Triggering campaign ${campaignId} execution in next tick.`);
+  logger.info(`[QUEUE] In-process fallback: running campaign ${campaignId} in next tick.`);
   setImmediate(() => {
     runWithTenant({ clubId, isSystem: false }, async () => {
       try {
         await emailService.envoyerCampagne(campaignId);
       } catch (err) {
-        logger.error(`[QUEUE][FALLBACK] Local campaign run failed for ${campaignId}:`, {
-          error: err.message,
-        });
+        logger.error(`[QUEUE][FALLBACK] Campaign ${campaignId} failed:`, { error: err.message });
       }
     });
   });
@@ -113,4 +139,7 @@ async function enqueueCampaign(campaignId, clubId) {
   return true;
 }
 
-module.exports = { enqueueCampaign, isDistributed: () => useBull };
+module.exports = {
+  enqueueCampaign,
+  isDistributed: () => useBull,
+};
