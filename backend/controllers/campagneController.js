@@ -13,8 +13,32 @@ const emailService = require('../services/emailService');
 const path = require('path');
 const fs = require('fs');
 const { getPublicBaseUrl } = require('../utils/url');
+const { pick } = require('../utils/pick');
 
 const ATTACHMENTS_DIR = path.join(__dirname, '..', 'uploads', 'campaign-attachments');
+
+// Excludes id/club_id/createur_id (tenant isolation, ownership) and
+// statistics fields (nb_envoyes/nb_erreurs/actif, server-managed). `statut`
+// stays allowed here (this endpoint already validates the brouillon <->
+// programmée transition below) but `en_cours`/`envoyée` can never be set
+// this way since the function already rejects updates once the campaign
+// reaches either of those statuses.
+const CAMPAGNE_UPDATE_FIELDS = [
+  'titre',
+  'sujet',
+  'contenu_html',
+  'contenu_texte',
+  'type_campagne',
+  'date_programmation',
+  'segment_id',
+  'tags_ids',
+  'contacts_ids',
+  'parametres',
+  'priorite',
+  'limite_envois',
+  'attachments',
+  'statut',
+];
 function parseJsonField(raw, fallback = {}) {
   if (!raw) return fallback;
   if (typeof raw === 'object' && raw !== null) {
@@ -630,7 +654,7 @@ const create = async (req, res) => {
 const update = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = pick(req.body, CAMPAGNE_UPDATE_FIELDS);
 
     const campagne = await CampagneEmail.findByPk(id);
     if (!campagne) {
@@ -871,7 +895,7 @@ const envoyer = async (req, res) => {
 
     // Lancer l'envoi via la file d'attente (decoupled queue manager)
     const queueService = require('../services/queueService');
-    queueService.enqueueCampaign(id);
+    queueService.enqueueCampaign(id, req.clubId);
 
     res.json({
       message: 'Envoi de la campagne lancé avec succès',

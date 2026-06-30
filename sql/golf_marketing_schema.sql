@@ -5,8 +5,16 @@
 -- in normal dev/prod use, backend/utils/migrationRunner.js applies
 -- backend/migrations/*.js automatically on server boot instead.
 
-CREATE DATABASE IF NOT EXISTS golf_marketing;
+CREATE DATABASE IF NOT EXISTS golf_marketing CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE golf_marketing;
+
+-- Critical: must be set BEFORE any table definitions that contain accented
+-- characters in ENUM values ('programmée', 'envoyée', etc.) otherwise the
+-- MySQL Docker init process will double-encode UTF-8 multibyte chars,
+-- causing "Data truncated" errors when Node.js mysql2 later tries to
+-- insert the correctly-encoded values.
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
 
 -- 0. Club (tenant root - never itself tenant-scoped)
 CREATE TABLE IF NOT EXISTS club (

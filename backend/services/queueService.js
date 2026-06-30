@@ -9,6 +9,7 @@
 
 const logger = require('../utils/logger');
 const emailService = require('./emailService');
+const { runWithTenant } = require('../utils/tenantContext');
 
 let bullQueue = null;
 let useBull = false;
@@ -37,7 +38,13 @@ if (process.env.REDIS_HOST || process.env.REDIS_URL) {
       'emailCampaigns',
       async (job) => {
         logger.info(`[QUEUE] Worker processing job ${job.id} for campaign ${job.data.campaignId}`);
-        await emailService.envoyerCampagne(job.data.campaignId);
+        // BullMQ dequeues this on its own async chain, with no relation to
+        // the HTTP request that originally enqueued it - there is no tenant
+        // context here unless we re-establish one from the job data.
+        const { campaignId, clubId } = job.data;
+        await runWithTenant({ clubId, isSystem: false }, () =>
+          emailService.envoyerCampagne(campaignId)
+        );
       },
       { connection, concurrency: 1 }
     );
@@ -68,12 +75,18 @@ if (process.env.REDIS_HOST || process.env.REDIS_URL) {
  * Enqueues a campaign send job.
  *
  * @param {number|string} campaignId
+ * @param {number} clubId - required so whichever async path actually sends
+ *   the campaign (BullMQ worker on its own chain, or the local setImmediate
+ *   fallback) can re-establish the right tenant context explicitly instead
+ *   of relying on it having propagated.
  * @returns {Promise<boolean>}
  */
-async function enqueueCampaign(campaignId) {
+async function enqueueCampaign(campaignId, clubId) {
+  if (!clubId) throw new Error('enqueueCampaign: clubId is required');
+
   if (useBull && bullQueue) {
     try {
-      const job = await bullQueue.add(`campaign-${campaignId}`, { campaignId });
+      const job = await bullQueue.add(`campaign-${campaignId}`, { campaignId, clubId });
       logger.info(`[QUEUE] Enqueued campaign ${campaignId} with Job ID: ${job.id}`);
       return true;
     } catch (err) {
@@ -85,14 +98,16 @@ async function enqueueCampaign(campaignId) {
 
   // Fallback: process asynchronously in next tick (in-memory)
   logger.info(`[QUEUE] Local fallback: Triggering campaign ${campaignId} execution in next tick.`);
-  setImmediate(async () => {
-    try {
-      await emailService.envoyerCampagne(campaignId);
-    } catch (err) {
-      logger.error(`[QUEUE][FALLBACK] Local campaign run failed for ${campaignId}:`, {
-        error: err.message,
-      });
-    }
+  setImmediate(() => {
+    runWithTenant({ clubId, isSystem: false }, async () => {
+      try {
+        await emailService.envoyerCampagne(campaignId);
+      } catch (err) {
+        logger.error(`[QUEUE][FALLBACK] Local campaign run failed for ${campaignId}:`, {
+          error: err.message,
+        });
+      }
+    });
   });
 
   return true;
