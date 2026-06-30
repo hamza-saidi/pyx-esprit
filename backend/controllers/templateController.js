@@ -1,93 +1,53 @@
-const { ModeleEmail } = require('../models');
-const { Op } = require('sequelize');
 const OpenAI = require('openai');
-const { pick } = require('../utils/pick');
-
-const TEMPLATE_FIELDS = ['nom', 'contenu_html', 'blocks_json', 'design_json'];
+const createTemplate = require('../use-cases/template/createTemplate');
+const updateTemplate = require('../use-cases/template/updateTemplate');
+const getTemplate = require('../use-cases/template/getTemplate');
+const listTemplates = require('../use-cases/template/listTemplates');
+const deleteTemplate = require('../use-cases/template/deleteTemplate');
 
 // CRUD
-exports.create = async (req, res) => {
+exports.create = async (req, res, next) => {
   try {
-    const payload = {
-      nom: req.body.nom,
-      contenu_html: req.body.contenu_html,
-      blocks_json: req.body.blocks_json || null,
-      design_json: req.body.design_json || null,
-    };
-    const template = await ModeleEmail.create(payload);
+    const template = await createTemplate(req.body, { clubId: req.clubId });
     res.status(201).json(template);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.getAll = async (req, res) => {
+exports.getAll = async (req, res, next) => {
   try {
-    const templates = await ModeleEmail.findAll({ order: [['date_creation', 'DESC']] });
+    const templates = await listTemplates({ clubId: req.clubId });
     res.json(templates);
   } catch (err) {
-    try {
-      const msg = err?.response?.data?.error?.message || err.message || 'Erreur OpenAI';
-      const status = err?.response?.status || 500;
-      // Fallback: générer un HTML simple si OpenAI échoue
-      const texte = req.body?.texte || '';
-      const paragraphs = (texte || '')
-        .split(/\n{1,}/)
-        .map((p) => p.trim())
-        .filter(Boolean);
-      const htmlBody = paragraphs
-        .map((p) => `<p style="margin:0 0 12px">${p.replace(/\n/g, '<br/>')}</p>`)
-        .join('\n');
-      const fallbackHtml = `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f7;padding:24px">
-          <tr><td align="center">
-            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial, sans-serif;color:#333">
-              <tr><td style="padding:16px;background:#1976d2;color:#fff;font-size:20px;font-weight:bold">Votre Club</td></tr>
-              <tr><td style="padding:20px">
-                ${htmlBody || '<p style="margin:0">(Votre contenu ici)</p>'}
-                <p style="margin:20px 0 0"><a href="#" style="display:inline-block;background:#1976d2;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Appel à l\'action</a></p>
-              </td></tr>
-              <tr><td style="padding:16px;background:#f0f0f0;color:#666;font-size:12px;text-align:center">Vous recevez cet email de notre part. <a href="{{unsubscribe_link}}">Se désabonner</a></td></tr>
-            </table>
-          </td></tr>
-        </table>
-      `.trim();
-      return res.status(status).json({ message: msg, contenu_html: fallbackHtml, fallback: true });
-    } catch (e) {
-      return res.status(500).json({ message: err.message || 'Erreur serveur' });
-    }
+    next(err);
   }
 };
 
-exports.getOne = async (req, res) => {
+exports.getOne = async (req, res, next) => {
   try {
-    const template = await ModeleEmail.findByPk(req.params.id);
-    if (!template) return res.status(404).json({ message: 'Modèle non trouvé' });
+    const template = await getTemplate(req.params.id, { clubId: req.clubId });
     res.json(template);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.update = async (req, res) => {
+exports.update = async (req, res, next) => {
   try {
-    const template = await ModeleEmail.findByPk(req.params.id);
-    if (!template) return res.status(404).json({ message: 'Modèle non trouvé' });
-    await template.update(pick(req.body, TEMPLATE_FIELDS));
+    const template = await updateTemplate(req.params.id, req.body, { clubId: req.clubId });
     res.json(template);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.delete = async (req, res) => {
+exports.delete = async (req, res, next) => {
   try {
-    const template = await ModeleEmail.findByPk(req.params.id);
-    if (!template) return res.status(404).json({ message: 'Modèle non trouvé' });
-    await template.destroy();
+    await deleteTemplate(req.params.id, { clubId: req.clubId });
     res.json({ message: 'Modèle supprimé' });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 

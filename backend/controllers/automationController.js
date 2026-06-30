@@ -1,84 +1,50 @@
-const { Automation } = require('../models');
+const listAutomations = require('../use-cases/automation/listAutomations');
+const toggleAutomation = require('../use-cases/automation/toggleAutomation');
+const createCustomAutomation = require('../use-cases/automation/createCustomAutomation');
+const updateAutomation = require('../use-cases/automation/updateAutomation');
+const deleteAutomation = require('../use-cases/automation/deleteAutomation');
 
-exports.listAutomations = async (req, res) => {
+exports.listAutomations = async (req, res, next) => {
   try {
-    const automations = await Automation.findAll();
+    const automations = await listAutomations({ clubId: req.clubId });
     res.json(automations);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    next(err);
   }
 };
 
-exports.toggleAutomation = async (req, res) => {
+exports.toggleAutomation = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { actif } = req.body;
-
-    const automation = await Automation.findByPk(id);
-    if (!automation) {
-      return res.status(404).json({ message: 'Automation not found' });
-    }
-
-    automation.actif = actif;
-    await automation.save();
-
+    const automation = await toggleAutomation(req.params.id, req.body, { clubId: req.clubId });
     res.json(automation);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    next(err);
   }
 };
 
-exports.createCustomAutomation = async (req, res) => {
+exports.createCustomAutomation = async (req, res, next) => {
   try {
-    const { nom, config } = req.body;
-
-    // config expects { trigger: 'tag_added', condition: 'VIP', action_template_id: 12 }
-    const automation = await Automation.create({
-      nom,
-      type: 'custom',
-      actif: true, // auto active on creation
-      config,
-    });
-
+    const automation = await createCustomAutomation(req.body, { clubId: req.clubId });
     res.status(201).json(automation);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    next(err);
   }
 };
 
-exports.deleteAutomation = async (req, res) => {
+exports.deleteAutomation = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const automation = await Automation.findByPk(id);
-
-    if (!automation) return res.status(404).json({ message: 'Automation not found' });
-    if (automation.type !== 'custom')
-      return res.status(403).json({ message: 'Cannot delete system automations' });
-
-    await automation.destroy();
+    await deleteAutomation(req.params.id, { clubId: req.clubId });
     res.json({ message: 'Automation deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    next(err);
   }
 };
 
-exports.updateAutomation = async (req, res) => {
+exports.updateAutomation = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { nom, config, actif } = req.body;
-
-    const automation = await Automation.findByPk(id);
-    if (!automation) {
-      return res.status(404).json({ message: 'Automation not found' });
-    }
-
-    if (nom !== undefined) automation.nom = nom;
-    if (config !== undefined) automation.config = config;
-    if (actif !== undefined) automation.actif = actif;
-
-    await automation.save();
+    const automation = await updateAutomation(req.params.id, req.body, { clubId: req.clubId });
     res.json(automation);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    next(err);
   }
 };

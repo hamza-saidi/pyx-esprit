@@ -1,57 +1,54 @@
 const { Tag, Contact, ContactTag, sequelize } = require('../models');
 const { literal } = require('sequelize');
-const { pick } = require('../utils/pick');
-
-const TAG_FIELDS = ['nom'];
+const createTag = require('../use-cases/tag/createTag');
+const updateTag = require('../use-cases/tag/updateTag');
+const getTag = require('../use-cases/tag/getTag');
+const listTags = require('../use-cases/tag/listTags');
+const deleteTag = require('../use-cases/tag/deleteTag');
 
 // CRUD
-exports.create = async (req, res) => {
+exports.create = async (req, res, next) => {
   try {
-    const tag = await Tag.create(pick(req.body, TAG_FIELDS));
+    const tag = await createTag(req.body, { clubId: req.clubId });
     res.status(201).json(tag);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.getAll = async (req, res) => {
+exports.getAll = async (req, res, next) => {
   try {
-    const tags = await Tag.findAll();
+    const tags = await listTags({ clubId: req.clubId });
     res.json(tags);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.getOne = async (req, res) => {
+exports.getOne = async (req, res, next) => {
   try {
-    const tag = await Tag.findByPk(req.params.id);
-    if (!tag) return res.status(404).json({ message: 'Tag non trouvé' });
+    const tag = await getTag(req.params.id, { clubId: req.clubId });
     res.json(tag);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.update = async (req, res) => {
+exports.update = async (req, res, next) => {
   try {
-    const tag = await Tag.findByPk(req.params.id);
-    if (!tag) return res.status(404).json({ message: 'Tag non trouvé' });
-    await tag.update(pick(req.body, TAG_FIELDS));
+    const tag = await updateTag(req.params.id, req.body, { clubId: req.clubId });
     res.json(tag);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.delete = async (req, res) => {
+exports.delete = async (req, res, next) => {
   try {
-    const tag = await Tag.findByPk(req.params.id);
-    if (!tag) return res.status(404).json({ message: 'Tag non trouvé' });
-    await tag.destroy();
+    await deleteTag(req.params.id, { clubId: req.clubId });
     res.json({ message: 'Tag supprimé' });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 

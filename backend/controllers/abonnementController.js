@@ -1,65 +1,50 @@
-const { Abonnement, Contact } = require('../models');
-const { pick } = require('../utils/pick');
+const createAbonnement = require('../use-cases/abonnement/createAbonnement');
+const updateAbonnement = require('../use-cases/abonnement/updateAbonnement');
+const getAbonnement = require('../use-cases/abonnement/getAbonnement');
+const listAbonnements = require('../use-cases/abonnement/listAbonnements');
+const deleteAbonnement = require('../use-cases/abonnement/deleteAbonnement');
 
-const ABONNEMENT_FIELDS = ['nom', 'prix', 'duree_mois', 'description', 'actif'];
-
-exports.create = async (req, res) => {
+exports.create = async (req, res, next) => {
   try {
-    const abonnement = await Abonnement.create(pick(req.body, ABONNEMENT_FIELDS));
+    const abonnement = await createAbonnement(req.body, { clubId: req.clubId });
     res.status(201).json(abonnement);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.getAll = async (req, res) => {
+exports.getAll = async (req, res, next) => {
   try {
-    const abonnements = await Abonnement.findAll({
-      order: [['nom', 'ASC']],
-    });
+    const abonnements = await listAbonnements({ clubId: req.clubId });
     res.json(abonnements);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.getOne = async (req, res) => {
+exports.getOne = async (req, res, next) => {
   try {
-    const abonnement = await Abonnement.findByPk(req.params.id);
-    if (!abonnement) return res.status(404).json({ message: 'Abonnement non trouvé' });
+    const abonnement = await getAbonnement(req.params.id, { clubId: req.clubId });
     res.json(abonnement);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.update = async (req, res) => {
+exports.update = async (req, res, next) => {
   try {
-    const abonnement = await Abonnement.findByPk(req.params.id);
-    if (!abonnement) return res.status(404).json({ message: 'Abonnement non trouvé' });
-    await abonnement.update(pick(req.body, ABONNEMENT_FIELDS));
+    const abonnement = await updateAbonnement(req.params.id, req.body, { clubId: req.clubId });
     res.json(abonnement);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
-exports.delete = async (req, res) => {
+exports.delete = async (req, res, next) => {
   try {
-    const abonnement = await Abonnement.findByPk(req.params.id);
-    if (!abonnement) return res.status(404).json({ message: 'Abonnement non trouvé' });
-
-    // Check if contacts are using this abonnement
-    const count = await Contact.count({ where: { abonnement_id: req.params.id } });
-    if (count > 0) {
-      return res
-        .status(400)
-        .json({ message: `Impossible de supprimer : ${count} contacts utilisent cet abonnement.` });
-    }
-
-    await abonnement.destroy();
+    await deleteAbonnement(req.params.id, { clubId: req.clubId });
     res.json({ message: 'Abonnement supprimé' });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };

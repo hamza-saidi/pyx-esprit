@@ -23,6 +23,7 @@ function errorHandler(err, req, res, next) {
   const isProduction = process.env.NODE_ENV === 'production';
   let statusCode = err.statusCode || err.status || 500;
   let userMessage;
+  let fieldErrors;
 
   // Log full error server-side (always, regardless of environment)
   logger.error(`[${req.method}] ${req.url} — ${err.name || 'Error'}: ${err.message}`, {
@@ -42,6 +43,10 @@ function errorHandler(err, req, res, next) {
   } else if (err.name === 'SequelizeValidationError') {
     statusCode = 422;
     userMessage = isProduction ? 'Données invalides.' : err.errors.map((e) => e.message).join(', ');
+  } else if (err.name === 'ZodError') {
+    statusCode = 400;
+    userMessage = 'Données de validation incorrectes.';
+    fieldErrors = err.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
   } else if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
     statusCode = 401;
     userMessage = 'Session invalide ou expirée.';
@@ -55,6 +60,10 @@ function errorHandler(err, req, res, next) {
     message:
       userMessage || (isProduction ? SAFE_MESSAGES[statusCode] || SAFE_MESSAGES[500] : err.message),
   };
+
+  if (fieldErrors) {
+    response.errors = fieldErrors;
+  }
 
   // Only add debug info in development
   if (!isProduction) {
