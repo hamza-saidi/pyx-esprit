@@ -1,4 +1,5 @@
-const { ModeleEmail } = require('../models');
+const { ModeleEmail, Club } = require('../models');
+const { runWithTenant } = require('../utils/tenantContext');
 
 const templates = [
   {
@@ -87,10 +88,17 @@ const templates = [
 const seedTemplates = async () => {
   console.log('🌱 Seeding Templates...');
   try {
-    for (const t of templates) {
-      await ModeleEmail.findOrCreate({
-        where: { nom: t.nom },
-        defaults: t,
+    const clubs = await runWithTenant({ clubId: null, isSystem: true }, () =>
+      Club.findAll({ where: { statut: 'actif' } })
+    );
+    for (const club of clubs) {
+      await runWithTenant({ clubId: club.id, isSystem: false }, async () => {
+        for (const t of templates) {
+          await ModeleEmail.findOrCreate({
+            where: { nom: t.nom },
+            defaults: t,
+          });
+        }
       });
     }
     console.log('✅ Templates seeded successfully.');

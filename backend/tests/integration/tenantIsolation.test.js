@@ -114,9 +114,15 @@ describe('Tenant isolation (requires a live database)', () => {
   });
 
   itIfDb("club B cannot delete club A's contact by id", async () => {
+    // DELETE is a non-safe method, so it goes through CSRF protection first -
+    // the assertion under test is the tenant scoping (404), not CSRF, so a
+    // valid matching token/cookie pair is supplied here.
+    const csrfToken = 'tenantisolationtesttoken00000000000000000000000000';
     const res = await request(app)
       .delete(`/api/contacts/${contactInA.id}`)
-      .set('Authorization', `Bearer ${tokenB}`);
+      .set('Authorization', `Bearer ${tokenB}`)
+      .set('Cookie', `xsrf-token=${csrfToken}`)
+      .set('x-xsrf-token', csrfToken);
     expect(res.status).toBe(404);
 
     const stillThere = await runWithTenant({ clubId: clubA.id, isSystem: false }, () =>

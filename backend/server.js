@@ -69,11 +69,12 @@ sequelize
   .authenticate()
   .then(() => {
     logger.info('DATABASE: Connection established successfully.');
-    // Run standard sync and then apply migrations safely
-    return sequelize.sync().then(() => {
-      const { runMigrations } = require('./utils/migrationRunner');
-      return runMigrations(sequelize);
-    });
+    // Migrations must run first - they create/alter columns (e.g. club_id)
+    // that some models now declare indexes on. Running sync() first makes
+    // sync() try to create those indexes before the column exists and the
+    // server crashes on boot.
+    const { runMigrations } = require('./utils/migrationRunner');
+    return runMigrations(sequelize).then(() => sequelize.sync());
   })
   .then(async () => {
     logger.info('DATABASE: Tables synchronized.');
