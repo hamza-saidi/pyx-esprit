@@ -539,17 +539,35 @@ exports.getStats = async (req, res) => {
       byPays[r.pays || 'Non spécifié'] = Number(r.get('count')) || 0;
     });
 
-    // Top tags (via join table)
-    const sequelize = Contact.sequelize;
-    const [tagCounts] = await sequelize.query(`
-      SELECT t.id, t.nom, COUNT(ct.contact_id) as count
-      FROM contact_tag ct
-      JOIN tag t ON t.id = ct.tag_id
-      GROUP BY t.id, t.nom
-      ORDER BY count DESC
-      LIMIT 15
-    `);
-    const topTags = tagCounts.map((r) => ({ id: r.id, nom: r.nom, count: Number(r.count) || 0 }));
+    // Top tags (via join table). Built through the Tag model (not raw SQL)
+    // so the tenant-scope hook on Tag.findAll keeps this club-isolated -
+    // the previous raw `sequelize.query` here had no club_id filter at all
+    // and counted tags across every club.
+    const tagRows = await Tag.findAll({
+      attributes: [
+        'id',
+        'nom',
+        [Contact.sequelize.fn('COUNT', Contact.sequelize.col('contacts.id')), 'count'],
+      ],
+      include: [
+        {
+          model: Contact,
+          as: 'contacts',
+          attributes: [],
+          through: { attributes: [] },
+          required: false,
+        },
+      ],
+      group: ['Tag.id'],
+      order: [[Contact.sequelize.literal('count'), 'DESC']],
+      subQuery: false,
+      limit: 15,
+    });
+    const topTags = tagRows.map((r) => ({
+      id: r.id,
+      nom: r.nom,
+      count: Number(r.get('count')) || 0,
+    }));
 
     res.json({
       totalContacts,
@@ -1211,8 +1229,9 @@ exports.getHealthStats = async (req, res) => {
       where: {
         id: {
           [Op.in]: sequelize.literal(`(
-            SELECT contact_id FROM envoi_email 
-            GROUP BY contact_id 
+            SELECT contact_id FROM envoi_email
+            WHERE club_id = ${Number(req.clubId)}
+            GROUP BY contact_id
             HAVING SUM(CASE WHEN date_ouverture IS NOT NULL OR date_clic IS NOT NULL THEN 1 ELSE 0 END) = 0
             AND MAX(date_envoi) < '${sixMonthsAgoStr}'
           )`),
@@ -1265,8 +1284,9 @@ exports.bulkHealthAction = async (req, res) => {
 
       const results = await sequelize.query(
         `
-        SELECT contact_id FROM envoi_email 
-        GROUP BY contact_id 
+        SELECT contact_id FROM envoi_email
+        WHERE club_id = ${Number(req.clubId)}
+        GROUP BY contact_id
         HAVING SUM(CASE WHEN date_ouverture IS NOT NULL OR date_clic IS NOT NULL THEN 1 ELSE 0 END) = 0
         AND MAX(date_envoi) < '${sixMonthsAgoStr}'
       `,

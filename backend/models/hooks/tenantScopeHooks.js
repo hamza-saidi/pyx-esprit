@@ -53,16 +53,19 @@ function resolveClubId(modelName) {
 // Mutates options.where in place where possible so internal Sequelize logic
 // that captured a reference to it beforehand (e.g. findOrCreate) still sees
 // the injected filter.
+//
+// `where.constructor === Object` is the key check: a plain `{actif: true}`
+// filter is safe to mutate directly, but `sequelize.literal(...)` is also
+// `typeof === 'object'` while NOT being a plain object - setting a
+// `.club_id` property on a Literal instance is a silent no-op (it has no
+// effect on the raw SQL string it wraps), which would make the tenant
+// filter look applied while actually doing nothing. Those must go through
+// the Op.and wrapping branch instead, same as arrays.
 function applyClubFilter(options, clubId) {
   const where = options.where;
   if (!where) {
     options.where = { club_id: clubId };
-  } else if (
-    typeof where === 'object' &&
-    !Array.isArray(where) &&
-    !where[Op.and] &&
-    !where[Op.or]
-  ) {
+  } else if (where.constructor === Object && !where[Op.and] && !where[Op.or]) {
     where.club_id = clubId;
   } else {
     options.where = { [Op.and]: [where, { club_id: clubId }] };

@@ -4,6 +4,7 @@
  * invoked directly via Model.runHooks() so no live database is needed.
  */
 
+const { Sequelize } = require('sequelize');
 const db = require('../models');
 const { runWithTenant } = require('../utils/tenantContext');
 
@@ -25,6 +26,20 @@ describe('tenantScopeHooks', () => {
       const options = {};
       await db.Contact.runHooks('beforeFind', options);
       expect(options.where).toEqual({ club_id: 3 });
+    });
+  });
+
+  test('beforeFind wraps a sequelize.literal() where clause instead of silently no-oping', async () => {
+    // Regression test: setting .club_id directly on a Literal instance has
+    // no effect on the SQL it generates, which would let an unscoped raw
+    // `where: sequelize.literal(...)` query through unfiltered while
+    // looking like the hook had handled it.
+    await runWithTenant({ clubId: 9, isSystem: false }, async () => {
+      const literalWhere = Sequelize.literal('1=1');
+      const options = { where: literalWhere };
+      await db.Contact.runHooks('beforeFind', options);
+      expect(options.where[Sequelize.Op.and]).toBeDefined();
+      expect(options.where[Sequelize.Op.and]).toEqual([literalWhere, { club_id: 9 }]);
     });
   });
 
