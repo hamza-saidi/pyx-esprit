@@ -32,13 +32,22 @@
       "utils/pick.js",
       "utils/tenantContext.js",
       "models/hooks/tenantScopeHooks.js",
-      "middleware/csrf.js"
+      "middleware/csrf.js",
+      "use-cases/**/*.js",
+      "repositories/**/*.js"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "use-cases/errors.js"
     ],
     "coverageThreshold": {
       "global": {
-        "functions": 30,
         "lines": 30
-      }
+      },
+      "./utils/tenantContext.js": { "functions": 100, "lines": 100 },
+      "./models/hooks/tenantScopeHooks.js": { "functions": 50, "lines": 60 },
+      "./middleware/csrf.js": { "functions": 100, "lines": 100 },
+      "./utils/pick.js": { "functions": 100, "lines": 100 }
     },
     "coverageReporters": [
       "text",
