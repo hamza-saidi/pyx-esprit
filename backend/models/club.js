@@ -12,6 +12,10 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 'actif',
       },
       date_creation: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+      // Microsoft Graph multi-tenant integration
+      azure_tenant_id: { type: DataTypes.STRING(36), allowNull: true, defaultValue: null },
+      graph_from_email: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+      graph_consent_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
     },
     {
       tableName: 'club',

@@ -71,6 +71,7 @@ app.get('/api-docs', (req, res) => {
 });
 
 // Import routes (squelettes)
+app.use('/api/auth/graph', require('./routes/graph'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/user'));
 app.use('/api/contacts', require('./routes/contact'));

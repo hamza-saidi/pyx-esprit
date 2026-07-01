@@ -5,7 +5,14 @@ const fs = require('fs');
 const path = require('path');
 const { ClientSecretCredential } = require('@azure/identity');
 const { Client } = require('@microsoft/microsoft-graph-client');
-const { CampagneEmail, Contact, EnvoiEmail, StatistiqueCampagne, sequelize } = require('../models');
+const {
+  CampagneEmail,
+  Contact,
+  EnvoiEmail,
+  StatistiqueCampagne,
+  Club,
+  sequelize,
+} = require('../models');
 const { Op } = require('sequelize');
 const emailConfig = require('../config/email');
 const { getPublicBaseUrl } = require('../utils/url');
@@ -14,6 +21,26 @@ class EmailService {
   constructor() {
     this.transporter = null;
     this.graphClient = null;
+    this._redis = null;
+    if (process.env.REDIS_HOST || process.env.REDIS_URL) {
+      try {
+        const Redis = require('ioredis');
+        this._redis = new Redis(
+          process.env.REDIS_URL || {
+            host: process.env.REDIS_HOST || '127.0.0.1',
+            port: Number(process.env.REDIS_PORT || 6379),
+            lazyConnect: true,
+            enableReadyCheck: false,
+            maxRetriesPerRequest: null,
+          }
+        );
+        this._redis.on('error', (err) =>
+          logger.warn('[EMAIL] Redis error (Graph token cache degraded):', err.message)
+        );
+      } catch (err) {
+        logger.warn('[EMAIL] ioredis unavailable — Graph token cache disabled:', err.message);
+      }
+    }
     this.initTransporter();
   }
 
@@ -350,6 +377,10 @@ class EmailService {
         include: [{ model: StatistiqueCampagne, as: 'statistiques' }],
       });
 
+      // Fetch the owning Club so per-tenant Graph credentials are available
+      // during send. Club is not tenant-scoped itself so no context needed.
+      const club = campagne ? await Club.findByPk(campagne.club_id) : null;
+
       if (!campagne) {
         throw new Error('Campagne non trouvée');
       }
@@ -421,7 +452,7 @@ class EmailService {
         const batch = envois.slice(i, i + batchSize);
 
         // Envoyer le lot d'emails en parallèle
-        const promises = batch.map((envoi) => this.envoyerEmailAvecRetry(campagne, envoi));
+        const promises = batch.map((envoi) => this.envoyerEmailAvecRetry(campagne, envoi, 0, club));
         const results = await Promise.allSettled(promises);
 
         // Compter les résultats
@@ -473,9 +504,9 @@ class EmailService {
     }
   }
 
-  async envoyerEmailAvecRetry(campagne, envoi, retryCount = 0) {
+  async envoyerEmailAvecRetry(campagne, envoi, retryCount = 0, club = null) {
     try {
-      const result = await this.envoyerEmail(campagne, envoi);
+      const result = await this.envoyerEmail(campagne, envoi, club);
       try {
         logger.debug(
           `[MAIL][OK] campagne=${campagne.id} envoi=${envoi.id} to=${envoi.email_destinataire} provider=${emailConfig.provider || 'smtp'} result=${result?.messageId || result?.success || 'ok'}`
@@ -490,7 +521,7 @@ class EmailService {
       if (retryCount < emailConfig.limits.maxRetries) {
         // Attendre avant de réessayer
         await this.delay(emailConfig.limits.retryDelay);
-        return this.envoyerEmailAvecRetry(campagne, envoi, retryCount + 1);
+        return this.envoyerEmailAvecRetry(campagne, envoi, retryCount + 1, club);
       } else {
         // Échec définitif
         await envoi.update({
@@ -679,7 +710,7 @@ class EmailService {
     return envois;
   }
 
-  async envoyerEmail(campagne, envoi) {
+  async envoyerEmail(campagne, envoi, club = null) {
     // Personnaliser le contenu avec tracking
     let htmlContent = await this.personnaliserContenu(campagne.contenu_html, envoi, campagne);
 
@@ -690,7 +721,7 @@ class EmailService {
     htmlContent = this.ajouterTrackingClics(htmlContent, envoi.token_tracking, campagne);
 
     if ((emailConfig.provider || 'smtp') === 'graph') {
-      return this.envoyerEmailViaGraph(campagne, envoi, htmlContent);
+      return this.envoyerEmailViaGraph(campagne, envoi, htmlContent, club);
     }
 
     const persistentAttachments = this._getCampaignAttachments(campagne);
@@ -732,7 +763,118 @@ class EmailService {
     return info;
   }
 
-  async envoyerEmailViaGraph(campagne, envoi, htmlContent) {
+  // Fetch a Microsoft Graph access token for a specific tenant using the
+  // shared app credentials (Client Credentials Flow).  Tokens are cached in
+  // Redis for 55 minutes so we never call the token endpoint more than once
+  // per token lifetime under normal load.
+  async getGraphToken(tenantId) {
+    const cacheKey = `graph:token:${tenantId}`;
+    if (this._redis) {
+      try {
+        const cached = await this._redis.get(cacheKey);
+        if (cached) return cached;
+      } catch (_) {}
+    }
+
+    const res = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GRAPH_CLIENT_ID,
+        client_secret: process.env.GRAPH_CLIENT_SECRET,
+        scope: 'https://graph.microsoft.com/.default',
+        grant_type: 'client_credentials',
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.access_token) {
+      throw new Error(
+        `Graph token error (tenant ${tenantId}): ${data.error_description || data.error || 'unknown'}`
+      );
+    }
+
+    if (this._redis) {
+      try {
+        await this._redis.set(cacheKey, data.access_token, 'EX', 55 * 60);
+      } catch (_) {}
+    }
+    return data.access_token;
+  }
+
+  // Multi-tenant Graph send: uses the club's own Azure tenant + mailbox.
+  // Called by envoyerEmailViaGraph when club.azure_tenant_id is present.
+  async _sendViaGraphTenant(campagne, envoi, htmlContent, club) {
+    const accessToken = await this.getGraphToken(club.azure_tenant_id);
+    const fromEmail = club.graph_from_email || emailConfig.graph?.senderEmail || emailConfig.from;
+
+    const inline = this._extractInlineImagesForGraph(htmlContent);
+    const persistentAttachments = this._getCampaignAttachments(campagne);
+    logger.debug(
+      `[EMAIL][GRAPH-MT] Sending to ${envoi.email_destinataire} via tenant ${club.azure_tenant_id} from ${fromEmail} — ${persistentAttachments.length} attachment(s)`
+    );
+
+    const graphAttachments = persistentAttachments.map((att) => ({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: att.name,
+      isInline: false,
+      contentBytes: att.content.toString('base64'),
+      contentType: att.mimeType,
+    }));
+
+    const body = {
+      message: {
+        subject: campagne.sujet,
+        body: { contentType: 'HTML', content: inline.html },
+        from: { emailAddress: { address: fromEmail } },
+        toRecipients: [{ emailAddress: { address: envoi.email_destinataire } }],
+        internetMessageHeaders: [
+          { name: 'X-Campaign-ID', value: String(campagne.id) },
+          { name: 'X-Contact-ID', value: String(envoi.contact_id) },
+          { name: 'X-Tracking-Token', value: envoi.token_tracking },
+          ...Object.entries(emailConfig.headers || {}).map(([name, value]) => ({ name, value })),
+        ],
+        attachments: [...(inline.attachments || []), ...graphAttachments],
+      },
+      saveToSentItems: emailConfig.graph?.saveToSentItems !== false,
+    };
+
+    const resp = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(fromEmail)}/sendMail`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (!resp.ok) {
+      let details = `HTTP ${resp.status}`;
+      try {
+        const errBody = await resp.json();
+        details += ` — ${errBody?.error?.message || JSON.stringify(errBody)}`;
+      } catch (_) {}
+      logger.error(
+        `[GRAPH-MT][ERR] sendMail to=${envoi.email_destinataire} campagne=${campagne.id} -> ${details}`
+      );
+      throw new Error(details);
+    }
+
+    logger.debug(
+      `[GRAPH-MT] sendMail OK to=${envoi.email_destinataire} from=${fromEmail} campagne=${campagne.id}`
+    );
+    return { success: true };
+  }
+
+  async envoyerEmailViaGraph(campagne, envoi, htmlContent, club = null) {
+    // Multi-tenant path: club has its own Azure AD tenant + mailbox configured
+    if (club?.azure_tenant_id) {
+      return this._sendViaGraphTenant(campagne, envoi, htmlContent, club);
+    }
+
+    // Legacy single-tenant path: uses env-var credentials (GRAPH_TENANT_ID etc.)
     if (!this.graphClient) {
       throw new Error('Client Graph non initialisé');
     }

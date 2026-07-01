@@ -27,6 +27,7 @@ module.exports = [
         setImmediate: 'readonly',
         clearImmediate: 'readonly',
         URL: 'readonly',
+        URLSearchParams: 'readonly',
         describe: 'readonly',
         test: 'readonly',
         expect: 'readonly',
