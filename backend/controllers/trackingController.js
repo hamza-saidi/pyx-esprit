@@ -1,4 +1,5 @@
-const { EnvoiEmail, StatistiqueCampagne, sequelize } = require('../models');
+﻿const { EnvoiEmail, StatistiqueCampagne, sequelize } = require('../models');
+const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 const { runWithTenant } = require('../utils/tenantContext');
 
@@ -19,7 +20,7 @@ exports.trackOpen = (req, res) =>
       });
 
       if (!envoi) {
-        console.warn(`[TRACKING] Open attempt for non-existent token: ${token}`);
+        logger.warn(`[TRACKING] Open attempt for non-existent token: ${token}`);
         return res.status(404).send('Email non trouvé');
       }
 
@@ -37,7 +38,7 @@ exports.trackOpen = (req, res) =>
 
       // Mettre à jour les statistiques de la campagne (non bloquant)
       mettreAJourStatistiquesCampagne(envoi.campagne_id).catch((err) => {
-        console.error('[TRACKING] Error updating global campaign stats after open:', err);
+        logger.error('[TRACKING] Error updating global campaign stats after open:', err);
       });
 
       // Retourner un pixel transparent 1x1
@@ -56,7 +57,7 @@ exports.trackOpen = (req, res) =>
 
       return res.send(pixel);
     } catch (error) {
-      console.error(`[TRACKING] Error tracking open for token ${token}:`, error);
+      logger.error(`[TRACKING] Error tracking open for token ${token}:`, error);
       // On retourne quand même un pixel vide pour ne pas casser l'affichage de l'email
       const pixel = Buffer.from(
         'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
@@ -75,7 +76,7 @@ exports.trackClick = (req, res) =>
 
     try {
       if (!url) {
-        console.warn(`[TRACKING] Click attempt without URL for token: ${token}`);
+        logger.warn(`[TRACKING] Click attempt without URL for token: ${token}`);
         return res.status(400).send('URL manquante');
       }
 
@@ -85,11 +86,11 @@ exports.trackClick = (req, res) =>
       });
 
       if (!envoi) {
-        console.warn(`[TRACKING] Token not found: ${token}`);
+        logger.warn(`[TRACKING] Token not found: ${token}`);
         return res.status(404).send('Email non trouvé');
       }
 
-      console.log(
+      logger.debug(
         `[TRACKING] Click detected for campaign ${envoi.campagne_id}, contact ${envoi.contact_id}, URL: ${url}`
       );
 
@@ -115,7 +116,7 @@ exports.trackClick = (req, res) =>
               : Array.from(envoi.liens_cliques);
         }
       } catch (e) {
-        console.error('[TRACKING] Error parsing liens_cliques:', e);
+        logger.error('[TRACKING] Error parsing liens_cliques:', e);
         liensCliques = [];
       }
 
@@ -128,13 +129,13 @@ exports.trackClick = (req, res) =>
 
       // Mettre à jour les statistiques globales de la campagne (non bloquant pour le redirect)
       mettreAJourStatistiquesCampagne(envoi.campagne_id).catch((err) => {
-        console.error('[TRACKING] Error updating global campaign stats:', err);
+        logger.error('[TRACKING] Error updating global campaign stats:', err);
       });
 
       // Rediriger vers l'URL originale
       return res.redirect(url);
     } catch (error) {
-      console.error(`[TRACKING] CRITICAL ERROR for token ${token}:`, error);
+      logger.error(`[TRACKING] CRITICAL ERROR for token ${token}:`, error);
       // En cas d'erreur, on essaie quand même de rediriger l'utilisateur vers l'URL s'il y en a une
       if (url) {
         return res.redirect(url);
@@ -201,10 +202,10 @@ async function mettreAJourStatistiquesCampagne(campagneId) {
       }
     );
 
-    console.log(
+    logger.debug(
       `Statistiques mises à jour pour campagne ${campagneId}: ${totalEnvoyes} envoyés, ${ouverts} ouverts, ${clics} clics`
     );
   } catch (error) {
-    console.error('Erreur lors de la mise à jour des statistiques de campagne:', error);
+    logger.error('Erreur lors de la mise à jour des statistiques de campagne:', error);
   }
 }

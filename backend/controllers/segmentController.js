@@ -1,4 +1,5 @@
-const { Segment, Contact, Tag, CampagneEmail } = require('../models');
+﻿const { Segment, Contact, Tag, CampagneEmail } = require('../models');
+const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 const createSegment = require('../use-cases/segment/createSegment');
 const updateSegment = require('../use-cases/segment/updateSegment');
@@ -253,7 +254,7 @@ exports.getAll = async (req, res) => {
         try {
           count = await Contact.count({ where, include, distinct: true });
         } catch (countError) {
-          console.error('Erreur lors du comptage pour', segment.nom, ':', countError.message);
+          logger.error('Erreur lors du comptage pour', segment.nom, ':', countError.message);
           count = 0;
         }
 
@@ -263,7 +264,7 @@ exports.getAll = async (req, res) => {
 
     res.json(segmentsWithCount);
   } catch (err) {
-    console.error('Erreur dans getAll segments:', err);
+    logger.error('Erreur dans getAll segments:', err);
     res.status(500).json({ message: err.message });
   }
 };

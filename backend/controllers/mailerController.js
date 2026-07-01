@@ -1,4 +1,5 @@
-const path = require('path');
+﻿const path = require('path');
+const logger = require('../utils/logger');
 const fs = require('fs');
 const emailService = require('../services/emailService');
 const { Contact, Tag, EnvoiEmail } = require('../models');
@@ -270,7 +271,7 @@ exports.unsubscribe = async (req, res) =>
         message: 'Votre adresse a bien été désabonnée de nos communications.',
       });
     } catch (err) {
-      console.error('Erreur désabonnement:', err);
+      logger.error('Erreur désabonnement:', err);
       return res
         .status(500)
         .json({ success: false, message: 'Une erreur est survenue lors du désabonnement.' });

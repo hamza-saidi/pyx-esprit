@@ -1,4 +1,4 @@
-const {
+﻿const {
   Contact,
   Tag,
   Note,
@@ -16,6 +16,7 @@ const { Op } = require('sequelize');
 const automationService = require('../services/automationService');
 const { pick } = require('../utils/pick');
 const { runWithTenant } = require('../utils/tenantContext');
+const logger = require('../utils/logger');
 
 // Excludes id/club_id (tenant isolation) and date_creation (server-managed)
 const CONTACT_FIELDS = [
@@ -125,7 +126,7 @@ exports.create = async (req, res) => {
 
         // Associate explicit tags if provided
         if (Array.isArray(req.body.tags_id) && req.body.tags_id.length > 0) {
-          console.log(`[DEBUG] Adding tags ${req.body.tags_id} to contact ${contact.id}`);
+          logger.debug(`[DEBUG] Adding tags ${req.body.tags_id} to contact ${contact.id}`);
           await contact.addTags(req.body.tags_id);
           const addedTags = await Tag.findAll({ where: { id: req.body.tags_id } });
           allAddedTagNames.push(...addedTags.map((t) => t.nom));
@@ -384,7 +385,7 @@ const getContactsWhereClause = async (query) => {
 exports.getAll = async (req, res) => {
   try {
     const { page = 1, limit = 25, sort = 'date_creation', order = 'DESC' } = req.query;
-    console.log('[DEBUG] getAll contacts params:', req.query);
+    logger.debug('[DEBUG] getAll contacts params:', req.query);
 
     const where = await getContactsWhereClause(req.query);
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -404,10 +405,10 @@ exports.getAll = async (req, res) => {
       order: [[sort, order]],
       distinct: true,
     });
-    console.log('[DEBUG] Results found:', count);
+    logger.debug('[DEBUG] Results found:', count);
     res.json({ total: count, page: parseInt(page), limit: parseInt(limit), data: rows });
   } catch (err) {
-    console.error('Error in getAll contacts:', err.message);
+    logger.error('Error in getAll contacts:', err.message);
     res.status(500).json({ message: err.message });
   }
 };
@@ -453,7 +454,7 @@ exports.getObsoleteEmails = async (req, res) => {
 
     res.json({ total: contacts.length, data: contacts });
   } catch (err) {
-    console.error('Error getObsoleteEmails:', err);
+    logger.error('Error getObsoleteEmails:', err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -617,7 +618,7 @@ exports.update = async (req, res) => {
       await ensureCategoryDistributionTags(contact);
       // Update explicit tags if provided
       if (Array.isArray(req.body.tags_id)) {
-        console.log(`[DEBUG] Syncing tags ${req.body.tags_id} for contact ${contact.id}`);
+        logger.debug(`[DEBUG] Syncing tags ${req.body.tags_id} for contact ${contact.id}`);
         await contact.setTags(req.body.tags_id);
       }
     } catch (_) {}
@@ -742,9 +743,9 @@ exports.importFile = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Fichier manquant' });
 
-    console.log(`Importing file: ${req.file.originalname}`);
-    console.log(`File size: ${req.file.size} bytes`);
-    console.log(`File mimetype: ${req.file.mimetype}`);
+    logger.debug(`Importing file: ${req.file.originalname}`);
+    logger.debug(`File size: ${req.file.size} bytes`);
+    logger.debug(`File mimetype: ${req.file.mimetype}`);
 
     let contacts;
     try {
@@ -754,7 +755,7 @@ exports.importFile = async (req, res) => {
         return res.status(400).json({ message: 'Aucun contact valide trouvé dans le fichier' });
       }
     } catch (parseError) {
-      console.error('File parsing error:', parseError);
+      logger.error('File parsing error:', parseError);
       return res.status(400).json({
         message: `Erreur lors du parsing du fichier: ${parseError.message}`,
         details: 'Vérifiez que le fichier est un Excel (.xlsx/.xls) ou CSV valide',
@@ -868,7 +869,7 @@ exports.importFile = async (req, res) => {
     const optimalBatchSize = BatchProcessor.getOptimalBatchSize(processedContacts.length);
     const batchProcessor = new BatchProcessor(optimalBatchSize);
 
-    console.log(
+    logger.debug(
       `Using optimal batch size of ${optimalBatchSize} for ${processedContacts.length} contacts`
     );
 
@@ -881,7 +882,7 @@ exports.importFile = async (req, res) => {
 
     // Trigger automations for newly created contacts
     if (created && created.length > 0) {
-      console.log(`[IMPORT] Triggering automations for ${created.length} new contacts`);
+      logger.debug(`[IMPORT] Triggering automations for ${created.length} new contacts`);
       created.forEach((contact) => {
         automationService.triggerAutomation('contact_added', { contact });
         // If they have tags from the import, those will be handled inside triggerAutomation if we pass tagNames
@@ -945,7 +946,7 @@ exports.importFile = async (req, res) => {
       import_time: new Date().toISOString(),
     });
   } catch (err) {
-    console.error('Import error:', err);
+    logger.error('Import error:', err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -1245,7 +1246,7 @@ exports.getHealthStats = async (req, res) => {
       inactive: inactiveCount,
     });
   } catch (err) {
-    console.error('[HealthStats] Error:', err);
+    logger.error('[HealthStats] Error:', err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -1343,7 +1344,7 @@ exports.bulkHealthAction = async (req, res) => {
 
     res.json({ message: 'Action completed', processed });
   } catch (err) {
-    console.error('[BulkHealthAction] Error:', err);
+    logger.error('[BulkHealthAction] Error:', err);
     res.status(500).json({ message: err.message });
   }
 };

@@ -1,7 +1,8 @@
-const { Evenement, Rsvp, Contact, Tag, sequelize } = require('../models');
+﻿const { Evenement, Rsvp, Contact, Tag, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const createEvent = require('../use-cases/event/createEvent');
 const updateEvent = require('../use-cases/event/updateEvent');
+const logger = require('../utils/logger');
 
 // CRUD événements avec validation avancée
 exports.create = async (req, res, next) => {
@@ -107,7 +108,7 @@ exports.getAll = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Erreur getAll events:', err);
+    logger.error('Erreur getAll events:', err);
     res.status(500).json({
       message: 'Erreur lors de la récupération des événements',
       error: err.message,
@@ -165,7 +166,7 @@ exports.getOne = async (req, res) => {
       statistiques: statsEvenement,
     });
   } catch (err) {
-    console.error('Erreur getOne event:', err);
+    logger.error('Erreur getOne event:', err);
     res.status(500).json({
       message: "Erreur lors de la récupération de l'événement",
       error: err.message,
@@ -203,7 +204,7 @@ exports.delete = async (req, res) => {
 
     res.json({ message: 'Événement supprimé avec succès' });
   } catch (err) {
-    console.error('Erreur delete event:', err);
+    logger.error('Erreur delete event:', err);
     res.status(500).json({
       message: "Erreur lors de la suppression de l'événement",
       error: err.message,
@@ -267,7 +268,7 @@ exports.invite = async (req, res) => {
       total_invites: await Rsvp.count({ where: { evenement_id } }),
     });
   } catch (err) {
-    console.error('Erreur invite:', err);
+    logger.error('Erreur invite:', err);
     res.status(500).json({
       message: "Erreur lors de l'invitation des contacts",
       error: err.message,
@@ -333,7 +334,7 @@ exports.updateRsvp = async (req, res) => {
       }),
     });
   } catch (err) {
-    console.error('Erreur updateRsvp:', err);
+    logger.error('Erreur updateRsvp:', err);
     res.status(500).json({
       message: 'Erreur lors de la mise à jour du RSVP',
       error: err.message,
@@ -418,7 +419,7 @@ exports.getEventStats = async (req, res) => {
       repartition_par_handicap: statsParHandicap,
     });
   } catch (err) {
-    console.error('Erreur getEventStats:', err);
+    logger.error('Erreur getEventStats:', err);
     res.status(500).json({
       message: 'Erreur lors de la récupération des statistiques',
       error: err.message,
@@ -472,7 +473,7 @@ exports.cancelEvent = async (req, res) => {
       event: await Evenement.findByPk(id),
     });
   } catch (err) {
-    console.error('Erreur cancelEvent:', err);
+    logger.error('Erreur cancelEvent:', err);
     res.status(500).json({
       message: "Erreur lors de l'annulation de l'événement",
       error: err.message,

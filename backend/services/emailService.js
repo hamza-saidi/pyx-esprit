@@ -1,4 +1,5 @@
-const nodemailer = require('nodemailer');
+﻿const nodemailer = require('nodemailer');
+const logger = require('../utils/logger');
 const fetch = (...args) => import('node-fetch').then((module) => module.default(...args));
 const fs = require('fs');
 const path = require('path');
@@ -38,7 +39,7 @@ class EmailService {
             },
           },
         });
-        console.log(`Service email initialisé via Microsoft Graph (${nodeEnv})`);
+        logger.debug(`Service email initialisé via Microsoft Graph (${nodeEnv})`);
       } else {
         const hasSmtpCreds = !!(
           process.env.SMTP_USER ||
@@ -47,15 +48,15 @@ class EmailService {
         if (hasSmtpCreds) {
           this.transporter = nodemailer.createTransport(emailConfig.smtp);
           await this.transporter.verify();
-          console.log(`Service email initialisé via SMTP (${nodeEnv})`);
+          logger.debug(`Service email initialisé via SMTP (${nodeEnv})`);
         } else {
           // Fallback développement: MailHog/serveur local
           this.transporter = nodemailer.createTransport(emailConfig.development);
-          console.log('Mode développement: emails capturés localement (MailHog)');
+          logger.debug('Mode développement: emails capturés localement (MailHog)');
         }
       }
     } catch (error) {
-      console.error("Erreur lors de l'initialisation du service email:", error);
+      logger.error("Erreur lors de l'initialisation du service email:", error);
       throw new Error("Impossible d'initialiser le service email");
     }
   }
@@ -95,7 +96,7 @@ class EmailService {
 
         const filePath = path.join(uploadsDir, safeName);
         if (!fs.existsSync(filePath)) {
-          console.warn(`[INLINE-GRAPH] File not found on disk: ${filePath}`);
+          logger.warn(`[INLINE-GRAPH] File not found on disk: ${filePath}`);
           continue;
         }
 
@@ -110,7 +111,7 @@ class EmailService {
           contentBytes: data,
         });
 
-        console.log(`[INLINE-GRAPH] Inlining image: ${safeName} as ${contentId}`);
+        logger.debug(`[INLINE-GRAPH] Inlining image: ${safeName} as ${contentId}`);
 
         // Outlook Fix: Ensure width attribute exists and is numeric
         let updatedTag = fullTag.replace(url, `cid:${contentId}`);
@@ -131,7 +132,7 @@ class EmailService {
       }
       return { html: next, attachments };
     } catch (error) {
-      console.error('Error extracting images for Graph:', error);
+      logger.error('Error extracting images for Graph:', error);
       return { html, attachments: [] };
     }
   }
@@ -168,12 +169,12 @@ class EmailService {
 
         const filePath = path.join(uploadsDir, safeName);
         if (!fs.existsSync(filePath)) {
-          console.warn(`[INLINE-SMTP] File not found on disk: ${filePath}`);
+          logger.warn(`[INLINE-SMTP] File not found on disk: ${filePath}`);
           continue;
         }
 
         const contentId = `img-${safeName.replace(/[^a-zA-Z0-9]/g, '')}`;
-        console.log(`[INLINE-SMTP] Inlining image: ${safeName} as ${contentId}`);
+        logger.debug(`[INLINE-SMTP] Inlining image: ${safeName} as ${contentId}`);
         attachments.push({
           filename: safeName,
           path: filePath,
@@ -205,7 +206,7 @@ class EmailService {
       }
       return { html: next, attachments };
     } catch (error) {
-      console.error('Error processing images for inlining:', error);
+      logger.error('Error processing images for inlining:', error);
       return { html, attachments: [] };
     }
   }
@@ -220,19 +221,19 @@ class EmailService {
         if (typeof parametres === 'string') {
           parametres = JSON.parse(parametres);
         }
-        console.log('[ATTACHMENTS] Parsed parametres');
+        logger.debug('[ATTACHMENTS] Parsed parametres');
       } catch (e) {
-        console.error('[ATTACHMENTS] Error parsing parametres JSON:', e.message);
+        logger.error('[ATTACHMENTS] Error parsing parametres JSON:', e.message);
         return [];
       }
 
       const metas = parametres?.attachments;
       if (!Array.isArray(metas) || !metas.length) {
-        console.log('[ATTACHMENTS] No attachments found in campagne.parametres.attachments');
+        logger.debug('[ATTACHMENTS] No attachments found in campagne.parametres.attachments');
         return [];
       }
 
-      console.log(`[ATTACHMENTS] Found ${metas.length} attachment(s) in campagne ${campagne.id}`);
+      logger.debug(`[ATTACHMENTS] Found ${metas.length} attachment(s) in campagne ${campagne.id}`);
 
       return metas
         .map((meta, index) => {
@@ -240,7 +241,7 @@ class EmailService {
             // Essayer plusieurs chemins possibles
             const storedPath = meta?.storedPath || meta?.path || meta?.absolutePath;
             if (!storedPath) {
-              console.warn(`[ATTACHMENTS] Attachment ${index} has no path:`, meta);
+              logger.warn(`[ATTACHMENTS] Attachment ${index} has no path:`, meta);
               return null;
             }
 
@@ -249,13 +250,13 @@ class EmailService {
 
             // Essayer le chemin tel quel (absolu)
             if (fs.existsSync(diskPath)) {
-              console.log(`[ATTACHMENTS] Found attachment ${index} at absolute path: ${diskPath}`);
+              logger.debug(`[ATTACHMENTS] Found attachment ${index} at absolute path: ${diskPath}`);
             } else {
               // Essayer avec path.resolve pour normaliser
               const resolvedPath = path.resolve(storedPath);
               if (fs.existsSync(resolvedPath)) {
                 diskPath = resolvedPath;
-                console.log(
+                logger.debug(
                   `[ATTACHMENTS] Found attachment ${index} at resolved path: ${diskPath}`
                 );
               } else {
@@ -263,7 +264,7 @@ class EmailService {
                 const relativePath = path.join(__dirname, '..', storedPath);
                 if (fs.existsSync(relativePath)) {
                   diskPath = relativePath;
-                  console.log(
+                  logger.debug(
                     `[ATTACHMENTS] Found attachment ${index} at relative path: ${diskPath}`
                   );
                 } else {
@@ -278,7 +279,7 @@ class EmailService {
                   const fallbackPath = path.join(attachmentsDir, filename);
                   if (fs.existsSync(fallbackPath)) {
                     diskPath = fallbackPath;
-                    console.log(
+                    logger.debug(
                       `[ATTACHMENTS] Found attachment ${index} in attachments dir: ${diskPath}`
                     );
                   } else {
@@ -287,9 +288,9 @@ class EmailService {
                       const idPath = path.join(attachmentsDir, meta.id);
                       if (fs.existsSync(idPath)) {
                         diskPath = idPath;
-                        console.log(`[ATTACHMENTS] Found attachment ${index} by ID: ${diskPath}`);
+                        logger.debug(`[ATTACHMENTS] Found attachment ${index} by ID: ${diskPath}`);
                       } else {
-                        console.error(`[ATTACHMENTS] Attachment ${index} not found at any path:`, {
+                        logger.error(`[ATTACHMENTS] Attachment ${index} not found at any path:`, {
                           storedPath,
                           resolvedPath,
                           relativePath,
@@ -300,7 +301,7 @@ class EmailService {
                         return null;
                       }
                     } else {
-                      console.error(`[ATTACHMENTS] Attachment ${index} not found at any path:`, {
+                      logger.error(`[ATTACHMENTS] Attachment ${index} not found at any path:`, {
                         storedPath,
                         resolvedPath,
                         relativePath,
@@ -321,18 +322,18 @@ class EmailService {
               content: buffer,
             };
 
-            console.log(
+            logger.debug(
               `[ATTACHMENTS] Successfully loaded attachment ${index}: ${attachment.name} (${buffer.length} bytes, ${attachment.mimeType})`
             );
             return attachment;
           } catch (e) {
-            console.error(`[ATTACHMENTS] Error loading attachment ${index}:`, e.message);
+            logger.error(`[ATTACHMENTS] Error loading attachment ${index}:`, e.message);
             return null;
           }
         })
         .filter(Boolean);
     } catch (e) {
-      console.error('[ATTACHMENTS] Error in _getCampaignAttachments:', e.message);
+      logger.error('[ATTACHMENTS] Error in _getCampaignAttachments:', e.message);
       return [];
     }
   }
@@ -348,8 +349,8 @@ class EmailService {
       }
 
       // Log pour déboguer les paramètres et pièces jointes
-      console.log(`[CAMPAGNE] Loading campagne ${campagneId}`);
-      console.log(`[CAMPAGNE] Parametres type:`, typeof campagne.parametres);
+      logger.debug(`[CAMPAGNE] Loading campagne ${campagneId}`);
+      logger.debug(`[CAMPAGNE] Parametres type:`, typeof campagne.parametres);
 
       // Parser les paramètres si c'est une chaîne JSON
       let parametres = campagne.parametres;
@@ -361,7 +362,7 @@ class EmailService {
             parametres = JSON.parse(parametres);
           }
         } catch (e) {
-          console.error(`[CAMPAGNE] Error parsing parametres:`, e.message);
+          logger.error(`[CAMPAGNE] Error parsing parametres:`, e.message);
         }
       }
 
@@ -370,7 +371,7 @@ class EmailService {
       if (loggedParams.attachments) loggedParams.attachmentsCount = loggedParams.attachments.length;
       delete loggedParams.attachments; // Don't log full attachment meta
 
-      console.log(`[CAMPAGNE] Parametres partial summary:`, JSON.stringify(loggedParams));
+      logger.debug(`[CAMPAGNE] Parametres partial summary:`, JSON.stringify(loggedParams));
 
       // Autoriser "envoyer maintenant" depuis un brouillon en le basculant automatiquement
       if (campagne.statut === 'brouillon') {
@@ -423,7 +424,7 @@ class EmailService {
             nbEnvoyes++;
           } else {
             nbErreurs++;
-            console.error(`Erreur envoi email ${batch[index].email_destinataire}:`, result.reason);
+            logger.error(`Erreur envoi email ${batch[index].email_destinataire}:`, result.reason);
           }
         });
 
@@ -453,13 +454,13 @@ class EmailService {
         message: `Campagne envoyée: ${nbEnvoyes} emails, ${nbErreurs} erreurs`,
       };
     } catch (error) {
-      console.error("Erreur lors de l'envoi de la campagne:", error);
+      logger.error("Erreur lors de l'envoi de la campagne:", error);
 
       // Remettre la campagne en statut programmée en cas d'erreur
       try {
         await CampagneEmail.update({ statut: 'programmée' }, { where: { id: campagneId } });
       } catch (updateError) {
-        console.error('Erreur lors de la remise en statut programmée:', updateError);
+        logger.error('Erreur lors de la remise en statut programmée:', updateError);
       }
 
       throw error;
@@ -470,7 +471,7 @@ class EmailService {
     try {
       const result = await this.envoyerEmail(campagne, envoi);
       try {
-        console.log(
+        logger.debug(
           `[MAIL][OK] campagne=${campagne.id} envoi=${envoi.id} to=${envoi.email_destinataire} provider=${emailConfig.provider || 'smtp'} result=${result?.messageId || result?.success || 'ok'}`
         );
       } catch {}
@@ -491,7 +492,7 @@ class EmailService {
           message_erreur: error.message,
         });
         try {
-          console.error(
+          logger.error(
             `[MAIL][ERR] campagne=${campagne.id} envoi=${envoi.id} to=${envoi.email_destinataire} provider=${emailConfig.provider || 'smtp'} error=${error.message}`
           );
         } catch {}
@@ -687,7 +688,7 @@ class EmailService {
     }
 
     const persistentAttachments = this._getCampaignAttachments(campagne);
-    console.log(
+    logger.debug(
       `[EMAIL][SMTP] Sending email to ${envoi.email_destinataire} with ${persistentAttachments.length} attachment(s)`
     );
 
@@ -718,7 +719,7 @@ class EmailService {
 
     const info = await this.transporter.sendMail(mailOptions);
     try {
-      console.log(
+      logger.debug(
         `[SMTP] messageId=${info?.messageId} to=${envoi.email_destinataire} campagne=${campagne.id}`
       );
     } catch {}
@@ -733,12 +734,12 @@ class EmailService {
     const fromEmail = emailConfig.graph?.senderEmail || emailConfig.from;
     const inline = this._extractInlineImagesForGraph(htmlContent);
     const persistentAttachments = this._getCampaignAttachments(campagne);
-    console.log(
+    logger.debug(
       `[EMAIL][GRAPH] Sending email to ${envoi.email_destinataire} with ${persistentAttachments.length} attachment(s)`
     );
 
     const graphAttachments = persistentAttachments.map((att) => {
-      console.log(
+      logger.debug(
         `[EMAIL][GRAPH] Attaching file: ${att.name} (${att.content.length} bytes, ${att.mimeType})`
       );
       return {
@@ -787,7 +788,7 @@ class EmailService {
     try {
       const resp = await this.graphClient.api(`/${userPath}/sendMail`).post(message);
       try {
-        console.log(
+        logger.debug(
           `[GRAPH] sendMail to=${envoi.email_destinataire} from=${fromEmail} campagne=${campagne.id} resp=${JSON.stringify(resp)}`
         );
       } catch {}
@@ -804,7 +805,7 @@ class EmailService {
           if (msg) details += ` bodyMessage=${msg}`;
         } catch {}
       }
-      console.error(
+      logger.error(
         `[GRAPH][ERR] sendMail to=${envoi.email_destinataire} campagne=${campagne.id} -> ${details}`
       );
       throw new Error(details);
@@ -836,13 +837,13 @@ class EmailService {
 
         // Replace base64 source with the public file URL
         processedHtml = processedHtml.split(match[1] + ';base64,' + match[2]).join(fileUrl);
-        console.log(
+        logger.debug(
           `[EMAIL] Auto-converted Base64 to storage file: ${fileName} (${Math.round((base64Data.length * 0.75) / 1024)} KB)`
         );
       }
       return processedHtml;
     } catch (e) {
-      console.error('[EMAIL][ERR] Error converting Base64 images:', e);
+      logger.error('[EMAIL][ERR] Error converting Base64 images:', e);
       return html;
     }
   }
@@ -871,7 +872,7 @@ class EmailService {
 
       return processedHtml;
     } catch (error) {
-      console.error('Error ensuring absolute URLs:', error);
+      logger.error('Error ensuring absolute URLs:', error);
       return html;
     }
   }
@@ -1113,7 +1114,7 @@ class EmailService {
         });
       }
     } catch (error) {
-      console.error('Erreur lors de la mise à jour des statistiques:', error);
+      logger.error('Erreur lors de la mise à jour des statistiques:', error);
     }
   }
 
@@ -1174,11 +1175,11 @@ class EmailService {
         }
       );
 
-      console.log(
+      logger.debug(
         `Statistiques mises à jour pour campagne ${campagneId}: ${totalEnvoyes} envoyés, ${ouverts} ouverts, ${clics} clics`
       );
     } catch (error) {
-      console.error('Erreur lors de la mise à jour des statistiques temps réel:', error);
+      logger.error('Erreur lors de la mise à jour des statistiques temps réel:', error);
     }
   }
 

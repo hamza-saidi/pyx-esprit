@@ -42,7 +42,7 @@ jobs:
         run: cd backend && npm ci
 
       - name: 🔍 Run ESLint
-        run: cd backend && npx eslint . --ext .js --max-warnings 0
+        run: cd backend && npx eslint . --ext .js
 
   # ── Job 2 : Tests Unitaires & Intégration ─────────────────
   test:

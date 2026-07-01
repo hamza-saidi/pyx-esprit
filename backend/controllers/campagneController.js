@@ -1,4 +1,4 @@
-const {
+﻿const {
   CampagneEmail,
   Segment,
   Contact,
@@ -14,6 +14,7 @@ const path = require('path');
 const fs = require('fs');
 const { getPublicBaseUrl } = require('../utils/url');
 const { pick } = require('../utils/pick');
+const logger = require('../utils/logger');
 
 const ATTACHMENTS_DIR = path.join(__dirname, '..', 'uploads', 'campaign-attachments');
 
@@ -102,7 +103,7 @@ function normalizeUrls(html, req) {
 
     return processedHtml;
   } catch (error) {
-    console.error('Error normalizing URLs:', error);
+    logger.error('Error normalizing URLs:', error);
     return html;
   }
 }
@@ -350,7 +351,7 @@ const getAll = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Erreur getAll campagnes:', error);
+    logger.error('Erreur getAll campagnes:', error);
     res.status(500).json({
       message: 'Erreur lors de la récupération des campagnes',
       error: error.message,
@@ -437,7 +438,7 @@ const getOne = async (req, res) => {
       stats_en_temps_reel: statsEnTempsReel,
     });
   } catch (error) {
-    console.error('Erreur getOne campagne:', error);
+    logger.error('Erreur getOne campagne:', error);
     res.status(500).json({
       message: 'Erreur lors de la récupération de la campagne',
       error: error.message,
@@ -518,7 +519,7 @@ const create = async (req, res) => {
         const body = (doc.blocks || []).map(renderBlock).join('');
         final_contenu_html = `<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/><style>${css}</style></head><body><div class=\"container\">${header}${body}${footer}</div></body></html>`;
       } catch (e) {
-        console.log('Render blocks_json failed:', e.message);
+        logger.debug('Render blocks_json failed:', e.message);
       }
     }
 
@@ -642,7 +643,7 @@ const create = async (req, res) => {
       campagne: campagneCreee,
     });
   } catch (error) {
-    console.error('Erreur create campagne:', error);
+    logger.error('Erreur create campagne:', error);
     res.status(500).json({
       message: 'Erreur lors de la création de la campagne',
       error: error.message,
@@ -747,7 +748,7 @@ const update = async (req, res) => {
       campagne: campagneMiseAJour,
     });
   } catch (error) {
-    console.error('Erreur update campagne:', error);
+    logger.error('Erreur update campagne:', error);
     res.status(500).json({
       message: 'Erreur lors de la mise à jour de la campagne',
       error: error.message,
@@ -778,7 +779,7 @@ const remove = async (req, res) => {
     await campagne.update({ actif: false });
     res.json({ message: 'Campagne supprimée avec succès' });
   } catch (error) {
-    console.error('Erreur remove campagne:', error);
+    logger.error('Erreur remove campagne:', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
@@ -828,7 +829,7 @@ const programmer = async (req, res) => {
       }),
     });
   } catch (error) {
-    console.error('Erreur programmer campagne:', error);
+    logger.error('Erreur programmer campagne:', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
@@ -864,7 +865,7 @@ const annuler = async (req, res) => {
       }),
     });
   } catch (error) {
-    console.error('Erreur annuler campagne:', error);
+    logger.error('Erreur annuler campagne:', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
@@ -907,7 +908,7 @@ const envoyer = async (req, res) => {
       }),
     });
   } catch (error) {
-    console.error('Erreur envoyer campagne:', error);
+    logger.error('Erreur envoyer campagne:', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
@@ -935,7 +936,7 @@ const envoyerTest = async (req, res) => {
       messageId: result.messageId,
     });
   } catch (error) {
-    console.error('Erreur envoi test:', error);
+    logger.error('Erreur envoi test:', error);
     res.status(500).json({
       message: "Erreur lors de l'envoi du test",
       error: error.message,
@@ -949,8 +950,8 @@ const calculerDestinataires = async (req, res) => {
     const { segment_id, tags_ids, contacts_ids, audience, category_id, distribution_id, where } =
       req.body;
 
-    console.log('=== CALCULER DESTINATAIRES DEBUG ===');
-    console.log('Received data:', {
+    logger.debug('=== CALCULER DESTINATAIRES DEBUG ===');
+    logger.debug('Received data:', {
       segment_id,
       tags_ids,
       contacts_ids,
@@ -959,8 +960,8 @@ const calculerDestinataires = async (req, res) => {
       distribution_id,
       where,
     });
-    console.log('tags_ids type:', typeof tags_ids);
-    console.log('tags_ids length:', tags_ids ? tags_ids.length : 'undefined');
+    logger.debug('tags_ids type:', typeof tags_ids);
+    logger.debug('tags_ids length:', tags_ids ? tags_ids.length : 'undefined');
 
     let whereClause = { actif: true };
     let include = [];
@@ -985,7 +986,7 @@ const calculerDestinataires = async (req, res) => {
 
     // Filtrer par tags si spécifiés
     if (tags_ids && tags_ids.length > 0) {
-      console.log('Filtering by tags:', tags_ids);
+      logger.debug('Filtering by tags:', tags_ids);
       include.push({
         model: Tag,
         as: 'tags',
@@ -1070,8 +1071,8 @@ const calculerDestinataires = async (req, res) => {
         })) + directEmailsList.filter((e) => !new Set(sample.map((s) => s.email)).has(e)).length;
     }
 
-    console.log('Final result - Total contacts:', contacts.length);
-    console.log(
+    logger.debug('Final result - Total contacts:', contacts.length);
+    logger.debug(
       'Final contacts sample:',
       contacts.slice(0, 3).map((c) => ({
         id: c.id,
@@ -1081,7 +1082,7 @@ const calculerDestinataires = async (req, res) => {
         tags: c.tags ? c.tags.map((t) => t.nom) : [],
       }))
     );
-    console.log('=== END DEBUG ===\n');
+    logger.debug('=== END DEBUG ===\n');
 
     res.json({
       nombre_destinataires: count + (contacts_ids?.length ? 0 : 0),
@@ -1096,7 +1097,7 @@ const calculerDestinataires = async (req, res) => {
       })),
     });
   } catch (error) {
-    console.error('Erreur calculer destinataires:', error);
+    logger.error('Erreur calculer destinataires:', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
@@ -1240,7 +1241,7 @@ const getStatistiques = async (req, res) => {
       envois: light ? undefined : envois.slice(0, 100),
     });
   } catch (error) {
-    console.error('Erreur getStatistiques:', error);
+    logger.error('Erreur getStatistiques:', error);
     res.status(500).json({
       message: 'Erreur lors de la récupération des statistiques',
       error: error.message,
@@ -1301,7 +1302,7 @@ const dupliquer = async (req, res) => {
       }),
     });
   } catch (error) {
-    console.error('Erreur dupliquer campagne:', error);
+    logger.error('Erreur dupliquer campagne:', error);
     res.status(500).json({
       message: 'Erreur lors de la duplication de la campagne',
       error: error.message,
@@ -1398,7 +1399,7 @@ const getPerformancesParPeriode = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Erreur getPerformancesParPeriode:', error);
+    logger.error('Erreur getPerformancesParPeriode:', error);
     res.status(500).json({
       message: 'Erreur lors de la récupération des performances',
       error: error.message,
@@ -1419,7 +1420,7 @@ const uploadAttachment = async (req, res) => {
       storedPath: req.file.path.replace(/\\/g, '/'),
     });
   } catch (error) {
-    console.error('Erreur upload attachment:', error);
+    logger.error('Erreur upload attachment:', error);
     return res
       .status(500)
       .json({ message: 'Erreur lors du téléversement de la pièce jointe', error: error.message });
@@ -1436,7 +1437,7 @@ const downloadAttachment = async (req, res) => {
     }
     res.sendFile(filePath);
   } catch (error) {
-    console.error('Erreur download attachment:', error);
+    logger.error('Erreur download attachment:', error);
     res.status(500).send('Erreur lors du téléchargement');
   }
 };
@@ -1532,7 +1533,7 @@ const getFollowupGroups = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Erreur getFollowupGroups:', error);
+    logger.error('Erreur getFollowupGroups:', error);
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };

@@ -1,4 +1,4 @@
-const {
+﻿const {
   StatistiqueCampagne,
   CampagneEmail,
   Contact,
@@ -10,6 +10,7 @@ const {
   sequelize,
 } = require('../models');
 const { Op } = require('sequelize');
+const logger = require('../utils/logger');
 
 // Récupérer les statistiques d'une campagne spécifique
 exports.getByCampaign = async (req, res) => {
@@ -71,7 +72,7 @@ exports.getByCampaign = async (req, res) => {
       ];
     }
 
-    console.log(
+    logger.debug(
       `[DEBUG] getByCampaign request: status="${status}", search="${search}", page=${page}`
     );
 
@@ -107,7 +108,7 @@ exports.getByCampaign = async (req, res) => {
       subQuery: false, // Évite les bugs de pagination Sequelize avec les includes
     });
 
-    console.log(
+    logger.debug(
       `[DEBUG] Campagne ${campaignId}: ${totalCount} envois totaux, ${envois.length} sur cette page (status: ${status})`
     );
 
@@ -228,7 +229,7 @@ exports.getByCampaign = async (req, res) => {
       total_activity_count: totalCount,
     });
   } catch (err) {
-    console.error('Erreur getByCampaign:', err);
+    logger.error('Erreur getByCampaign:', err);
     res.status(500).json({
       message: 'Erreur lors de la récupération des statistiques',
       error: err.message,
@@ -441,7 +442,7 @@ exports.getDashboard = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('Erreur getDashboard:', err);
+    logger.error('Erreur getDashboard:', err);
     res.status(500).json({
       message: 'Erreur lors de la récupération du tableau de bord',
       error: err.message,
@@ -492,7 +493,7 @@ exports.getComparaisonPeriodes = async (req, res) => {
       analyse: genererAnalyse(variations),
     });
   } catch (err) {
-    console.error('Erreur getComparaisonPeriodes:', err);
+    logger.error('Erreur getComparaisonPeriodes:', err);
     res.status(500).json({
       message: 'Erreur lors de la comparaison des périodes',
       error: err.message,
@@ -597,7 +598,7 @@ exports.getStatsBySegment = async (req, res) => {
       performance_par_campagne: performanceParCampagne,
     });
   } catch (err) {
-    console.error('Erreur getStatsBySegment:', err);
+    logger.error('Erreur getStatsBySegment:', err);
     res.status(500).json({
       message: 'Erreur lors de la récupération des statistiques du segment',
       error: err.message,
@@ -704,7 +705,7 @@ exports.getEventStats = async (req, res) => {
       performance_par_evenement: performanceParEvenement,
     });
   } catch (err) {
-    console.error('Erreur getEventStats:', err);
+    logger.error('Erreur getEventStats:', err);
     res.status(500).json({
       message: 'Erreur lors de la récupération des statistiques des événements',
       error: err.message,

@@ -1,4 +1,5 @@
-const { Automation, Contact, ModeleEmail, EnvoiEmail, Tag } = require('../models');
+﻿const { Automation, Contact, ModeleEmail, EnvoiEmail, Tag } = require('../models');
+const logger = require('../utils/logger');
 const emailService = require('./emailService');
 const { Op } = require('sequelize');
 
@@ -16,7 +17,7 @@ class AutomationService {
     const finalTagNames = tagNames || (tagName ? [tagName] : []);
 
     if (!contact || !contact.id) {
-      console.warn('[AUTOMATION] Trigger called without valid contact data');
+      logger.warn('[AUTOMATION] Trigger called without valid contact data');
       return;
     }
 
@@ -50,7 +51,7 @@ class AutomationService {
         await this.executeAction(auto, contact, config);
       }
     } catch (err) {
-      console.error('[AUTOMATION] Error during trigger execution:', err);
+      logger.error('[AUTOMATION] Error during trigger execution:', err);
     }
   }
 
@@ -59,7 +60,7 @@ class AutomationService {
    * This should be called by a cron job (e.g. every hour)
    */
   async processScheduledAutomations() {
-    console.log('[AUTOMATION] Checking for due scheduled/recurring automations...');
+    logger.debug('[AUTOMATION] Checking for due scheduled/recurring automations...');
     try {
       const activeScheduled = await Automation.findAll({
         where: {
@@ -81,12 +82,12 @@ class AutomationService {
         if (!config || config.trigger !== 'scheduled') continue;
 
         if (this._isDue(auto, config, now)) {
-          console.log(`[AUTOMATION] Automation "${auto.nom}" is DUE. Executing...`);
+          logger.debug(`[AUTOMATION] Automation "${auto.nom}" is DUE. Executing...`);
           await this.executeBulkAction(auto, config);
         }
       }
     } catch (err) {
-      console.error('[AUTOMATION] Error in processScheduledAutomations:', err);
+      logger.error('[AUTOMATION] Error in processScheduledAutomations:', err);
     }
   }
 
@@ -94,7 +95,7 @@ class AutomationService {
    * Process membership-specific automation logic (Reminders + Auto-Expiry)
    */
   async processMembershipTasks() {
-    console.log('[AUTOMATION] Checking membership tasks (Expires & Reminders)...');
+    logger.debug('[AUTOMATION] Checking membership tasks (Expires & Reminders)...');
     try {
       const now = new Date();
       const today = now.toISOString().slice(0, 10);
@@ -110,7 +111,7 @@ class AutomationService {
         }
       );
       if (expiredCount[0] > 0)
-        console.log(`[AUTOMATION] ${expiredCount[0]} memberships marked as EXPIRED.`);
+        logger.debug(`[AUTOMATION] ${expiredCount[0]} memberships marked as EXPIRED.`);
 
       // 2. Reminders: Find automations with trigger 'membership_expiring'
       const expiringAutomations = await Automation.findAll({
@@ -145,7 +146,7 @@ class AutomationService {
         });
 
         if (contacts.length > 0) {
-          console.log(
+          logger.debug(
             `[AUTOMATION] Triggering "${auto.nom}" for ${contacts.length} contacts expiring in ${daysBefore} days.`
           );
           for (const contact of contacts) {
@@ -155,7 +156,7 @@ class AutomationService {
         }
       }
     } catch (err) {
-      console.error('[AUTOMATION] Error in processMembershipTasks:', err);
+      logger.error('[AUTOMATION] Error in processMembershipTasks:', err);
     }
   }
 
@@ -201,7 +202,7 @@ class AutomationService {
     try {
       const tagCondition = config.audience_tag;
       if (!tagCondition) {
-        console.warn(`[AUTOMATION] No audience tag defined for bulk automation ${automation.id}`);
+        logger.warn(`[AUTOMATION] No audience tag defined for bulk automation ${automation.id}`);
         return;
       }
 
@@ -217,7 +218,7 @@ class AutomationService {
         ],
       });
 
-      console.log(
+      logger.debug(
         `[AUTOMATION] Executing bulk action for ${contacts.length} contacts (Tag: ${tagCondition})`
       );
 
@@ -231,7 +232,7 @@ class AutomationService {
       // Update automation last run
       await automation.update({ derniere_execution: new Date() });
     } catch (err) {
-      console.error(`[AUTOMATION] Bulk execution failed for ${automation.id}:`, err);
+      logger.error(`[AUTOMATION] Bulk execution failed for ${automation.id}:`, err);
     }
   }
 
@@ -310,7 +311,7 @@ class AutomationService {
         }
       }
     } catch (err) {
-      console.error(`[AUTOMATION] Failed to execute action for automation ${automation.id}:`, err);
+      logger.error(`[AUTOMATION] Failed to execute action for automation ${automation.id}:`, err);
     }
   }
 
