@@ -7,45 +7,127 @@ const emailService = require('../services/emailService');
 const emailConfig = require('../config/email');
 const logger = require('../utils/logger');
 
-// MFA Store — module-scoped (not global), with TTL cleanup
-// NOTE: For multi-instance deployment, replace with Redis (SET mfa:{id} {code} EX 300)
-const mfaStore = new Map();
-const mfaTimer = setInterval(() => {
-  const now = Date.now();
-  for (const [key, rec] of mfaStore.entries()) {
-    if (now > rec.expiresAt) mfaStore.delete(key);
+// ── Redis client (shared across MFA store + rate limiter) ───────────────────
+// Redis is used when REDIS_HOST or REDIS_URL is set (production/Docker).
+// Falls back to in-memory Maps in dev/test so no Redis dependency is needed
+// for local development without Docker.
+let redisClient = null;
+if (process.env.REDIS_HOST || process.env.REDIS_URL) {
+  try {
+    const Redis = require('ioredis');
+    const connOptions = process.env.REDIS_URL
+      ? process.env.REDIS_URL
+      : {
+          host: process.env.REDIS_HOST || '127.0.0.1',
+          port: Number(process.env.REDIS_PORT || 6379),
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+          lazyConnect: true,
+        };
+    redisClient = new Redis(connOptions);
+    redisClient.on('error', (err) =>
+      logger.warn(
+        '[AUTH] Redis connection error — MFA/rate-limiter using in-memory fallback:',
+        err.message
+      )
+    );
+    logger.info('[AUTH] MFA store and rate limiter backed by Redis.');
+  } catch (err) {
+    logger.warn(
+      '[AUTH] ioredis unavailable — MFA/rate-limiter using in-memory fallback:',
+      err.message
+    );
   }
-}, 60 * 1000); // Cleanup expired entries every minute
-if (mfaTimer.unref) {
-  mfaTimer.unref();
 }
 
-// Simple in-memory rate limiter per IP for login (production: Redis)
-const loginAttempts = new Map();
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const MAX_ATTEMPTS = 30; // Increased for production (NAT/Proxy friendliness)
+// ── MFA Store ────────────────────────────────────────────────────────────────
+// Redis: SET auth:mfa:{pendingId} {json} EX 300 (5-min TTL, cluster-safe)
+// Fallback: module-scoped Map with periodic TTL cleanup
+const mfaMemStore = new Map();
+if (!redisClient) {
+  const mfaTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, rec] of mfaMemStore.entries()) {
+      if (now > rec.expiresAt) mfaMemStore.delete(key);
+    }
+  }, 60 * 1000);
+  if (mfaTimer.unref) mfaTimer.unref();
+}
 
-function recordAttempt(ip, ok) {
+async function mfaSet(pendingId, payload) {
+  if (redisClient) {
+    await redisClient.set(`auth:mfa:${pendingId}`, JSON.stringify(payload), 'EX', 300);
+  } else {
+    mfaMemStore.set(pendingId, payload);
+  }
+}
+
+async function mfaGet(pendingId) {
+  if (redisClient) {
+    const raw = await redisClient.get(`auth:mfa:${pendingId}`);
+    return raw ? JSON.parse(raw) : null;
+  }
+  return mfaMemStore.get(pendingId) || null;
+}
+
+async function mfaDel(pendingId) {
+  if (redisClient) {
+    await redisClient.del(`auth:mfa:${pendingId}`);
+  } else {
+    mfaMemStore.delete(pendingId);
+  }
+}
+
+// ── Login rate limiter ────────────────────────────────────────────────────────
+// Redis: sorted-set of timestamps per IP, pruned on read (cluster-safe, persistent)
+// Fallback: module-scoped Map
+const loginMemStore = new Map();
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_ATTEMPTS = 30;
+
+async function recordAttempt(ip, ok) {
+  if (redisClient) {
+    const key = `auth:rate:${ip}`;
+    const now = Date.now();
+    if (!ok) {
+      await redisClient.zadd(key, now, now);
+      await redisClient.zremrangebyscore(key, '-inf', now - WINDOW_MS);
+      await redisClient.expire(key, Math.ceil(WINDOW_MS / 1000));
+      const count = await redisClient.zcard(key);
+      if (count >= MAX_ATTEMPTS) {
+        await redisClient.set(`auth:block:${ip}`, '1', 'EX', Math.ceil(WINDOW_MS / 1000));
+        logger.warn(
+          `[AUTH] IP ${ip} blocked for ${WINDOW_MS / 60000} min after ${MAX_ATTEMPTS} failed attempts.`
+        );
+      }
+    } else {
+      await redisClient.del(`auth:block:${ip}`);
+    }
+    return;
+  }
+  // in-memory fallback
   const now = Date.now();
-  const rec = loginAttempts.get(ip) || { attempts: [], blockedUntil: 0 };
-  // Clear old attempts
+  const rec = loginMemStore.get(ip) || { attempts: [], blockedUntil: 0 };
   rec.attempts = rec.attempts.filter((ts) => now - ts < WINDOW_MS);
   if (!ok) rec.attempts.push(now);
   if (rec.attempts.length >= MAX_ATTEMPTS) {
     rec.blockedUntil = now + WINDOW_MS;
     rec.attempts = [];
     logger.warn(
-      `IP ${ip} blocked until ${new Date(rec.blockedUntil).toISOString()} after ${MAX_ATTEMPTS} failed attempts.`
+      `[AUTH] IP ${ip} blocked until ${new Date(rec.blockedUntil).toISOString()} after ${MAX_ATTEMPTS} failed attempts.`
     );
   }
-  loginAttempts.set(ip, rec);
+  loginMemStore.set(ip, rec);
 }
 
-function isBlocked(ip) {
-  const rec = loginAttempts.get(ip);
+async function isBlocked(ip) {
+  if (redisClient) {
+    const blocked = await redisClient.get(`auth:block:${ip}`);
+    return !!blocked;
+  }
+  const rec = loginMemStore.get(ip);
   if (!rec) return false;
-  if (Date.now() < rec.blockedUntil) return true;
-  return false;
+  return Date.now() < rec.blockedUntil;
 }
 
 const { getJwtSecret } = require('../utils/jwt');
@@ -115,7 +197,7 @@ exports.login = async (req, res, next) => {
 
     logger.info(`Login attempt received`, { email, ip, userAgent: req.headers['user-agent'] });
 
-    if (isBlocked(ip)) {
+    if (await isBlocked(ip)) {
       logger.warn(`Blocked login attempt from ${ip} (Throttled)`);
       return res.status(429).json({ message: 'Trop de tentatives. Réessayez plus tard.' });
     }
@@ -125,7 +207,7 @@ exports.login = async (req, res, next) => {
     );
     const valid = user ? await bcrypt.compare(mot_de_passe, user.mot_de_passe) : false;
 
-    recordAttempt(ip, !!(user && valid));
+    await recordAttempt(ip, !!(user && valid));
     if (!user || !valid)
       return res.status(400).json({ message: 'Email ou mot de passe incorrect' });
 
@@ -134,7 +216,7 @@ exports.login = async (req, res, next) => {
       // SECURITY FIX: crypto.randomInt is cryptographically secure (replaces Math.random)
       const code = String(randomInt(100000, 1000000));
       const pendingId = 'mfa_' + user.id + '_' + Date.now();
-      mfaStore.set(pendingId, { userId: user.id, code, expiresAt: Date.now() + 5 * 60 * 1000 });
+      await mfaSet(pendingId, { userId: user.id, code, expiresAt: Date.now() + 5 * 60 * 1000 });
 
       try {
         await emailService.sendGenericEmail(
@@ -197,10 +279,10 @@ exports.verifyMfa = async (req, res) => {
   try {
     const { pending_token, code } = req.body || {};
     if (!pending_token || !code) return res.status(400).json({ message: 'Token et code requis' });
-    const rec = mfaStore.get(pending_token);
+    const rec = await mfaGet(pending_token);
     if (!rec) return res.status(400).json({ message: 'MFA invalide ou expiré' });
     if (Date.now() > rec.expiresAt) {
-      mfaStore.delete(pending_token);
+      await mfaDel(pending_token);
       return res.status(400).json({ message: 'Code expiré. Veuillez vous reconnecter.' });
     }
     // Constant-time comparison to prevent timing attacks
@@ -208,7 +290,7 @@ exports.verifyMfa = async (req, res) => {
       return res.status(400).json({ message: 'Code incorrect' });
     const user = await runWithTenant(SYSTEM_CONTEXT, () => Utilisateur.findByPk(rec.userId));
     if (!user) return res.status(400).json({ message: 'Utilisateur introuvable' });
-    mfaStore.delete(pending_token);
+    await mfaDel(pending_token);
     const token = signAccess(user);
     const refresh = signRefresh(user);
     res.cookie('refresh_token', refresh, {
