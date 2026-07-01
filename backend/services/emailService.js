@@ -22,6 +22,12 @@ class EmailService {
       const provider = emailConfig.provider || 'smtp';
       const nodeEnv = process.env.NODE_ENV || 'development';
 
+      if (provider === 'mock' || nodeEnv === 'test') {
+        logger.debug('Service email en mode mock — envois désactivés (tests/CI)');
+        this.transporter = null;
+        return;
+      }
+
       if (provider === 'graph') {
         const { tenantId, clientId, clientSecret } = emailConfig.graph || {};
         if (!tenantId || !clientId || !clientSecret) {
@@ -57,7 +63,7 @@ class EmailService {
       }
     } catch (error) {
       logger.error("Erreur lors de l'initialisation du service email:", error);
-      throw new Error("Impossible d'initialiser le service email");
+      this.transporter = null;
     }
   }
 
