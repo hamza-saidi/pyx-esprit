@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useToast } from '../context/ToastContext';
-import countries from 'i18n-iso-countries';
-import frLocale from 'i18n-iso-countries/langs/fr.json';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchSegments,
@@ -34,19 +32,12 @@ import EnhancedPagination from '../components/EnhancedPagination';
 import Checkbox from '@mui/material/Checkbox';
 import { useNavigate } from 'react-router-dom';
 
-countries.registerLocale(frLocale);
-const countryList = countries.getNames('fr', { select: 'official' });
-
 const emptySegment = {
   nom: '',
   criteres: {
-    type_client: '',
-    ville: '',
     actif: true,
     handicap_min: '',
     handicap_max: '',
-    sexe: '',
-    nationalite: '',
     tag_ids: []
   }
 };
@@ -167,13 +158,11 @@ const Segments = () => {
     await handleDelete(blockDialog.segmentId);
   };
 
-  // Exemples de segments prêts à l'emploi
+  // Exemples de segments prêts à l'emploi (par étiquettes ou critères golf)
   const segmentsExamples = [
-    { nom: 'Membres actifs', criteres: { type_client: 'membre', actif: true } },
-    { nom: 'Clients entreprise', criteres: { type_client: 'entreprise' } },
-    { nom: 'Contacts de Tunis', criteres: { ville: 'Tunis' } },
-    { nom: 'Handicap < 10', criteres: { handicap_max: 10 } },
-    { nom: 'Femmes (Audience)', criteres: { sexe: 'Femme' } }
+    { nom: 'Contacts actifs', criteres: { actif: true } },
+    { nom: 'Handicap ≤ 10', criteres: { handicap_max: 10, actif: true } },
+    { nom: 'Handicap 11–24', criteres: { handicap_min: 11, handicap_max: 24, actif: true } },
   ];
 
   const createExampleSegment = (example) => {
@@ -443,13 +432,6 @@ const Segments = () => {
               sx={{ bgcolor: 'white', borderColor: '#bfc9cf', '&:hover': { bgcolor: '#F0F7FF', borderColor: '#0a84d6' } }}
             />
           ))}
-          {/* Explicit Tour Operator Example */}
-          <Chip
-            label="Tour Operators (Family Builder)"
-            onClick={() => createExampleSegment({ nom: 'Tour Operators (All)', criteres: { type_client: 'entreprise' }})} // Ideally would pre-fill with tag_ids if we knew them, but name implies purpose
-            variant="outlined"
-            sx={{ bgcolor: '#3b3f44', color: 'white', borderColor: '#3b3f44', '&:hover': { bgcolor: '#2d3034' } }}
-          />
         </Box>
       </Paper>
 
@@ -749,7 +731,7 @@ const Segments = () => {
                 contactsPreview.slice(0, 50).map(c => (
                   <Box key={c.id} sx={{ py: 1, borderBottom: '1px solid #eee' }}>
                     <Typography sx={{ fontWeight: 600 }}>{c.prenom} {c.nom} <Typography component="span" color="text.secondary">• {c.email}</Typography></Typography>
-                    <Typography variant="caption" color="text.secondary">Sexe: {c.sexe || '-'} • Nationalité: {c.nationalite || '-'} • Ville: {c.ville || '-'}</Typography>
+                    <Typography variant="caption" color="text.secondary">{(c.tags || []).map(t => t.nom).join(', ') || '—'}</Typography>
                   </Box>
                 ))
               )}
