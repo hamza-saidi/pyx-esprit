@@ -90,6 +90,8 @@ services:
       GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
       GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
       GRAPH_SENDER_EMAIL: ${GRAPH_SENDER_EMAIL:-}
+      # IA — Groq (génération de contenu email)
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
       # Redis — queue et session store (optionnel, active BullMQ si configuré)
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -113,6 +115,25 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    networks:
+      - golf_network
+
+  # ── phpMyAdmin (gestion DB via navigateur) ───────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: golf_huub_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword_dev}
+      UPLOAD_LIMIT: 64M
+    ports:
+      - "8080:80"   # http://localhost:8080
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - golf_network
 

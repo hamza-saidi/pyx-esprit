@@ -211,8 +211,8 @@ exports.login = async (req, res, next) => {
     if (!user || !valid)
       return res.status(400).json({ message: 'Email ou mot de passe incorrect' });
 
-    // If admin, require MFA
-    if (String(user.role) === 'admin') {
+    // If admin or global_admin, require MFA
+    if (user.role === 'admin' || user.role === 'global_admin') {
       // SECURITY FIX: crypto.randomInt is cryptographically secure (replaces Math.random)
       const code = String(randomInt(100000, 1000000));
       const pendingId = 'mfa_' + user.id + '_' + Date.now();

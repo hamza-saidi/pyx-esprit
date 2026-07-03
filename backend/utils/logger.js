@@ -37,6 +37,7 @@ function writeLog(level, message, details = '') {
 }
 
 module.exports = {
+  debug: (msg, details) => writeLog('debug', msg, details),
   info: (msg, details) => writeLog('info', msg, details),
   warn: (msg, details) => writeLog('warn', msg, details),
   error: (msg, details) => writeLog('error', msg, details),
