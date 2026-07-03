@@ -9,4 +9,8 @@ router.put('/:id/toggle', requireAuthAndTenant, automationController.toggleAutom
 router.put('/:id', requireAuthAndTenant, automationController.updateAutomation);
 router.delete('/:id', requireAuthAndTenant, automationController.deleteAutomation);
 
+// Birthday trigger (was /api/birthdays)
+router.get('/birthday/today', requireAuthAndTenant, automationController.listBirthdaysToday);
+router.post('/birthday/today/send', requireAuthAndTenant, automationController.sendBirthdaysToday);
+
 module.exports = router;

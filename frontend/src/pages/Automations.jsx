@@ -176,7 +176,7 @@ const Automations = () => {
   const fetchDependencies = async () => {
     try {
       const [tRes, tempRes] = await Promise.all([
-        axios.get('/tags'),
+        axios.get('/contacts/tags'),
         axios.get('/templates')
       ]);
       setTags(tRes.data);

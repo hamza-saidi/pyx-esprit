@@ -3,7 +3,7 @@ import axios from '../../api/axios';
 
 export const fetchTags = createAsyncThunk('tags/fetchAll', async (_, thunkAPI) => {
   try {
-    const res = await axios.get('/tags');
+    const res = await axios.get('/contacts/tags');
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement tags');
@@ -12,7 +12,7 @@ export const fetchTags = createAsyncThunk('tags/fetchAll', async (_, thunkAPI) =
 
 export const addTag = createAsyncThunk('tags/add', async (data, thunkAPI) => {
   try {
-    const res = await axios.post('/tags', data);
+    const res = await axios.post('/contacts/tags', data);
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur ajout tag');
@@ -21,7 +21,7 @@ export const addTag = createAsyncThunk('tags/add', async (data, thunkAPI) => {
 
 export const updateTag = createAsyncThunk('tags/update', async ({ id, data }, thunkAPI) => {
   try {
-    const res = await axios.put(`/tags/${id}`, data);
+    const res = await axios.put(`/contacts/tags/${id}`, data);
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur modification tag');
@@ -30,7 +30,7 @@ export const updateTag = createAsyncThunk('tags/update', async ({ id, data }, th
 
 export const deleteTag = createAsyncThunk('tags/delete', async (id, thunkAPI) => {
   try {
-    await axios.delete(`/tags/${id}`);
+    await axios.delete(`/contacts/tags/${id}`);
     return id;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur suppression tag');
@@ -39,7 +39,7 @@ export const deleteTag = createAsyncThunk('tags/delete', async (id, thunkAPI) =>
 
 export const fetchTagsWithCounts = createAsyncThunk('tags/fetchWithCounts', async (_, thunkAPI) => {
   try {
-    const res = await axios.get('/tags/cloud/metrics');
+    const res = await axios.get('/contacts/tags/cloud/metrics');
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement métriques tags');
@@ -48,7 +48,7 @@ export const fetchTagsWithCounts = createAsyncThunk('tags/fetchWithCounts', asyn
 
 export const mergeTags = createAsyncThunk('tags/merge', async ({ sourceIds, targetId }, thunkAPI) => {
   try {
-    const res = await axios.post('/tags/merge', { sourceIds, targetId });
+    const res = await axios.post('/contacts/tags/merge', { sourceIds, targetId });
     // Refresh all data after merge
     thunkAPI.dispatch(fetchTags());
     thunkAPI.dispatch(fetchTagsWithCounts());

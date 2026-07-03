@@ -3,7 +3,7 @@ import axios from '../../api/axios';
 
 export const fetchUsers = createAsyncThunk('users/fetchAll', async (_, thunkAPI) => {
   try {
-    const res = await axios.get('/users');
+    const res = await axios.get('/auth/users');
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement utilisateurs');
@@ -12,7 +12,7 @@ export const fetchUsers = createAsyncThunk('users/fetchAll', async (_, thunkAPI)
 
 export const addUser = createAsyncThunk('users/add', async (data, thunkAPI) => {
   try {
-    const res = await axios.post('/users', data);
+    const res = await axios.post('/auth/users', data);
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur ajout utilisateur');
@@ -21,7 +21,7 @@ export const addUser = createAsyncThunk('users/add', async (data, thunkAPI) => {
 
 export const deleteUser = createAsyncThunk('users/delete', async (id, thunkAPI) => {
   try {
-    await axios.delete(`/users/${id}`);
+    await axios.delete(`/auth/users/${id}`);
     return id;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur suppression utilisateur');

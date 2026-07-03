@@ -3,7 +3,7 @@ import axios from '../../api/axios';
 
 export const fetchSegments = createAsyncThunk('segments/fetchAll', async (_, thunkAPI) => {
   try {
-    const res = await axios.get('/segments');
+    const res = await axios.get('/contacts/segments');
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement segments');
@@ -12,7 +12,7 @@ export const fetchSegments = createAsyncThunk('segments/fetchAll', async (_, thu
 
 export const addSegment = createAsyncThunk('segments/add', async (data, thunkAPI) => {
   try {
-    const res = await axios.post('/segments', data);
+    const res = await axios.post('/contacts/segments', data);
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur ajout segment');
@@ -21,7 +21,7 @@ export const addSegment = createAsyncThunk('segments/add', async (data, thunkAPI
 
 export const updateSegment = createAsyncThunk('segments/update', async ({ id, data }, thunkAPI) => {
   try {
-    const res = await axios.put(`/segments/${id}`, data);
+    const res = await axios.put(`/contacts/segments/${id}`, data);
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur modification segment');
@@ -30,7 +30,7 @@ export const updateSegment = createAsyncThunk('segments/update', async ({ id, da
 
 export const deleteSegment = createAsyncThunk('segments/delete', async (id, thunkAPI) => {
   try {
-    await axios.delete(`/segments/${id}`);
+    await axios.delete(`/contacts/segments/${id}`);
     return id;
   } catch (err) {
     const data = err.response?.data;
@@ -39,7 +39,7 @@ export const deleteSegment = createAsyncThunk('segments/delete', async (id, thun
 });
 export const detachSegmentCampaigns = createAsyncThunk('segments/detachCampaigns', async ({ id, campaignIds }, thunkAPI) => {
   try {
-    const res = await axios.post(`/segments/${id}/detach-campaigns`, { campaignIds });
+    const res = await axios.post(`/contacts/segments/${id}/detach-campaigns`, { campaignIds });
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur détachement campagnes');
@@ -48,7 +48,7 @@ export const detachSegmentCampaigns = createAsyncThunk('segments/detachCampaigns
 
 export const previewSegmentCount = createAsyncThunk('segments/previewCount', async (criteres, thunkAPI) => {
   try {
-    const res = await axios.post('/segments/preview-count', { criteres });
+    const res = await axios.post('/contacts/segments/preview-count', { criteres });
     return res.data.count;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur prévisualisation');
@@ -57,7 +57,7 @@ export const previewSegmentCount = createAsyncThunk('segments/previewCount', asy
 
 export const fetchSegmentContacts = createAsyncThunk('segments/fetchContacts', async (id, thunkAPI) => {
   try {
-    const res = await axios.get(`/segments/${id}/contacts`);
+    const res = await axios.get(`/contacts/segments/${id}/contacts`);
     return { id, contacts: res.data };
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement contacts du segment');

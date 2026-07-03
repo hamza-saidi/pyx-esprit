@@ -30,7 +30,7 @@ const MembershipPlans = () => {
   const fetchPlans = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('/abonnements');
+      const res = await axios.get('/contacts/memberships');
       setPlans(res.data);
     } catch (err) {
       setError("Erreur lors du chargement des abonnements.");
@@ -59,9 +59,9 @@ const MembershipPlans = () => {
     setSaving(true);
     try {
       if (editPlan) {
-        await axios.put(`/abonnements/${editPlan.id}`, form);
+        await axios.put(`/contacts/memberships/${editPlan.id}`, form);
       } else {
-        await axios.post('/abonnements', form);
+        await axios.post('/contacts/memberships', form);
       }
       setOpen(false);
       fetchPlans();
@@ -75,7 +75,7 @@ const MembershipPlans = () => {
   const handleDelete = async (id) => {
     if (!window.confirm("Supprimer ce type d'abonnement ?")) return;
     try {
-      await axios.delete(`/abonnements/${id}`);
+      await axios.delete(`/contacts/memberships/${id}`);
       fetchPlans();
     } catch (err) {
       alert(err.response?.data?.message || "Erreur lors de la suppression.");

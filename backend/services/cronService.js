@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const { Automation, CampagneEmail, Club } = require('../models');
-const birthdayController = require('../controllers/birthdayController');
+const automationController = require('../controllers/automationController');
 const automationService = require('./automationService');
 const emailService = require('./emailService');
 const logger = require('../utils/logger');
@@ -69,7 +69,7 @@ exports.initAutomations = async () => {
             json: (error) => logger.error(`❌ CRON: Birthday Emails Error [${code}]:`, error),
           }),
         };
-        await birthdayController.sendToday(req, res);
+        await automationController.sendBirthdaysToday(req, res, () => {});
       }
     });
   });

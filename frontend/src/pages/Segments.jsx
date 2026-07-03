@@ -12,8 +12,6 @@ import {
   fetchSegmentContacts,
   clearContactsPreview,
 } from '../features/segments/segmentsSlice';
-import { fetchCategories } from '../features/categories/categoriesSlice';
-import { fetchDistributions } from '../features/distributions/distributionsSlice';
 import { fetchTags } from '../features/tags/tagsSlice';
 import {
   Box, Typography, Button, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Tooltip, Chip, Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel, Divider, RadioGroup, Radio
@@ -38,8 +36,8 @@ import { useNavigate } from 'react-router-dom';
 countries.registerLocale(frLocale);
 const countryList = countries.getNames('fr', { select: 'official' });
 
-const emptySegment = { 
-  nom: '', 
+const emptySegment = {
+  nom: '',
   criteres: {
     type_client: '',
     ville: '',
@@ -47,9 +45,7 @@ const emptySegment = {
     handicap_min: '',
     handicap_max: '',
     sexe: '',
-    nationalite: '' ,
-    category_id: '',
-    distribution_id: '',
+    nationalite: '',
     tag_ids: []
   }
 };
@@ -57,8 +53,6 @@ const emptySegment = {
 const Segments = () => {
   const dispatch = useDispatch();
   const { items, loading, error, previewCount, previewLoading, contactsPreview, contactsPreviewForId, contactsPreviewLoading } = useSelector((state) => state.segments);
-  const { items: categories } = useSelector((state) => state.categories || { items: [] });
-  const { items: distributions } = useSelector((state) => state.distributions || { items: [] });
   const { items: tags } = useSelector((state) => state.tags || { items: [] });
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(null);
@@ -73,8 +67,6 @@ const Segments = () => {
 
   useEffect(() => { 
     dispatch(fetchSegments());
-    dispatch(fetchCategories());
-    dispatch(fetchDistributions());
     dispatch(fetchTags());
   }, [dispatch]);
 
@@ -253,7 +245,7 @@ const Segments = () => {
     setExpandedFamilies(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
-  const renderCriteriaChips = (rawCriteres, tagsList, categoriesList, distributionsList) => {
+  const renderCriteriaChips = (rawCriteres, tagsList) => {
     // Parse if rawCriteres is a JSON string
     let criteres = rawCriteres;
     // Robustly handle stringified or double-stringified JSON
@@ -272,8 +264,6 @@ const Segments = () => {
       ville: 'Ville',
       sexe: 'Sexe',
       nationalite: 'Nat.',
-      category_id: 'Cat.',
-      distribution_id: 'Dist.',
       tag_ids: 'Tags',
       actif: 'Actif',
       handicap_min: 'Hcp ≥',
@@ -343,8 +333,6 @@ const Segments = () => {
         const names = (tagsList || []).filter(t => ids.includes(t.id)).map(t => t.nom);
         display = names.length > 0 ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ')) : (Array.isArray(value) ? value.join(', ') : value);
       }
-      if (key === 'category_id') display = (categoriesList || []).find(c => c.id === value)?.nom || value;
-      if (key === 'distribution_id') display = (distributionsList || []).find(d => d.id === value)?.nom || value;
       if (key === 'actif') display = value ? 'Oui' : 'Non';
       
       if (typeof display === 'object' && display !== null) display = JSON.stringify(display);
@@ -530,7 +518,7 @@ const Segments = () => {
                   </Box>
 
                   <Box display="flex" flexWrap="wrap" gap={0.5} mb={3} flexGrow={1}>
-                    {renderCriteriaChips(s.criteres, tags, categories, distributions) || (
+                    {renderCriteriaChips(s.criteres, tags) || (
                        <Typography variant="body2" color="text.secondary" fontStyle="italic">Aucun critère</Typography>
                     )}
                   </Box>

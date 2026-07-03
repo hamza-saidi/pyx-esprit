@@ -2,8 +2,6 @@
   Contact,
   Tag,
   Note,
-  Category,
-  Distribution,
   Segment,
   EnvoiEmail,
   Rsvp,
@@ -48,36 +46,7 @@ const CONTACT_FIELDS = [
   'date_expiration_abonnement',
   'statut_abonnement',
   'dernier_paiement_info',
-  'category_id',
-  'distribution_id',
 ];
-
-// Helper: ensure tags from category/distribution are attached to a contact
-async function ensureCategoryDistributionTags(contact) {
-  await contact.reload({
-    include: [
-      { model: Category, as: 'category' },
-      { model: Distribution, as: 'distribution' },
-      { model: Tag, as: 'tags', through: { attributes: [] } },
-    ],
-  });
-  const desiredTagNames = [];
-  if (contact.category && contact.category.nom)
-    desiredTagNames.push(String(contact.category.nom).trim());
-  if (contact.distribution && contact.distribution.nom)
-    desiredTagNames.push(String(contact.distribution.nom).trim());
-  if (desiredTagNames.length === 0) return [];
-  const existingTagNames = new Set((contact.tags || []).map((t) => t.nom));
-  const addedTagNames = [];
-  for (const tagName of desiredTagNames) {
-    if (!tagName) continue;
-    if (existingTagNames.has(tagName)) continue;
-    const [tag] = await Tag.findOrCreate({ where: { nom: tagName }, defaults: { nom: tagName } });
-    await contact.addTag(tag);
-    addedTagNames.push(tagName);
-  }
-  return addedTagNames;
-}
 
 // Helper: ensure a specific tag is attached to a contact
 async function ensureTag(contact, tagName) {
@@ -121,8 +90,6 @@ exports.create = async (req, res) => {
 
       try {
         let allAddedTagNames = [];
-        const catDistTags = await ensureCategoryDistributionTags(contact);
-        allAddedTagNames.push(...catDistTags);
 
         // Associate explicit tags if provided
         if (Array.isArray(req.body.tags_id) && req.body.tags_id.length > 0) {
@@ -165,8 +132,6 @@ const getContactsWhereClause = async (query) => {
     pays,
     entreprise,
     search,
-    categoryId,
-    distributionId,
     segmentIds,
     filterRules,
     filterMatch,
@@ -208,21 +173,7 @@ const getContactsWhereClause = async (query) => {
     });
   }
 
-  // 2. Category / Distribution
-  if (categoryId) {
-    const list = Array.isArray(categoryId)
-      ? categoryId
-      : String(categoryId).split(',').filter(Boolean);
-    whereConditions.push({ category_id: list.length > 1 ? { [Op.in]: list } : list[0] });
-  }
-  if (distributionId) {
-    const list = Array.isArray(distributionId)
-      ? distributionId
-      : String(distributionId).split(',').filter(Boolean);
-    whereConditions.push({ distribution_id: list.length > 1 ? { [Op.in]: list } : list[0] });
-  }
-
-  // 3. Search
+  // 2. Search
   if (search && search.trim() !== '') {
     const s = `%${search.trim()}%`;
     whereConditions.push({
@@ -350,8 +301,6 @@ const getContactsWhereClause = async (query) => {
             'ville',
             'nationalite',
             'actif',
-            'category_id',
-            'distribution_id',
           ].forEach((k) => {
             if (crit[k] !== undefined && crit[k] !== '') sw[k] = crit[k];
           });
@@ -392,8 +341,6 @@ exports.getAll = async (req, res) => {
     const include = [
       { model: Tag, as: 'tags', through: { attributes: [] } },
       { model: Note, as: 'notes' },
-      { model: Category, as: 'category' },
-      { model: Distribution, as: 'distribution' },
       { model: Abonnement, as: 'abonnement' },
     ];
 
@@ -447,8 +394,6 @@ exports.getObsoleteEmails = async (req, res) => {
       where: { id: { [Op.in]: contactIds } },
       include: [
         { model: Tag, as: 'tags', through: { attributes: [] } },
-        { model: Category, as: 'category' },
-        { model: Distribution, as: 'distribution' },
       ],
     });
 
@@ -481,54 +426,6 @@ exports.getStats = async (req, res) => {
     sexeRows.forEach((r) => {
       bySexe[r.sexe || 'Non spécifié'] = Number(r.get('count')) || 0;
     });
-
-    // Top categories
-    const catRows = await Contact.findAll({
-      attributes: [
-        'category_id',
-        [Contact.sequelize.fn('COUNT', Contact.sequelize.col('category_id')), 'count'],
-      ],
-      include: [
-        {
-          model: require('../models').Category,
-          as: 'category',
-          attributes: ['id', 'nom'],
-          required: false,
-        },
-      ],
-      group: ['category_id', 'category.id', 'category.nom'],
-      order: [[Contact.sequelize.literal('count'), 'DESC']],
-      limit: 10,
-    });
-    const topCategories = catRows
-      .filter((r) => r.category)
-      .map((r) => ({ id: r.category.id, nom: r.category.nom, count: Number(r.get('count')) || 0 }));
-
-    // Top distributions
-    const distRows = await Contact.findAll({
-      attributes: [
-        'distribution_id',
-        [Contact.sequelize.fn('COUNT', Contact.sequelize.col('distribution_id')), 'count'],
-      ],
-      include: [
-        {
-          model: require('../models').Distribution,
-          as: 'distribution',
-          attributes: ['id', 'nom'],
-          required: false,
-        },
-      ],
-      group: ['distribution_id', 'distribution.id', 'distribution.nom'],
-      order: [[Contact.sequelize.literal('count'), 'DESC']],
-      limit: 10,
-    });
-    const topDistributions = distRows
-      .filter((r) => r.distribution)
-      .map((r) => ({
-        id: r.distribution.id,
-        nom: r.distribution.nom,
-        count: Number(r.get('count')) || 0,
-      }));
 
     // By country (pays)
     const paysRows = await Contact.findAll({
@@ -576,8 +473,6 @@ exports.getStats = async (req, res) => {
       newThisMonth,
       bySexe,
       byPays,
-      topCategories,
-      topDistributions,
       topTags,
     });
   } catch (err) {
@@ -591,8 +486,6 @@ exports.getOne = async (req, res) => {
       include: [
         { model: Tag, as: 'tags', through: { attributes: [] } },
         { model: Note, as: 'notes' },
-        { model: Category, as: 'category' },
-        { model: Distribution, as: 'distribution' },
       ],
     });
     if (!contact) return res.status(404).json({ message: 'Contact non trouvé' });
@@ -615,7 +508,6 @@ exports.update = async (req, res) => {
     }
     await contact.update(pick(req.body, CONTACT_FIELDS));
     try {
-      await ensureCategoryDistributionTags(contact);
       // Update explicit tags if provided
       if (Array.isArray(req.body.tags_id)) {
         logger.debug(`[DEBUG] Syncing tags ${req.body.tags_id} for contact ${contact.id}`);
@@ -762,36 +654,11 @@ exports.importFile = async (req, res) => {
       });
     }
 
-    // Process categories, distributions, tags, and segments
-    const categoryNames = [...new Set(contacts.map((c) => c._category_name).filter(Boolean))];
-    const distributionNames = [
-      ...new Set(contacts.map((c) => c._distribution_name).filter(Boolean)),
-    ];
-
     // Extract all unique tags and segments
     const allTags = contacts.flatMap((c) => c._tags || []).filter(Boolean);
     const allSegments = contacts.flatMap((c) => c._segments || []).filter(Boolean);
     const uniqueTags = [...new Set(allTags)];
     const uniqueSegments = [...new Set(allSegments)];
-
-    // Create categories and distributions if they don't exist
-    const categoryMap = {};
-    for (const categoryName of categoryNames) {
-      const [category] = await Category.findOrCreate({
-        where: { nom: categoryName },
-        defaults: { nom: categoryName },
-      });
-      categoryMap[categoryName] = category.id;
-    }
-
-    const distributionMap = {};
-    for (const distributionName of distributionNames) {
-      const [distribution] = await Distribution.findOrCreate({
-        where: { nom: distributionName },
-        defaults: { nom: distributionName },
-      });
-      distributionMap[distributionName] = distribution.id;
-    }
 
     // Create tags if they don't exist
     const tagMap = {};
@@ -836,15 +703,9 @@ exports.importFile = async (req, res) => {
       batchTagIds = String(req.body.batchTagIds).split(',').map(Number).filter(Boolean);
     }
 
-    // Map contacts to include category_id and distribution_id, and prepare tags/segments
+    // Map contacts to prepare tags/segments
     const processedContacts = newContacts.map((contact) => {
       const processed = { ...contact };
-      if (contact._category_name && categoryMap[contact._category_name]) {
-        processed.category_id = categoryMap[contact._category_name];
-      }
-      if (contact._distribution_name && distributionMap[contact._distribution_name]) {
-        processed.distribution_id = distributionMap[contact._distribution_name];
-      }
 
       // Store tag and segment IDs for later association
       processed._tagIds = [
@@ -858,8 +719,6 @@ exports.importFile = async (req, res) => {
         .filter(Boolean);
 
       // Remove temporary fields
-      delete processed._category_name;
-      delete processed._distribution_name;
       delete processed._tags;
       delete processed._segments;
       return processed;
@@ -875,8 +734,6 @@ exports.importFile = async (req, res) => {
 
     const created = await batchProcessor.processContacts(processedContacts, {
       Contact,
-      Category,
-      Distribution,
       Tag,
     });
 
@@ -904,11 +761,6 @@ exports.importFile = async (req, res) => {
         if (raw.ville) updates.ville = raw.ville;
         if (raw.entreprise) updates.entreprise = raw.entreprise;
         if (raw.statut) updates.statut = raw.statut;
-        if (raw._category_name && categoryMap[raw._category_name])
-          updates.category_id = categoryMap[raw._category_name];
-        if (raw._distribution_name && distributionMap[raw._distribution_name])
-          updates.distribution_id = distributionMap[raw._distribution_name];
-
         await contact.update(updates);
 
         // Handle tags for updated contacts too
@@ -937,8 +789,6 @@ exports.importFile = async (req, res) => {
       contacts_created: created.length,
       duplicates_skipped: contacts.length - newContacts.length,
       contacts_updated: updatedCount,
-      categories_created: categoryNames.length,
-      distributions_created: distributionNames.length,
       tags_created: uniqueTags.length,
       segments_created: uniqueSegments.length,
       batches_processed: Math.ceil(processedContacts.length / 100),
@@ -958,8 +808,6 @@ exports.exportCsv = async (req, res) => {
     const contacts = await Contact.findAll({
       where,
       include: [
-        { model: Category, as: 'category' },
-        { model: Distribution, as: 'distribution' },
         { model: Tag, as: 'tags', through: { attributes: [] } },
       ],
       order: [['date_creation', 'DESC']],
@@ -975,8 +823,6 @@ exports.exportCsv = async (req, res) => {
       Entreprise: contact.entreprise,
       Type: contact.type_client,
       Statut: contact.statut,
-      Categorie: contact.category?.nom || '',
-      Distribution: contact.distribution?.nom || '',
       Tags: (contact.tags || []).map((t) => t.nom).join(', '),
       DateCreation: contact.date_creation,
     }));
@@ -985,8 +831,6 @@ exports.exportCsv = async (req, res) => {
       ExportedAt: new Date().toISOString(),
       Filters: {
         search: req.query.search || '',
-        categoryId: req.query.categoryId || '',
-        distributionId: req.query.distributionId || '',
         tagIds: req.query.tagIds || '',
         segmentIds: req.query.segmentIds || '',
         filterRules: req.query.filterRules || '',
@@ -995,8 +839,8 @@ exports.exportCsv = async (req, res) => {
     const metaLines = [
       `# Exported By,${meta.ExportedBy}`,
       `# Exported At,${meta.ExportedAt}`,
-      `# Filters,search=${meta.Filters.search};categoryId=${meta.Filters.categoryId};distributionId=${meta.Filters.distributionId};tagIds=${meta.Filters.tagIds};segmentIds=${meta.Filters.segmentIds};filterRules=${meta.Filters.filterRules}`,
-      `# Columns: Prenom, Nom, Email, Telephone, Sexe, Ville, Entreprise, Type, Statut, Categorie, Distribution, Tags, DateCreation`,
+      `# Filters,search=${meta.Filters.search};tagIds=${meta.Filters.tagIds};segmentIds=${meta.Filters.segmentIds};filterRules=${meta.Filters.filterRules}`,
+      `# Columns: Prenom, Nom, Email, Telephone, Sexe, Ville, Entreprise, Type, Statut, Tags, DateCreation`,
     ].join('\n');
 
     const csvBody = generateCsv(exportData);
@@ -1017,8 +861,6 @@ exports.exportExcel = async (req, res) => {
     const contacts = await Contact.findAll({
       where,
       include: [
-        { model: Category, as: 'category' },
-        { model: Distribution, as: 'distribution' },
         { model: Tag, as: 'tags', through: { attributes: [] } },
       ],
       order: [['date_creation', 'DESC']],
@@ -1034,8 +876,6 @@ exports.exportExcel = async (req, res) => {
       Entreprise: c.entreprise,
       Type: c.type_client,
       Statut: c.statut,
-      Categorie: c.category?.nom || '',
-      Distribution: c.distribution?.nom || '',
       Tags: (c.tags || []).map((t) => t.nom).join(', '),
       DateCreation: c.date_creation,
     }));
@@ -1049,7 +889,7 @@ exports.exportExcel = async (req, res) => {
       ['Exported At', new Date().toISOString()],
       [
         'Filters',
-        `search=${req.query.search || ''}; categoryId=${req.query.categoryId || ''}; distributionId=${req.query.distributionId || ''}; tagIds=${req.query.tagIds || ''}; segmentIds=${req.query.segmentIds || ''}; filterRules=${req.query.filterRules || ''}`,
+        `search=${req.query.search || ''}; tagIds=${req.query.tagIds || ''}; segmentIds=${req.query.segmentIds || ''}; filterRules=${req.query.filterRules || ''}`,
       ],
     ];
     const wsMeta = XLSX.utils.aoa_to_sheet(metaData);
@@ -1067,8 +907,6 @@ exports.exportExcel = async (req, res) => {
         'Entreprise',
         'Type',
         'Statut',
-        'Categorie',
-        'Distribution',
         'Tags',
         'DateCreation',
       ],
@@ -1084,8 +922,6 @@ exports.exportExcel = async (req, res) => {
       { wch: 18 },
       { wch: 12 },
       { wch: 12 },
-      { wch: 18 },
-      { wch: 18 },
       { wch: 22 },
       { wch: 20 },
     ];
@@ -1134,8 +970,6 @@ exports.exportTemplate = async (req, res) => {
           Statut: 'client',
           Ville: 'Paris',
           Entreprise: 'ABC Corp',
-          Catégorie: 'Membres VIP',
-          Distribution: 'Agence France',
           Tags: 'VIP, Golf, Paris',
         },
         {
@@ -1148,8 +982,6 @@ exports.exportTemplate = async (req, res) => {
           status: 'prospect',
           city: 'Bruxelles',
           company: 'XYZ Ltd',
-          category: 'Mailing Agences',
-          distribution: 'Agence Belgique',
           tags: 'Nouveau, Bruxelles',
         },
       ];
@@ -1164,37 +996,6 @@ exports.exportTemplate = async (req, res) => {
   }
 };
 
-// Bulk: generate tags for all contacts from their category and distribution
-exports.generateAutoTagsForAll = async (req, res) => {
-  try {
-    const pageSize = Math.min(Number(req.query.batchSize) || 500, 2000);
-    let page = 0;
-    let processed = 0;
-    // Loop by batches to avoid loading all at once
-
-    while (true) {
-      const contacts = await Contact.findAll({
-        include: [
-          { model: Category, as: 'category' },
-          { model: Distribution, as: 'distribution' },
-          { model: Tag, as: 'tags', through: { attributes: [] } },
-        ],
-        limit: pageSize,
-        offset: page * pageSize,
-        order: [['id', 'ASC']],
-      });
-      if (!contacts.length) break;
-      for (const contact of contacts) {
-        await ensureCategoryDistributionTags(contact);
-        processed += 1;
-      }
-      page += 1;
-    }
-    return res.json({ message: 'Auto-tags generation completed', processed });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-};
 
 /**
  * GET /api/contacts/health/stats

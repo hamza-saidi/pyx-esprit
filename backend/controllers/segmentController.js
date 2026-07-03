@@ -146,8 +146,6 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
     'sexe',
     'nationalite',
     'actif',
-    'category_id',
-    'distribution_id',
   ];
   equalityKeys.forEach((key) => {
     // Skip if already handled by filterRules to avoid double filtering

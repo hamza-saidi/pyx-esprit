@@ -4,8 +4,6 @@ import contactsReducer from '../features/contacts/contactsSlice';
 import tagsReducer from '../features/tags/tagsSlice';
 import segmentsReducer from '../features/segments/segmentsSlice';
 import campaignsReducer from '../features/campaigns/campaignsSlice';
-import categoriesReducer from '../features/categories/categoriesSlice';
-import distributionsReducer from '../features/distributions/distributionsSlice';
 import statisticsReducer from '../features/statistics/statisticsSlice';
 import templatesReducer from '../features/templates/templatesSlice';
 import usersReducer from '../features/users/usersSlice';
@@ -17,8 +15,6 @@ export const store = configureStore({
     tags: tagsReducer,
     segments: segmentsReducer,
     campaigns: campaignsReducer,
-    categories: categoriesReducer,
-    distributions: distributionsReducer,
     statistics: statisticsReducer,
     templates: templatesReducer,
     users: usersReducer,

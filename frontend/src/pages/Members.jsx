@@ -26,8 +26,6 @@ import Chip from '@mui/material/Chip';
 import InputBase from '@mui/material/InputBase';
 import { useTheme } from '@mui/material/styles';
 import { fetchTags } from '../features/tags/tagsSlice';
-import { fetchCategories } from '../features/categories/categoriesSlice';
-import { fetchDistributions } from '../features/distributions/distributionsSlice';
 import EnhancedPagination from '../components/EnhancedPagination';
 import LoadingOverlay from '../components/LoadingOverlay';
 import axios from '../api/axios';
@@ -41,8 +39,6 @@ const Members = () => {
   const dispatch = useDispatch();
   const { items, loading, error, total } = useSelector((state) => state.contacts);
   const { items: tags } = useSelector((state) => state.tags || { items: [] });
-  const { items: categories } = useSelector((state) => state.categories || { items: [] });
-  const { items: distributions } = useSelector((state) => state.distributions || { items: [] });
   const [abonnements, setAbonnements] = useState([]);
   
   const [open, setOpen] = useState(false);
@@ -57,9 +53,7 @@ const Members = () => {
 
   useEffect(() => {
     dispatch(fetchTags());
-    dispatch(fetchCategories());
-    dispatch(fetchDistributions());
-    axios.get('/abonnements').then(r => setAbonnements(r.data)).catch(e => console.error(e));
+    axios.get('/contacts/memberships').then(r => setAbonnements(r.data)).catch(e => console.error(e));
   }, [dispatch]);
 
   useEffect(() => {

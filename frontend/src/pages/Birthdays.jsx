@@ -12,7 +12,7 @@ const Birthdays = () => {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      const res = await axios.get('/birthdays/today');
+      const res = await axios.get('/automations/birthday/today');
       setContacts(res.data.contacts || []);
     } catch (e) {
       setError(e.response?.data?.message || 'Erreur de chargement');
@@ -24,7 +24,7 @@ const Birthdays = () => {
   const sendAll = async () => {
     setSending(true); setError(null); setSendResult(null);
     try {
-      const res = await axios.post('/birthdays/today/send');
+      const res = await axios.post('/automations/birthday/today/send');
       setSendResult(res.data);
       await load();
     } catch (e) {

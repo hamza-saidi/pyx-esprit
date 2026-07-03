@@ -3,7 +3,7 @@ import axios from '../../api/axios';
 
 export const fetchStatistics = createAsyncThunk('statistics/fetch', async ({ campaignId, page = 1, limit = 20, search = '', status = 'all' }, thunkAPI) => {
   try {
-    const res = await axios.get(`/statistics/campaign/${campaignId}?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&status=${status}`);
+    const res = await axios.get(`/campagnes/stats/campaign/${campaignId}?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&status=${status}`);
     return res.data;
   } catch (err) {
 
@@ -14,7 +14,7 @@ export const fetchStatistics = createAsyncThunk('statistics/fetch', async ({ cam
 
 export const fetchDashboard = createAsyncThunk('statistics/dashboard', async (periode = '30j', thunkAPI) => {
   try {
-    const res = await axios.get(`/statistics/dashboard?periode=${periode}`);
+    const res = await axios.get(`/campagnes/stats/dashboard?periode=${periode}`);
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement dashboard');
@@ -23,7 +23,7 @@ export const fetchDashboard = createAsyncThunk('statistics/dashboard', async (pe
 
 export const fetchComparison = createAsyncThunk('statistics/comparison', async ({ periode1 = '30j', periode2 = '60j' }, thunkAPI) => {
   try {
-    const res = await axios.get(`/statistics/comparaison?periode1=${periode1}&periode2=${periode2}`);
+    const res = await axios.get(`/campagnes/stats/comparaison?periode1=${periode1}&periode2=${periode2}`);
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement comparaison');
@@ -32,7 +32,7 @@ export const fetchComparison = createAsyncThunk('statistics/comparison', async (
 
 export const fetchSegmentStats = createAsyncThunk('statistics/segment', async (segmentId, thunkAPI) => {
   try {
-    const res = await axios.get(`/statistics/segment/${segmentId}`);
+    const res = await axios.get(`/campagnes/stats/segment/${segmentId}`);
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement statistiques segment');

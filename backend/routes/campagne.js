@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const campagneController = require('../controllers/campagneController');
+const statisticsController = require('../controllers/statisticsController');
+const mailerController = require('../controllers/mailerController');
 const { requireAuthAndTenant } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
@@ -74,5 +76,17 @@ router.get('/:id/performances', campagneController.getPerformancesParPeriode);
 
 // Obtenir les groupes de suivi d'une campagne envoyée (cliqueurs, ouvreurs, non-ouvreurs)
 router.get('/:id/followup-groups', campagneController.getFollowupGroups);
+
+// ── Statistics (was /api/statistics) ──────────────────────────────────────────
+router.get('/stats/campaign/:campaignId', statisticsController.getByCampaign);
+router.get('/stats/dashboard', statisticsController.getDashboard);
+router.get('/stats/comparaison', statisticsController.getComparaisonPeriodes);
+router.get('/stats/segment/:segmentId', statisticsController.getStatsBySegment);
+router.get('/stats/events', statisticsController.getEventStats);
+
+// ── Mailer send (was /api/mailer/send*) ───────────────────────────────────────
+router.post('/send', uploadAttachment.array('attachments', 10), mailerController.send);
+router.get('/recipients/count', mailerController.countRecipientsByTags);
+router.post('/send-by-tags', uploadAttachment.array('attachments', 10), mailerController.sendByTags);
 
 module.exports = router;

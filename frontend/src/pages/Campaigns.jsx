@@ -12,83 +12,97 @@ import {
 } from '../features/campaigns/campaignsSlice';
 import { fetchTags } from '../features/tags/tagsSlice';
 import { fetchSegments } from '../features/segments/segmentsSlice';
-import { fetchCategories } from '../features/categories/categoriesSlice';
-import { fetchDistributions } from '../features/distributions/distributionsSlice';
 import {
-  Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Tooltip, Divider, Chip
+  Box, Typography, Button, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent,
+  DialogActions, TextField, CircularProgress, Tooltip, Chip, Alert,
+  MenuItem, LinearProgress,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import SendIcon from '@mui/icons-material/Send';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import EmailEditor from '../components/EmailEditor';
-import EnhancedPagination from '../components/EnhancedPagination';
-import { fetchTemplates } from '../features/templates/templatesSlice';
+import AIAssistDrawer from '../components/AIAssistDrawer';
 
-const emptyCampaign = { titre: '', sujet: '', contenu_html: '<p>Votre contenu ici</p>', statut: 'brouillon', audience: 'all', tags_ids: [], segment_id: '', limite_envois: '', date_programmation: '' };
+const emptyCampaign = {
+  titre: '',
+  sujet: '',
+  contenu_html: '<p>Votre contenu ici</p>',
+  statut: 'brouillon',
+  audience: 'all',
+  tags_ids: [],
+  segment_id: '',
+  limite_envois: '',
+  date_programmation: '',
+};
+
+const STATUS_COLORS = {
+  brouillon: 'default',
+  programmée: 'primary',
+  en_cours: 'info',
+  envoyée: 'success',
+  annulée: 'warning',
+  erreur: 'error',
+};
+
+const STATUS_LABELS = {
+  brouillon: 'Brouillon',
+  programmée: 'Programmée',
+  en_cours: 'En cours',
+  envoyée: 'Envoyée',
+  annulée: 'Annulée',
+  erreur: 'Erreur',
+};
 
 const Campaigns = () => {
   const dispatch = useDispatch();
   const { items, loading, error, recipientPreview, progress } = useSelector((state) => state.campaigns);
-  
-  // Ensure items is always an array
   const safeItems = Array.isArray(items) ? items : [];
-  
-  // Debug logging
-  // console.log('Campaigns state:', { loading, error, itemsCount: safeItems.length, safeItems: safeItems.slice(0, 2) });
   const tagsState = useSelector((state) => state.tags || { items: [] });
   const segmentsState = useSelector((state) => state.segments || { items: [] });
-  const categoriesState = useSelector((state) => state.categories || { items: [] });
-  const distributionsState = useSelector((state) => state.distributions || { items: [] });
+
+  // Dialog state
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(null);
   const [form, setForm] = useState(emptyCampaign);
   const [submitError, setSubmitError] = useState('');
-  const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('date_envoi');
-  const [sortDir, setSortDir] = useState('desc');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [openTemplatesPicker, setOpenTemplatesPicker] = useState(false);
-  const templatesState = useSelector((state) => state.templates || { items: [] });
-  // Calendar state
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'calendar'
-  // Force list view for debugging
-  const currentViewMode = 'list';
-  const [monthCursor, setMonthCursor] = useState(() => {
-    const d = new Date();
-    d.setDate(1);
-    return d;
-  });
-  // const [dayDialog, setDayDialog] = useState({ open: false, date: null, campaigns: [] }); // COMMENTED OUT FOR DEBUGGING
 
-  useEffect(() => { 
-    console.log('Fetching campaigns data...');
-    dispatch(fetchCampaigns()).catch(err => console.error('Error fetching campaigns:', err)); 
-    dispatch(fetchTags()).catch(err => console.error('Error fetching tags:', err));
-    dispatch(fetchSegments()).catch(err => console.error('Error fetching segments:', err));
-    dispatch(fetchCategories()).catch(err => console.error('Error fetching categories:', err));
-    dispatch(fetchDistributions()).catch(err => console.error('Error fetching distributions:', err));
+  // AI Drawer state
+  const [aiOpen, setAiOpen] = useState(false);
+
+  // Delete confirm
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  // Search
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    dispatch(fetchCampaigns());
+    dispatch(fetchTags());
+    dispatch(fetchSegments());
   }, [dispatch]);
 
+  // Open from URL ?create=1 or ?edit=<id>
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    if (params.get('create') === '1') handleOpen();
     const editId = params.get('edit');
-    if (editId && Array.isArray(items) && items.length > 0) {
-      const found = items.find(c => String(c.id) === String(editId));
+    if (editId && safeItems.length > 0) {
+      const found = safeItems.find((c) => String(c.id) === String(editId));
       if (found) handleOpen(found);
     }
-  }, [location.search, items]);
+  }, [location.search, safeItems.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleOpen = (campaign = null) => {
     setEdit(campaign);
+    setSubmitError('');
     if (campaign && typeof campaign === 'object') {
-      // Ensure all form fields are properly normalized
-      const normalizedCampaign = {
-        ...emptyCampaign,
+      setForm({
         ...campaign,
-        tags_ids: Array.isArray(campaign.tags_ids) ? campaign.tags_ids : (campaign.tags_ids ? [campaign.tags_ids] : []),
+        tags_ids: Array.isArray(campaign.tags_ids) ? campaign.tags_ids : [],
         titre: String(campaign.titre || ''),
         sujet: String(campaign.sujet || ''),
         contenu_html: String(campaign.contenu_html || ''),
@@ -96,311 +110,146 @@ const Campaigns = () => {
         audience: String(campaign.audience || 'all'),
         segment_id: campaign.segment_id || '',
         limite_envois: campaign.limite_envois || '',
-        date_programmation: campaign.date_programmation || ''
-      };
-      setForm(normalizedCampaign);
+        date_programmation: campaign.date_programmation || '',
+      });
     } else {
       setForm(emptyCampaign);
     }
     setOpen(true);
   };
-  const handleClose = () => setOpen(false);
+
+  const handleClose = () => {
+    setOpen(false);
+    setEdit(null);
+    setSubmitError('');
+  };
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
   const handleHtmlChange = (html) => setForm((f) => ({ ...f, contenu_html: html }));
 
-  const handleAudienceChange = (e) => setForm({ ...form, audience: e.target.value });
-
-  const handleTagsChange = (e) => {
-    const values = Array.from(e.target.selectedOptions).map((o) => parseInt(o.value, 10)).filter((v) => !Number.isNaN(v));
-    setForm((f) => ({ ...f, tags_ids: values }));
+  const handleAIApply = ({ sujet, contenu_html }) => {
+    setForm((f) => ({ ...f, sujet, contenu_html }));
+    setAiOpen(false);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitError('');
-    // Build minimal server-friendly payload
     const payload = {
       titre: (form.titre || '').trim(),
-      sujet: (form.sujet && form.sujet.trim().length > 0) ? form.sujet.trim() : undefined,
-      contenu_html: (form.contenu_html && form.contenu_html.length >= 10) ? form.contenu_html : '<p>Contenu</p>',
-      type_campagne: 'newsletter'
+      sujet: form.sujet?.trim() || undefined,
+      contenu_html: form.contenu_html?.length >= 10 ? form.contenu_html : '<p>Contenu</p>',
+      type_campagne: 'newsletter',
     };
-    const action = edit ? updateCampaign({ id: edit.id, data: payload }) : addCampaign(payload);
+    const action = edit
+      ? updateCampaign({ id: edit.id, data: payload })
+      : addCampaign(payload);
     dispatch(action).then((res) => {
-      if (res.meta && res.meta.requestStatus === 'fulfilled') {
-        setOpen(false);
+      if (res.meta?.requestStatus === 'fulfilled') {
+        handleClose();
       } else {
         const msg = res.payload || res.error?.message || 'Erreur lors de la sauvegarde';
-        setSubmitError(Array.isArray(msg?.errors) ? msg.errors.join(', ') : msg);
+        setSubmitError(Array.isArray(msg?.errors) ? msg.errors.join(', ') : String(msg));
       }
     });
   };
 
-  useEffect(() => { if (openTemplatesPicker) { dispatch(fetchTemplates()); } }, [openTemplatesPicker, dispatch]);
-  const handlePickTemplate = (t) => {
-    setForm(prev => ({ ...prev, sujet: prev.sujet || t.nom, contenu_html: t.contenu_html }));
-    setOpenTemplatesPicker(false);
+  const handleSend = (id) => {
+    dispatch(sendCampaign(id));
+    const interval = setInterval(() => dispatch(fetchCampaignStatsLight(id)), 3000);
+    setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
   };
 
-  const handleDelete = (id) => dispatch(deleteCampaign(id));
-  const askDelete = (id) => setConfirmDeleteId(id);
-  const cancelDelete = () => setConfirmDeleteId(null);
-  const confirmDelete = () => {
+  const handleCalculate = () => {
+    dispatch(
+      calculateRecipients({
+        audience: form.audience,
+        segment_id: form.segment_id || undefined,
+        tags_ids: form.tags_ids?.length ? form.tags_ids : undefined,
+      })
+    );
+  };
+
+  const handleDelete = () => {
     if (confirmDeleteId) {
       dispatch(deleteCampaign(confirmDeleteId));
       setConfirmDeleteId(null);
     }
   };
 
-  const handleCalculate = () => {
-    let whereObj = undefined;
-    if (form.where && typeof form.where === 'string') {
-      try { whereObj = JSON.parse(form.where); } catch (_) { whereObj = undefined; }
-    } else if (form.where && typeof form.where === 'object') {
-      whereObj = form.where;
+  // Audience label for AI context
+  const audienceLabel = useMemo(() => {
+    if (form.audience === 'all') return 'Tous les contacts';
+    if (form.audience === 'segment' && form.segment_id) {
+      const seg = (segmentsState.items || []).find((s) => String(s.id) === String(form.segment_id));
+      return seg ? `Segment : ${seg.nom}` : 'Segment';
     }
-    const payload = {
-      audience: form.audience,
-      category_id: form.category_id || undefined,
-      distribution_id: form.distribution_id || undefined,
-      where: whereObj,
-      segment_id: form.segment_id || undefined,
-      tags_ids: form.tags_ids || undefined,
-      contacts_ids: form.contacts_ids || undefined,
-    };
-    dispatch(calculateRecipients(payload));
-  };
+    if (form.audience === 'tags' && form.tags_ids?.length) {
+      const names = (tagsState.items || [])
+        .filter((t) => form.tags_ids.includes(t.id))
+        .map((t) => t.nom);
+      return names.length ? `Étiquettes : ${names.join(', ')}` : 'Étiquettes sélectionnées';
+    }
+    return 'membres du club';
+  }, [form.audience, form.segment_id, form.tags_ids, segmentsState.items, tagsState.items]);
 
-  const handleSend = (id) => {
-    dispatch(sendCampaign(id));
-    // Start polling for progress every 3s for a short period
-    const interval = setInterval(() => dispatch(fetchCampaignStatsLight(id)), 3000);
-    // Auto-clear after 5 minutes
-    setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
-  };
-
-  // FILTERING AND SORTING USEMEMO HOOKS COMMENTED OUT FOR DEBUGGING
-  /*
   const filtered = useMemo(() => {
-    try {
-      const q = (search || '').toLowerCase().trim();
-      if (!q) return safeItems || [];
-      return (safeItems || []).filter((c) => {
-        if (!c || typeof c !== 'object') return false;
-        try {
-          return (
-            String(c.titre || '').toLowerCase().includes(q) ||
-            String(c.sujet || '').toLowerCase().includes(q) ||
-            String(c.statut || '').toLowerCase().includes(q)
-          );
-        } catch (e) {
-          console.warn('Error filtering campaign:', c, e);
-          return false;
-        }
-      });
-    } catch (e) {
-      console.error('Error in filtered useMemo:', e);
-      return [];
-    }
+    const q = search.toLowerCase().trim();
+    if (!q) return safeItems;
+    return safeItems.filter(
+      (c) =>
+        String(c.titre || '').toLowerCase().includes(q) ||
+        String(c.sujet || '').toLowerCase().includes(q) ||
+        String(c.statut || '').toLowerCase().includes(q)
+    );
   }, [safeItems, search]);
-
-  const sorted = useMemo(() => {
-    try {
-      const arr = [...(filtered || [])];
-      arr.sort((a, b) => {
-        try {
-          const dir = sortDir === 'asc' ? 1 : -1;
-          let va = a && typeof a === 'object' ? a[sortBy] : undefined;
-          let vb = b && typeof b === 'object' ? b[sortBy] : undefined;
-          // Handle dates
-          if (sortBy.includes('date')) {
-            const ta = va ? new Date(va).getTime() : 0;
-            const tb = vb ? new Date(vb).getTime() : 0;
-            return (ta - tb) * dir;
-          }
-          // Strings default
-          va = String(va || '').toLowerCase();
-          vb = String(vb || '').toLowerCase();
-          if (va < vb) return -1 * dir;
-          if (va > vb) return 1 * dir;
-          return 0;
-        } catch (e) {
-          console.warn('Error sorting campaigns:', e);
-          return 0;
-        }
-      });
-      return arr;
-    } catch (e) {
-      console.error('Error in sorted useMemo:', e);
-      return [];
-    }
-  }, [filtered, sortBy, sortDir]);
-
-  const totalItems = sorted.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const paged = useMemo(() => {
-    try {
-      const start = (currentPage - 1) * pageSize;
-      return (sorted || []).slice(start, start + pageSize);
-    } catch (e) {
-      console.error('Error in paged useMemo:', e);
-      return [];
-    }
-  }, [sorted, currentPage, pageSize]);
-  */
-  
-  // SIMPLIFIED VERSION FOR DEBUGGING
-  const filtered = safeItems || [];
-  const sorted = filtered;
-  const totalItems = filtered.length;
-  const totalPages = 1;
-  const currentPage = 1;
-  const paged = filtered;
-
-  // Calendar helpers
-  const formatKey = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-  // CALENDAR USEMEMO HOOKS COMMENTED OUT FOR DEBUGGING
-  /*
-  const campaignsByDay = useMemo(() => {
-    try {
-      const map = new Map();
-      (safeItems || []).forEach((c) => {
-        if (!c || typeof c !== 'object') return;
-        const raw = c.date_programmation || c.date_envoi;
-        if (!raw) return;
-        try {
-          const dt = new Date(raw);
-          if (isNaN(dt.getTime())) return;
-          const key = formatKey(dt);
-          if (!map.has(key)) map.set(key, []);
-          map.get(key).push(c);
-        } catch (e) {
-          console.warn('Invalid date for campaign:', c.id, raw);
-        }
-      });
-      return map;
-    } catch (e) {
-      console.error('Error in campaignsByDay useMemo:', e);
-      return new Map();
-    }
-  }, [safeItems]);
-  const calendarMatrix = useMemo(() => {
-    try {
-      const start = new Date(monthCursor);
-      const year = start.getFullYear();
-      const month = start.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const startWeekDay = firstDay.getDay() === 0 ? 7 : firstDay.getDay(); // 1..7, Monday=1
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const cells = [];
-      const prevDays = startWeekDay - 1;
-      const totalCells = Math.ceil((prevDays + daysInMonth) / 7) * 7;
-      for (let i = 0; i < totalCells; i++) {
-        const dayNum = i - prevDays + 1;
-        const date = new Date(year, month, dayNum);
-        const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
-        const key = formatKey(date);
-        const list = inMonth ? (campaignsByDay.get(key) || []) : [];
-        cells.push({ date, key, inMonth, campaigns: list });
-      }
-      return cells.reduce((rows, _, idx) => (idx % 7 === 0 ? [...rows, cells.slice(idx, idx + 7)] : rows), []);
-    } catch (e) {
-      console.error('Error in calendarMatrix useMemo:', e);
-      return [];
-    }
-  }, [monthCursor, campaignsByDay]);
-  */
-
-  // DRAG & DROP FUNCTIONS COMMENTED OUT FOR DEBUGGING
-  /*
-  const onDragStart = (e, campaign) => {
-    e.dataTransfer.setData('application/x-campaign-id', String(campaign.id));
-    e.dataTransfer.setData('text/plain', String(campaign.id));
-  };
-  const onDragOverDay = (e) => {
-    e.preventDefault();
-  };
-  const onDropOnDay = (e, targetDate) => {
-    e.preventDefault();
-    const id = Number(e.dataTransfer.getData('application/x-campaign-id')) || Number(e.dataTransfer.getData('text/plain'));
-    if (!id) return;
-    const iso = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 9, 0, 0).toISOString().slice(0,16);
-    const payload = { date_programmation: iso, statut: 'programmée' };
-    dispatch(updateCampaign({ id, data: payload })).then(() => dispatch(fetchCampaigns()));
-  };
-  */
-
-  const statusColor = (statut) => {
-    try {
-      const s = String(statut || '').toLowerCase();
-      switch (s) {
-        case 'brouillon': return 'default';
-        case 'programmée': return 'primary';
-        case 'en_cours': return 'info';
-        case 'envoyée': return 'success';
-        case 'annulée': return 'warning';
-        case 'erreur': return 'error';
-        default: return 'default';
-      }
-    } catch (e) {
-      console.warn('Error in statusColor:', statut, e);
-      return 'default';
-    }
-  };
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5">Campagnes</Typography>
-        <Box display="flex" gap={1}>
-          <Button variant="contained">Liste</Button>
-          {/* <Button variant={viewMode === 'calendar' ? 'contained' : 'outlined'} onClick={() => setViewMode('calendar')}>Calendrier</Button> */}
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpen()}>Créer</Button>
-        </Box>
-      </Box>
-      {/* TOP TOOLBAR COMMENTED OUT FOR DEBUGGING
-      <Box display="flex" alignItems="center" gap={2} mb={2} flexWrap="wrap">
+      {/* Page header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} gap={2} flexWrap="wrap">
         <TextField
           size="small"
-          label="Rechercher (titre, sujet, statut)"
+          placeholder="Rechercher une campagne…"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ minWidth: 260 }}
         />
-        {viewMode === 'list' && (
-          <>
-            <Divider orientation="vertical" flexItem />
-            <TextField select SelectProps={{ native: true }} label="Trier par" size="small" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="date_envoi">Date d'envoi</option>
-              <option value="titre">Titre</option>
-              <option value="statut">Statut</option>
-            </TextField>
-            <Button size="small" variant="outlined" onClick={() => setSortDir((d) => d === 'asc' ? 'desc' : 'asc')}>
-              {sortDir === 'asc' ? 'Asc' : 'Desc'}
-            </Button>
-          </>
-        )}
+        <Button
+          variant="contained"
+          color="secondary"
+          startIcon={<AddIcon />}
+          onClick={() => handleOpen()}
+        >
+          Créer une campagne
+        </Button>
       </Box>
-      */}
+
+      {/* Table */}
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-          <CircularProgress />
-          <Typography sx={{ ml: 2 }}>Chargement des campagnes...</Typography>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={200} gap={2}>
+          <CircularProgress size={28} />
+          <Typography color="text.secondary">Chargement…</Typography>
         </Box>
       ) : error ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-          <Typography color="error">Erreur: {error}</Typography>
-        </Box>
-      ) : safeItems.length === 0 ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px" flexDirection="column">
-          <Typography variant="h6" color="text.secondary" gutterBottom>Aucune campagne trouvée</Typography>
-          <Typography variant="body2" color="text.secondary">Créez votre première campagne pour commencer</Typography>
+        <Alert severity="error">{error}</Alert>
+      ) : filtered.length === 0 ? (
+        <Box
+          display="flex"
+          flexDirection="column"
+          justifyContent="center"
+          alignItems="center"
+          minHeight={240}
+          gap={2}
+        >
+          <Typography variant="h6" color="text.secondary">
+            {search ? 'Aucun résultat pour cette recherche.' : 'Aucune campagne créée.'}
+          </Typography>
+          {!search && (
+            <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={() => handleOpen()}>
+              Créer votre première campagne
+            </Button>
+          )}
         </Box>
       ) : (
         <TableContainer component={Paper}>
@@ -408,111 +257,272 @@ const Campaigns = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Titre</TableCell>
+                <TableCell>Objet</TableCell>
                 <TableCell>Date d'envoi</TableCell>
                 <TableCell>Statut</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell>Progression</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {paged.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell>{String(c.titre || '')}</TableCell>
-                  <TableCell>{c.date_envoi ? new Date(c.date_envoi).toLocaleString() : ''}</TableCell>
-                  <TableCell>
-                    {String(c.statut || '')}
-                    {progress[c.id] && (
-                      <Typography variant="caption" display="block">
-                        {progress[c.id].envoyes || 0}/{progress[c.id].total || 0} envoyés, {progress[c.id].erreurs || 0} erreurs
+              {filtered.map((c) => {
+                const prog = progress[c.id];
+                const progPct = prog?.total ? Math.round((prog.envoyes / prog.total) * 100) : null;
+                return (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <Typography fontWeight={600} fontSize={14}>
+                        {String(c.titre || '—')}
                       </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip title="Modifier"><IconButton onClick={() => handleOpen(c)}><EditIcon /></IconButton></Tooltip>
-                    <Tooltip title="Supprimer"><IconButton onClick={() => askDelete(c.id)}><DeleteIcon /></IconButton></Tooltip>
-                    <Tooltip title="Envoyer"><Button size="small" onClick={() => handleSend(c.id)}>Envoyer</Button></Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell>
+                      <Typography fontSize={13} color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+                        {String(c.sujet || '—')}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography fontSize={13} color="text.secondary">
+                        {c.date_envoi
+                          ? new Date(c.date_envoi).toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={STATUS_LABELS[c.statut] || c.statut}
+                        color={STATUS_COLORS[c.statut] || 'default'}
+                        size="small"
+                        sx={{ fontWeight: 600, fontSize: 11 }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ minWidth: 120 }}>
+                      {prog && prog.total > 0 ? (
+                        <Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={progPct}
+                            sx={{ height: 6, mb: 0.5 }}
+                          />
+                          <Typography variant="caption" color="text.secondary">
+                            {prog.envoyes}/{prog.total}
+                            {prog.erreurs > 0 && ` · ${prog.erreurs} err.`}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography fontSize={12} color="text.disabled">
+                          —
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Modifier">
+                        <IconButton size="small" onClick={() => handleOpen(c)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Supprimer">
+                        <IconButton size="small" onClick={() => setConfirmDeleteId(c.id)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {c.statut === 'brouillon' && (
+                        <Tooltip title="Envoyer maintenant">
+                          <IconButton
+                            size="small"
+                            color="secondary"
+                            onClick={() => handleSend(c.id)}
+                          >
+                            <SendIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
       )}
-      {/* PAGINATION COMMENTED OUT FOR DEBUGGING
-      <EnhancedPagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        pageSize={pageSize}
-        onPageChange={(p) => setPage(p)}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-        loading={loading}
-      />
-      */}
-      {/* DAY DIALOG COMMENTED OUT FOR DEBUGGING
-      <Dialog open={dayDialog.open} onClose={() => setDayDialog({ open: false, date: null, campaigns: [] })} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {dayDialog.date ? dayDialog.date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Détails'}
+
+      {/* ── Campaign create/edit dialog ── */}
+      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Box>
+            <Typography fontWeight={700} fontSize={18}>
+              {edit ? 'Modifier la campagne' : 'Nouvelle campagne'}
+            </Typography>
+            {recipientPreview?.count != null && (
+              <Typography variant="caption" color="text.secondary">
+                {recipientPreview.count.toLocaleString()} destinataires estimés
+              </Typography>
+            )}
+          </Box>
+          <Tooltip title="Générer le contenu avec l'IA">
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AutoAwesomeIcon />}
+              onClick={() => setAiOpen(true)}
+              sx={{
+                borderColor: '#8b5cf6',
+                color: '#7c3aed',
+                '&:hover': { bgcolor: '#f5f3ff', borderColor: '#7c3aed' },
+              }}
+            >
+              Assistance IA
+            </Button>
+          </Tooltip>
         </DialogTitle>
-        <DialogContent>
-          {dayDialog.campaigns.map(c => (
-            <Paper key={c.id} variant="outlined" sx={{ p: 1.5, mb: 1 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography sx={{ fontWeight: 600 }}>{String(c.titre || '')}</Typography>
-                  <Typography variant="caption" color="text.secondary">{String(c.statut || '')}</Typography>
-                </Box>
-                <Box>
-                  <Button size="small" onClick={() => { setDayDialog({ open: false, date: null, campaigns: [] }); handleOpen(c); }}>Ouvrir</Button>
-                </Box>
-              </Box>
-            </Paper>
-          ))}
-          {(!dayDialog.campaigns || dayDialog.campaigns.length === 0) && (
-            <Typography color="text.secondary">Aucune campagne.</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDayDialog({ open: false, date: null, campaigns: [] })}>Fermer</Button>
-        </DialogActions>
-      </Dialog>
-      */}
-      {/* TEMPLATE PICKER DIALOG COMMENTED OUT FOR DEBUGGING
-      <Dialog open={openTemplatesPicker} onClose={() => setOpenTemplatesPicker(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Sélectionner un modèle</DialogTitle>
-        <DialogContent>
-          {templatesState.loading ? <CircularProgress /> : (
-            <Box>
-              {(templatesState.items || []).map((t) => (
-                <Paper key={t.id} variant="outlined" sx={{ p: 1, mb: 1 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography>{t.nom}</Typography>
-                    <Button onClick={() => handlePickTemplate(t)}>Utiliser</Button>
-                  </Box>
-                </Paper>
-              ))}
-              {(!templatesState.items || templatesState.items.length === 0) && (
-                <Typography color="text.secondary">Aucun modèle disponible.</Typography>
+
+        <form onSubmit={handleSubmit}>
+          <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            {submitError && <Alert severity="error">{submitError}</Alert>}
+
+            <TextField
+              label="Titre de la campagne"
+              name="titre"
+              value={form.titre}
+              onChange={handleChange}
+              fullWidth
+              required
+              helperText="Usage interne uniquement, non visible par les destinataires"
+            />
+
+            <TextField
+              label="Objet de l'email"
+              name="sujet"
+              value={form.sujet}
+              onChange={handleChange}
+              fullWidth
+              helperText={`${(form.sujet || '').length}/55 caractères recommandés`}
+              inputProps={{ maxLength: 100 }}
+            />
+
+            {/* Audience */}
+            <Box display="flex" gap={2} alignItems="flex-start" flexWrap="wrap">
+              <TextField
+                select
+                label="Audience"
+                name="audience"
+                value={form.audience}
+                onChange={handleChange}
+                size="small"
+                sx={{ minWidth: 180 }}
+              >
+                <MenuItem value="all">Tous les contacts</MenuItem>
+                <MenuItem value="tags">Par étiquette(s)</MenuItem>
+                <MenuItem value="segment">Par segment</MenuItem>
+              </TextField>
+
+              {form.audience === 'segment' && (
+                <TextField
+                  select
+                  label="Segment"
+                  name="segment_id"
+                  value={form.segment_id}
+                  onChange={handleChange}
+                  size="small"
+                  sx={{ minWidth: 200 }}
+                >
+                  {(segmentsState.items || []).map((s) => (
+                    <MenuItem key={s.id} value={s.id}>
+                      {s.nom}
+                    </MenuItem>
+                  ))}
+                </TextField>
               )}
+
+              {form.audience === 'tags' && (
+                <TextField
+                  select
+                  label="Étiquettes"
+                  name="tags_ids"
+                  value={form.tags_ids}
+                  onChange={(e) => {
+                    const v = Array.from(e.target.selectedOptions || []).map((o) =>
+                      parseInt(o.value, 10)
+                    );
+                    setForm((f) => ({ ...f, tags_ids: v }));
+                  }}
+                  SelectProps={{ multiple: true, native: true }}
+                  size="small"
+                  sx={{ minWidth: 200 }}
+                  inputProps={{ style: { height: 80 } }}
+                >
+                  {(tagsState.items || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nom}
+                    </option>
+                  ))}
+                </TextField>
+              )}
+
+              <Button size="small" variant="outlined" onClick={handleCalculate}>
+                Estimer les destinataires
+              </Button>
             </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenTemplatesPicker(false)}>Fermer</Button>
-        </DialogActions>
+
+            {/* Scheduled date */}
+            <TextField
+              label="Date de programmation"
+              name="date_programmation"
+              type="datetime-local"
+              value={form.date_programmation || ''}
+              onChange={handleChange}
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              helperText="Laisser vide pour envoyer manuellement"
+            />
+
+            {/* HTML Editor */}
+            <Box>
+              <Typography variant="body2" fontWeight={600} mb={1}>
+                Contenu de l'email
+              </Typography>
+              <EmailEditor value={form.contenu_html} onChange={handleHtmlChange} />
+            </Box>
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, py: 2 }}>
+            <Button onClick={handleClose}>Annuler</Button>
+            <Button type="submit" variant="contained" color="secondary">
+              {edit ? 'Enregistrer' : 'Créer le brouillon'}
+            </Button>
+          </DialogActions>
+        </form>
       </Dialog>
-      */}
-      <Dialog open={!!confirmDeleteId} onClose={cancelDelete}>
-        <DialogTitle>Confirmer la suppression</DialogTitle>
+
+      {/* ── AI Assist Drawer ── */}
+      <AIAssistDrawer
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        audienceLabel={audienceLabel}
+        recipientCount={recipientPreview?.count}
+        onApply={handleAIApply}
+      />
+
+      {/* ── Delete confirmation ── */}
+      <Dialog open={!!confirmDeleteId} onClose={() => setConfirmDeleteId(null)} maxWidth="xs">
+        <DialogTitle>Supprimer cette campagne ?</DialogTitle>
         <DialogContent>
-          <Typography>Voulez-vous vraiment supprimer cette campagne ? Cette action est irréversible.</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Cette action est irréversible. La campagne et ses statistiques seront supprimées.
+          </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={cancelDelete}>Annuler</Button>
-          <Button color="error" variant="contained" onClick={confirmDelete}>Supprimer</Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmDeleteId(null)}>Annuler</Button>
+          <Button color="error" variant="contained" onClick={handleDelete}>
+            Supprimer
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
   );
 };
 
-export default Campaigns; 
+export default Campaigns;

@@ -71,23 +71,17 @@ app.get('/api-docs', (req, res) => {
 });
 
 // Import routes (squelettes)
+app.use('/api/ai', require('./routes/ai'));
 app.use('/api/auth/graph', require('./routes/graph'));
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', require('./routes/user'));
+app.use('/api/auth/users', require('./routes/user'));
 app.use('/api/contacts', require('./routes/contact'));
-app.use('/api/tags', require('./routes/tag'));
-app.use('/api/segments', require('./routes/segment'));
 app.use('/api/campagnes', require('./routes/campagne'));
-app.use('/api/statistics', require('./routes/statistics'));
-app.use('/api/birthdays', require('./routes/birthday'));
 app.use('/api/automations', require('./routes/automation'));
 app.use('/api/templates', require('./routes/template'));
 app.use('/api/mailer', require('./routes/mailer'));
-app.use('/api/categories', require('./routes/category'));
-app.use('/api/distributions', require('./routes/distribution'));
 app.use('/api/tracking', require('./routes/tracking'));
-app.use('/api/abonnements', require('./routes/abonnement'));
-app.use('/api/events', require('./routes/event'));
+app.use('/api/superadmin', require('./routes/superadmin'));
 
 // Error handling middleware
 app.use(errorHandler);

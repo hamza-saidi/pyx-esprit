@@ -52,8 +52,6 @@ module.exports = (sequelize, DataTypes) => {
     });
     Contact.hasMany(models.Rsvp, { foreignKey: 'contact_id', as: 'rsvps' });
     Contact.hasMany(models.Note, { foreignKey: 'contact_id', as: 'notes' });
-    Contact.belongsTo(models.Category, { foreignKey: 'category_id', as: 'category' });
-    Contact.belongsTo(models.Distribution, { foreignKey: 'distribution_id', as: 'distribution' });
     Contact.belongsTo(models.Abonnement, { foreignKey: 'abonnement_id', as: 'abonnement' });
     Contact.belongsTo(models.Club, { foreignKey: 'club_id', as: 'club' });
   };

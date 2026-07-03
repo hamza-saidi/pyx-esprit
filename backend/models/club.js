@@ -33,8 +33,6 @@ module.exports = (sequelize, DataTypes) => {
     Club.hasMany(models.Abonnement, { foreignKey: 'club_id', as: 'abonnements' });
     Club.hasMany(models.ModeleEmail, { foreignKey: 'club_id', as: 'modeles' });
     Club.hasMany(models.Automation, { foreignKey: 'club_id', as: 'automations' });
-    Club.hasMany(models.Category, { foreignKey: 'club_id', as: 'categories' });
-    Club.hasMany(models.Distribution, { foreignKey: 'club_id', as: 'distributions' });
   };
 
   return Club;

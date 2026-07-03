@@ -25,8 +25,6 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { fetchTags, addTag } from '../features/tags/tagsSlice';
 import { fetchSegments, addSegment, updateSegment } from '../features/segments/segmentsSlice';
-import { fetchCategories } from '../features/categories/categoriesSlice';
-import { fetchDistributions } from '../features/distributions/distributionsSlice';
 import Chip from '@mui/material/Chip';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
@@ -79,8 +77,6 @@ const emptyContact = {
   code_postal: '',
   statut: '',
   source: '',
-  category_id: '',
-  distribution_id: '',
   tags_id: [],
   abonnement_id: '',
   date_debut_abonnement: '',
@@ -131,8 +127,6 @@ const Contacts = () => {
   const { items, loading, error, total } = useSelector((state) => state.contacts);
   const { items: tags } = useSelector((state) => state.tags || { items: [] });
   const { items: segments } = useSelector((state) => state.segments || { items: [] });
-  const { items: categories } = useSelector((state) => state.categories || { items: [] });
-  const { items: distributions } = useSelector((state) => state.distributions || { items: [] });
   const [abonnements, setAbonnements] = useState([]);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(null);
@@ -147,8 +141,6 @@ const Contacts = () => {
     const s = p.get('segmentIds') || p.get('segmentId');
     return s ? s.split(',').map(Number).filter(Boolean) : [];
   });
-  const [filterCategories, setFilterCategories] = useState([]);
-  const [filterDistributions, setFilterDistributions] = useState([]);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterActive, setFilterActive] = useState('');
@@ -212,15 +204,11 @@ const Contacts = () => {
 
   // Sorted lists for filters (alphabetical by nom)
   const sortedTags = useMemo(() => ([...(tags || [])]).sort((a, b) => (a?.nom || '').localeCompare(b?.nom || '', 'fr', { sensitivity: 'base' })), [tags]);
-  const sortedCategories = useMemo(() => ([...(categories || [])]).sort((a, b) => (a?.nom || '').localeCompare(b?.nom || '', 'fr', { sensitivity: 'base' })), [categories]);
-  const sortedDistributions = useMemo(() => ([...(distributions || [])]).sort((a, b) => (a?.nom || '').localeCompare(b?.nom || '', 'fr', { sensitivity: 'base' })), [distributions]);
 
   useEffect(() => { 
-    dispatch(fetchTags()); 
-    dispatch(fetchSegments()); 
-    dispatch(fetchCategories()); 
-    dispatch(fetchDistributions()); 
-    axios.get('/abonnements').then(r => setAbonnements(r.data)).catch(e => console.error(e));
+    dispatch(fetchTags());
+    dispatch(fetchSegments());
+    axios.get('/contacts/memberships').then(r => setAbonnements(r.data)).catch(e => console.error(e));
   }, [dispatch]);
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch((search || '').trim()), 350);
@@ -279,9 +267,6 @@ const Contacts = () => {
         entreprise: contact.type_client === 'entreprise' ? contact.entreprise : '',
         adresse: contact.adresse || '',
         code_postal: contact.code_postal || '',
-        // statut/source removed
-        category_id: contact.category_id || contact.category?.id || '',
-        distribution_id: contact.distribution_id || contact.distribution?.id || '',
         tags_id: (contact.tags || []).map(t => t.id),
         abonnement_id: contact.abonnement_id || '',
         date_debut_abonnement: contact.date_debut_abonnement || '',
@@ -326,8 +311,6 @@ const Contacts = () => {
       // source removed
       // statut removed; keep contact active by default on create, or preserve existing when editing
       actif: edit ? undefined : true,
-      category_id: form.category_id || null,
-      distribution_id: form.distribution_id || null,
       tags_id: form.tags_id || [],
       entreprise: form.type_client === 'entreprise' ? form.entreprise : '',
       abonnement_id: form.abonnement_id || null,
@@ -947,20 +930,6 @@ const Contacts = () => {
                 <TextField label="Adresse" name="adresse" value={form.adresse} onChange={handleChange} fullWidth margin="dense" size="small" />
                 <TextField label="Code postal" name="code_postal" value={form.code_postal} onChange={handleChange} fullWidth margin="dense" size="small" />
                 
-                <Box display="flex" gap={2}>
-                  <Select label="Catégorie" name="category_id" value={form.category_id} onChange={handleChange} fullWidth displayEmpty sx={{ my: 1 }} size="small">
-                    <MenuItem value="">Catégorie</MenuItem>
-                    {(categories || []).map((c) => (
-                      <MenuItem key={c.id} value={c.id}>{c.nom}</MenuItem>
-                    ))}
-                  </Select>
-                  <Select label="Distribution" name="distribution_id" value={form.distribution_id} onChange={handleChange} fullWidth displayEmpty sx={{ my: 1 }} size="small">
-                    <MenuItem value="">Distribution</MenuItem>
-                    {(distributions || []).map((d) => (
-                      <MenuItem key={d.id} value={d.id}>{d.nom}</MenuItem>
-                    ))}
-                  </Select>
-                </Box>
               </AccordionDetails>
             </Accordion>
 

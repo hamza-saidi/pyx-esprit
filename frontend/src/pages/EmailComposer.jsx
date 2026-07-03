@@ -94,8 +94,8 @@ const EmailComposer = () => {
   const [templateTab, setTemplateTab] = useState(0);
   const [savedTemplates, setSavedTemplates] = useState([]);
 
-  useEffect(() => { (async () => { try { const res = await axios.get('/tags'); setTags(res.data || []); } catch {} })(); }, []);
-  useEffect(() => { (async () => { try { const res = await axios.get('/segments'); setSegments(res.data || []); } catch {} })(); }, []);
+  useEffect(() => { (async () => { try { const res = await axios.get('/contacts/tags'); setTags(res.data || []); } catch {} })(); }, []);
+  useEffect(() => { (async () => { try { const res = await axios.get('/contacts/segments'); setSegments(res.data || []); } catch {} })(); }, []);
   useEffect(() => { (async () => { try { const res = await axios.get('/templates'); setSavedTemplates(res.data || []); } catch {} })(); }, []);
   const sortedTags = useMemo(() => {
     return [...(tags || [])].sort((a, b) =>
@@ -366,7 +366,7 @@ const EmailComposer = () => {
         directContactIds.forEach(id => formData.append('contacts_ids', String(id)));
       }
       
-      const res = await axios.post('/mailer/send-by-tags', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await axios.post('/campagnes/send-by-tags', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       
       if (res.data?.success) {
         const msg = res.data.total ? `Envoyés: ${res.data.processed}/${res.data.total} (batches=${res.data.batches})` : 'Email envoyé';

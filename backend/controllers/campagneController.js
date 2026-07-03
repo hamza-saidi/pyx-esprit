@@ -164,8 +164,6 @@ function buildContactQueryFromCriteria(rawCriteres) {
     'type_client',
     'ville',
     'nationalite',
-    'category_id',
-    'distribution_id',
     'statut',
     'source',
     'actif',
@@ -464,10 +462,7 @@ const create = async (req, res) => {
       limite_envois,
       test_ab,
       attachments,
-      // Nouveaux paramètres d'audience
-      audience = 'custom', // 'all' | 'category' | 'distribution' | 'custom'
-      category_id,
-      distribution_id,
+      audience = 'custom', // 'all' | 'segment' | 'tags' | 'custom'
       where,
       direct_emails,
     } = req.body;
@@ -595,13 +590,8 @@ const create = async (req, res) => {
         version: 'A',
         created_at: new Date().toISOString(),
         audience,
-        category_id: audience === 'category' ? category_id : undefined,
-        distribution_id: audience === 'distribution' ? distribution_id : undefined,
         where: audience === 'custom' ? where : undefined,
         attachments: parsedAttachments,
-        // Redonder les filtres même si audience non fournie
-        category_id_fallback: category_id,
-        distribution_id_fallback: distribution_id,
       },
       priorite: priorite || 'normale',
       limite_envois,
@@ -947,19 +937,10 @@ const envoyerTest = async (req, res) => {
 // Calculer le nombre de destinataires
 const calculerDestinataires = async (req, res) => {
   try {
-    const { segment_id, tags_ids, contacts_ids, audience, category_id, distribution_id, where } =
-      req.body;
+    const { segment_id, tags_ids, contacts_ids, audience, where } = req.body;
 
     logger.debug('=== CALCULER DESTINATAIRES DEBUG ===');
-    logger.debug('Received data:', {
-      segment_id,
-      tags_ids,
-      contacts_ids,
-      audience,
-      category_id,
-      distribution_id,
-      where,
-    });
+    logger.debug('Received data:', { segment_id, tags_ids, contacts_ids, audience, where });
     logger.debug('tags_ids type:', typeof tags_ids);
     logger.debug('tags_ids length:', tags_ids ? tags_ids.length : 'undefined');
 
@@ -977,9 +958,6 @@ const calculerDestinataires = async (req, res) => {
       }
     } else {
       // Audience rapide sinon
-      if (audience === 'category' && category_id) whereClause = { ...whereClause, category_id };
-      if (audience === 'distribution' && distribution_id)
-        whereClause = { ...whereClause, distribution_id };
       if (audience === 'custom' && where && typeof where === 'object')
         Object.assign(whereClause, where);
     }
@@ -1048,8 +1026,6 @@ const calculerDestinataires = async (req, res) => {
     const hasCriteria =
       (tags_ids && tags_ids.length > 0) ||
       segment_id ||
-      category_id ||
-      distribution_id ||
       (where && Object.keys(where).length > 0);
 
     if (allManualIds.size > 0) {
