@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import countries from "i18n-iso-countries";
-import frLocale from "i18n-iso-countries/langs/fr.json";
 import {
   fetchContacts,
   addContact,
@@ -28,8 +26,6 @@ import { fetchSegments, addSegment, updateSegment } from '../features/segments/s
 import Chip from '@mui/material/Chip';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
-import Radio from '@mui/material/Radio';
-import RadioGroup from '@mui/material/RadioGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import { useTheme } from '@mui/material/styles';
 import InputBase from '@mui/material/InputBase';
@@ -54,9 +50,6 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import axios from '../api/axios';
 import { useToast } from '../context/ToastContext';
 
-countries.registerLocale(frLocale);
-
-const countryList = countries.getNames("fr", { select: "official" })
 // UI helper to render empty values consistently
 const renderVal = (v) => {
   const s = (v === null || v === undefined) ? '' : String(v).trim();
@@ -596,12 +589,9 @@ const Contacts = () => {
                        }}
                        sx={{ width: 150, bgcolor: 'white', fontSize: 13, height: 32 }}
                      >
-                       <MenuItem value="tags">Tags</MenuItem>
+                       <MenuItem value="tags">Étiquettes</MenuItem>
                        <MenuItem value="segments">Segments</MenuItem>
-                       <MenuItem value="ville">Ville</MenuItem>
-                       <MenuItem value="sexe">Sexe</MenuItem>
-                       <MenuItem value="type_client">Type de contact</MenuItem>
-                       <MenuItem value="actif">Statut Actif</MenuItem>
+                       <MenuItem value="actif">Statut</MenuItem>
                      </Select>
 
                      <Select
@@ -779,22 +769,6 @@ const Contacts = () => {
                   <TableCell sx={{ fontSize: 13, color: '#3b3f44' }}>{renderVal(c.prenom)}</TableCell>
                   <TableCell sx={{ fontSize: 13, color: '#3b3f44' }}>{renderVal(c.nom)}</TableCell>
                   <TableCell sx={{ maxWidth: 250 }}>
-                    {c.statut_abonnement === 'actif' && !c.tags?.some(t => t.nom === 'ABONNES GOLF CITRUS') && (
-                      <Chip 
-                        label="ABONNES GOLF CITRUS" 
-                        size="small" 
-                        sx={{ 
-                          mr: 0.5, 
-                          mb: 0.5, 
-                          borderRadius: 0, 
-                          fontWeight: 900, 
-                          fontSize: 10, 
-                          bgcolor: alpha('#2e7d32', 0.15), 
-                          color: '#2e7d32', 
-                          border: '1px solid #2e7d32' 
-                        }} 
-                      />
-                    )}
                     {(c.tags || []).map(tag => {
                       const style = getChipStyleByName(tag.nom);
                       return (
@@ -862,24 +836,58 @@ const Contacts = () => {
         loading={loading}
       />
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>{edit ? 'Modifier' : 'Ajouter'} un client</DialogTitle>
+        <DialogTitle>{edit ? 'Modifier le contact' : 'Nouveau contact'}</DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
             <Box sx={{ mb: 2 }}>
-              <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>Basic Details</Typography>
               <Box display="flex" gap={2}>
                 <TextField label="Prénom" name="prenom" value={form.prenom} onChange={handleChange} fullWidth margin="dense" required />
                 <TextField label="Nom" name="nom" value={form.nom} onChange={handleChange} fullWidth margin="dense" required />
               </Box>
               <TextField label="Email" name="email" type="email" value={form.email} onChange={handleChange} fullWidth margin="dense" required error={!!emailError} helperText={emailError || ''} />
-              <TextField label="Téléphone" name="telephone" value={form.telephone} onChange={handleChange} fullWidth margin="dense" placeholder="Optional" />
+              <TextField label="Téléphone" name="telephone" value={form.telephone} onChange={handleChange} fullWidth margin="dense" />
               <Autocomplete
                 multiple
+                freeSolo
                 options={tags || []}
-                getOptionLabel={(o) => o?.nom || ''}
+                getOptionLabel={(o) => {
+                  if (typeof o === 'string') return o;
+                  if (o.__create) return o.nom;
+                  return o?.nom || '';
+                }}
+                filterOptions={(options, params) => {
+                  const q = (params.inputValue || '').trim();
+                  const filtered = options.filter(o => (o?.nom || '').toLowerCase().includes(q.toLowerCase()));
+                  if (q && !options.some(o => o.nom?.toLowerCase() === q.toLowerCase())) {
+                    filtered.push({ id: `__new__:${q}`, nom: q, __create: true });
+                  }
+                  return filtered;
+                }}
                 value={(tags || []).filter(t => (form.tags_id || []).includes(t.id))}
-                onChange={(_, v) => setForm({ ...form, tags_id: v.map(x => x.id) })}
-                renderInput={(params) => <TextField {...params} label="Tags" margin="dense" />}
+                onChange={async (_, values) => {
+                  const newIds = [];
+                  for (const v of values) {
+                    if (typeof v === 'string' || v.__create) {
+                      const label = (typeof v === 'string' ? v : v.nom).trim();
+                      if (!label) continue;
+                      const existing = (tags || []).find(t => t.nom?.toLowerCase() === label.toLowerCase());
+                      if (existing) { newIds.push(existing.id); continue; }
+                      const action = await dispatch(addTag({ nom: label }));
+                      if (action.payload?.id) { newIds.push(action.payload.id); dispatch(fetchTags()); }
+                    } else {
+                      newIds.push(v.id);
+                    }
+                  }
+                  setForm(f => ({ ...f, tags_id: newIds }));
+                }}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id || option.nom}>
+                    {option.__create
+                      ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main' }}><AddIcon sx={{ fontSize: 14 }} />Créer &ldquo;{option.nom}&rdquo;</Box>
+                      : option.nom}
+                  </li>
+                )}
+                renderInput={(params) => <TextField {...params} label="Étiquettes" margin="dense" placeholder="Rechercher ou créer une étiquette…" />}
                 sx={{ mt: 1 }}
                 clearOnEscape
               />
@@ -887,51 +895,14 @@ const Contacts = () => {
 
             <Accordion disableGutters elevation={0} sx={{ '&:before': { display: 'none' }, border: '1px solid #bfc9cf', borderRadius: '4px !important' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Advanced Details</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Infos golf (optionnel)</Typography>
               </AccordionSummary>
               <AccordionDetails sx={{ pt: 0 }}>
                 <Box display="flex" gap={2}>
-                  <Select label="Sexe" name="sexe" value={form.sexe} onChange={handleChange} fullWidth displayEmpty sx={{ my: 1 }} size="small">
-                    <MenuItem value="">Sexe</MenuItem>
-                    <MenuItem value="Homme">Homme</MenuItem>
-                    <MenuItem value="Femme">Femme</MenuItem>
-                  </Select>
                   <TextField label="Handicap" name="handicap" type="number" value={form.handicap} onChange={handleChange} fullWidth margin="dense" size="small" />
+                  <TextField label="Home Club" name="home_club" value={form.home_club} onChange={handleChange} fullWidth margin="dense" size="small" />
                 </Box>
-                <TextField label="Home Club" name="home_club" value={form.home_club} onChange={handleChange} fullWidth margin="dense" size="small" />
                 <TextField label="Date de naissance" name="date_naissance" type="date" value={form.date_naissance ? form.date_naissance.slice(0,10) : ''} onChange={handleChange} fullWidth margin="dense" InputLabelProps={{ shrink: true }} size="small" />
-                
-                <Select
-                  label="Nationalité"
-                  name="nationalite"
-                  value={form.nationalite}
-                  onChange={handleChange}
-                  fullWidth
-                  displayEmpty
-                  sx={{ my: 1 }}
-                  size="small"
-                >
-                  <MenuItem value="">Nationalité</MenuItem>
-                  {Object.entries(countryList).map(([code, name]) => (
-                    <MenuItem key={code} value={name}>{name}</MenuItem>
-                  ))}
-                </Select>
-
-                <Box sx={{ my: 1 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>Type client</Typography>
-                  <RadioGroup row name="type_client" value={form.type_client} onChange={handleChange}>
-                    <FormControlLabel value="membre" control={<Radio size="small" />} label={<Typography variant="body2">Membre</Typography>} />
-                    <FormControlLabel value="entreprise" control={<Radio size="small" />} label={<Typography variant="body2">Entreprise</Typography>} />
-                  </RadioGroup>
-                </Box>
-
-                {form.type_client === 'entreprise' && (
-                  <TextField label="Entreprise" name="entreprise" value={form.entreprise} onChange={handleChange} fullWidth margin="dense" size="small" />
-                )}
-
-                <TextField label="Adresse" name="adresse" value={form.adresse} onChange={handleChange} fullWidth margin="dense" size="small" />
-                <TextField label="Code postal" name="code_postal" value={form.code_postal} onChange={handleChange} fullWidth margin="dense" size="small" />
-                
               </AccordionDetails>
             </Accordion>
 
