@@ -473,13 +473,13 @@ const Contacts = () => {
             Audience
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Manage your members and business contacts in one place.
+            Gérez vos contacts et leur classification par étiquettes.
           </Typography>
         </Box>
         <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
-          <Button variant="outlined" onClick={() => setImportOpen(true)}>Import</Button>
-          <Button variant="outlined" onClick={() => handleExport?.('excel')}>Export</Button>
-          <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={() => handleOpen()} sx={{ px: 4 }}>Add Contact</Button>
+          <Button variant="outlined" onClick={() => setImportOpen(true)}>Importer</Button>
+          <Button variant="outlined" onClick={() => handleExport?.('excel')}>Exporter</Button>
+          <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={() => handleOpen()} sx={{ px: 4 }}>Ajouter un contact</Button>
         </Box>
       </Box>
 
@@ -494,9 +494,9 @@ const Contacts = () => {
           textColor="secondary"
           indicatorColor="secondary"
         >
-          <Tab label="All Contacts" sx={{ fontWeight: 700, textTransform: 'none', fontSize: 16 }} />
+          <Tab label="Tous les contacts" sx={{ fontWeight: 700, textTransform: 'none', fontSize: 16 }} />
           <Tab label="Segments" sx={{ fontWeight: 700, textTransform: 'none', fontSize: 16 }} />
-          <Tab label="Tags" sx={{ fontWeight: 700, textTransform: 'none', fontSize: 16 }} />
+          <Tab label="Étiquettes" sx={{ fontWeight: 700, textTransform: 'none', fontSize: 16 }} />
         </Tabs>
       </Box>
 
@@ -506,10 +506,10 @@ const Contacts = () => {
             <IconButton size="small" onClick={() => setFiltersExpanded(!filtersExpanded)} sx={{ color: '#241C15', mr: 0.5 }}>
               {filtersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
             </IconButton>
-            <Typography variant="h6" sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>Filters</Typography>
-            <Chip label={`${displayedItems.length} matching`} size="small" sx={{ bgcolor: '#0a84d6', color: '#FFFFFF', fontWeight: 700, borderRadius: 0 }} />
+            <Typography variant="h6" sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>Filtres</Typography>
+            <Chip label={`${displayedItems.length} contact(s)`} size="small" sx={{ bgcolor: '#0a84d6', color: '#FFFFFF', fontWeight: 700, borderRadius: 0 }} />
             <Button size="small" variant="text" color="secondary" sx={{ fontWeight: 700 }} onClick={() => { setFilterRules([]); setSearch(''); setDebouncedSearch(''); setCurrentPage(1); }}>
-              Clear all
+              Effacer
             </Button>
           </Box>
           <Box display="flex" alignItems="center" gap={2}>
@@ -537,7 +537,7 @@ const Contacts = () => {
                 (filterSegments || []).length === 0
               }
             >
-              Compose Email
+              Créer une campagne
             </Button>
           </Box>
         </Box>
@@ -547,25 +547,25 @@ const Contacts = () => {
           <Box sx={{ p: 2, bgcolor: 'white' }}>
             <Box display="flex" alignItems="center" flexWrap="wrap" gap={2} mb={filterRules.length > 0 ? 2 : 0}>
                <Typography variant="body2" sx={{ fontWeight: 700, color: '#3b3f44' }}>
-                 Contacts match
+                 Les contacts vérifient
                </Typography>
                <Select
                   size="small"
                   value={filterMatch}
                   onChange={(e) => setFilterMatch(e.target.value)}
-                  sx={{ width: 80, height: 32, fontSize: 13, fontWeight: 700 }}
+                  sx={{ width: 100, height: 32, fontSize: 13, fontWeight: 700 }}
                 >
-                  <MenuItem value="all">ALL</MenuItem>
-                  <MenuItem value="any">ANY</MenuItem>
+                  <MenuItem value="all">TOUS</MenuItem>
+                  <MenuItem value="any">AU MOINS UN</MenuItem>
                 </Select>
                 <Typography variant="body2" sx={{ fontWeight: 700, color: '#3b3f44' }}>
-                  of the following conditions:
+                  des conditions suivantes :
                 </Typography>
                
                <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', bgcolor: '#FFFFFF', border: '1px solid #bfc9cf', px: 1.5, height: 32, width: 220 }}>
                   <SearchIcon sx={{ color: '#8a9298', mr: 1, fontSize: 18 }} />
                   <InputBase
-                    placeholder="Quick search..."
+                    placeholder="Rechercher..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setDebouncedSearch((search || '').trim()); } }}
@@ -605,12 +605,12 @@ const Contacts = () => {
                        sx={{ width: 140, bgcolor: 'white', fontSize: 13, height: 32 }}
                      >
                        {rule.field === 'tags' || rule.field === 'segments' ? [
-                         <MenuItem key="includes" value="includes">Includes</MenuItem>,
-                         <MenuItem key="excludes" value="excludes">Excludes</MenuItem>
+                         <MenuItem key="includes" value="includes">Inclut</MenuItem>,
+                         <MenuItem key="excludes" value="excludes">Exclut</MenuItem>
                        ] : [
-                         <MenuItem key="is" value="is">Is</MenuItem>,
-                         <MenuItem key="is_not" value="is_not">Is not</MenuItem>,
-                         <MenuItem key="contains" value="contains">Contains</MenuItem>
+                         <MenuItem key="is" value="is">Est</MenuItem>,
+                         <MenuItem key="is_not" value="is_not">N&apos;est pas</MenuItem>,
+                         <MenuItem key="contains" value="contains">Contient</MenuItem>
                        ]}
                      </Select>
 
@@ -627,7 +627,7 @@ const Contacts = () => {
                               newRules[idx].value = (val || []).map(x => x.id);
                               setFilterRules(newRules);
                             }}
-                            renderInput={(params) => <TextField {...params} placeholder="Select Tags..." sx={{ bgcolor: 'white', '& .MuiInputBase-root': { py: 0, minHeight: 32 } }} />}
+                            renderInput={(params) => <TextField {...params} placeholder="Sélectionner des étiquettes..." sx={{ bgcolor: 'white', '& .MuiInputBase-root': { py: 0, minHeight: 32 } }} />}
                           />
                         ) : rule.field === 'segments' ? (
                            <Autocomplete
@@ -641,7 +641,7 @@ const Contacts = () => {
                               newRules[idx].value = (val || []).map(x => x.id);
                               setFilterRules(newRules);
                             }}
-                            renderInput={(params) => <TextField {...params} placeholder="Select Segments..." sx={{ bgcolor: 'white', '& .MuiInputBase-root': { py: 0, minHeight: 32 } }} />}
+                            renderInput={(params) => <TextField {...params} placeholder="Sélectionner des segments..." sx={{ bgcolor: 'white', '& .MuiInputBase-root': { py: 0, minHeight: 32 } }} />}
                           />
                         ) : rule.field === 'sexe' ? (
                           <Select
@@ -675,7 +675,7 @@ const Contacts = () => {
                           <TextField
                             size="small"
                             fullWidth
-                            placeholder="Value..."
+                            placeholder="Valeur..."
                             value={rule.value || ''}
                             onChange={(e) => {
                               const newRules = [...filterRules];
@@ -709,7 +709,7 @@ const Contacts = () => {
                 fontWeight: 700,
               }}
             >
-              Add Condition
+              Ajouter une condition
             </Button>
           </Box>
         </Collapse>
@@ -729,11 +729,11 @@ const Contacts = () => {
                   />
                 </TableCell>
                 {[
-                  { key: 'email', label: 'EMAIL ADDRESS', width: 250 },
-                  { key: 'prenom', label: 'FIRST NAME' },
-                  { key: 'nom', label: 'LAST NAME' },
-                  { key: 'tags', label: 'TAGS' },
-                  { key: 'date_creation', label: 'CREATED ON' },
+                  { key: 'email', label: 'ADRESSE EMAIL', width: 250 },
+                  { key: 'prenom', label: 'PRÉNOM' },
+                  { key: 'nom', label: 'NOM' },
+                  { key: 'tags', label: 'ÉTIQUETTES' },
+                  { key: 'date_creation', label: "DATE D'AJOUT" },
                   { key: 'actions', label: 'ACTIONS' }
                 ].map((col) => (
                   <TableCell
@@ -1008,7 +1008,7 @@ const Contacts = () => {
           }}
         >
           <Typography variant="body2" sx={{ fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.2)', pr: 3 }}>
-            {selectedIds.length} SELECTED
+            {selectedIds.length} SÉLECTIONNÉ(S)
           </Typography>
           
           <Button 
@@ -1020,7 +1020,7 @@ const Contacts = () => {
               navigate(`/composer?direct_emails=${emails.join(',')}`);
             }}
           >
-            Compose
+            Campagne
           </Button>
 
           <Button 
@@ -1029,7 +1029,7 @@ const Contacts = () => {
             startIcon={<SellIcon />}
             onClick={(e) => setBulkTagAnchor(e.currentTarget)}
           >
-            Tag
+            Étiqueter
           </Button>
 
           <Button 
@@ -1038,16 +1038,16 @@ const Contacts = () => {
             startIcon={<FileDownloadIcon />}
             onClick={() => handleExport('excel')}
           >
-            Export
+            Exporter
           </Button>
 
-          <Button 
-            variant="text" 
-            sx={{ color: '#ff6b6b', px: 2, '&:hover': { bgcolor: 'rgba(255,107,107,0.1)' } }} 
+          <Button
+            variant="text"
+            sx={{ color: '#ff6b6b', px: 2, '&:hover': { bgcolor: 'rgba(255,107,107,0.1)' } }}
             startIcon={<DeleteIcon />}
             onClick={() => setConfirmDelete({ open: true, id: selectedIds, error: '' })}
           >
-            Delete
+            Supprimer
           </Button>
 
           <IconButton size="small" sx={{ color: 'rgba(255,255,255,0.5)', ml: 1 }} onClick={() => setSelectedIds([])}>
@@ -1063,7 +1063,7 @@ const Contacts = () => {
         transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Box sx={{ p: 2, width: 250 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Add Tag to Selection</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Ajouter une étiquette</Typography>
           <Autocomplete
             size="small"
             options={tags}
@@ -1075,7 +1075,7 @@ const Contacts = () => {
               }
               setBulkTagAnchor(null);
             }}
-            renderInput={(params) => <TextField {...params} placeholder="Search tag..." />}
+            renderInput={(params) => <TextField {...params} placeholder="Rechercher..." />
           />
         </Box>
       </Popover>
@@ -1089,7 +1089,7 @@ const Contacts = () => {
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
       >
         <Box sx={{ p: 1, width: 220 }}>
-          <Typography variant="caption" sx={{ px: 1, fontWeight: 700, color: '#8a9298', mb: 1, display: 'block' }}>ADD TAG</Typography>
+          <Typography variant="caption" sx={{ px: 1, fontWeight: 700, color: '#8a9298', mb: 1, display: 'block' }}>AJOUTER UNE ÉTIQUETTE</Typography>
           <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
             {tags.filter(t => !items.find(c => c.id === addingTagForId)?.tags?.some(ct => ct.id === t.id)).map(tag => (
               <MenuItem 
@@ -1107,7 +1107,7 @@ const Contacts = () => {
               </MenuItem>
             ))}
             {tags.filter(t => !items.find(c => c.id === addingTagForId)?.tags?.some(ct => ct.id === t.id)).length === 0 && (
-              <Typography variant="caption" sx={{ px: 1, py: 1, display: 'block', color: '#9aa0a6' }}>No more tags available</Typography>
+              <Typography variant="caption" sx={{ px: 1, py: 1, display: 'block', color: '#9aa0a6' }}>Aucune étiquette disponible</Typography>
             )}
           </Box>
         </Box>
@@ -1115,16 +1115,16 @@ const Contacts = () => {
 
       {/* IMPORT DIALOG */}
       <Dialog open={importOpen} onClose={() => setImportOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Import Contacts</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Importer des contacts</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Import a list of contacts from an Excel or CSV file. 
-            <Button 
-              size="small" 
-              onClick={() => handleDownloadTemplate(true)} 
+            Importez une liste de contacts depuis un fichier Excel ou CSV.
+            <Button
+              size="small"
+              onClick={() => handleDownloadTemplate(true)}
               sx={{ textTransform: 'none', fontWeight: 700, ml: 0.5 }}
             >
-              Download Minimal Template
+              Télécharger le modèle
             </Button>
           </Typography>
 
@@ -1142,7 +1142,7 @@ const Contacts = () => {
           >
             <FileUploadIcon sx={{ fontSize: 40, color: '#8a9298', mb: 1 }} />
             <Typography variant="body2" sx={{ fontWeight: 700 }}>
-              {importForm.file ? importForm.file.name : 'Click to select Excel/CSV file'}
+              {importForm.file ? importForm.file.name : 'Cliquer pour sélectionner un fichier Excel/CSV'}
             </Typography>
             <input
               type="file"
@@ -1153,14 +1153,14 @@ const Contacts = () => {
             />
           </Box>
 
-          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Apply Tags to all imported contacts</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Appliquer des étiquettes à tous les contacts importés</Typography>
           <Autocomplete
             multiple
             options={tags || []}
             getOptionLabel={(o) => o?.nom || ''}
             value={(tags || []).filter(t => (importForm.batchTagIds || []).includes(t.id))}
             onChange={(_, val) => setImportForm({ ...importForm, batchTagIds: val.map(v => v.id) })}
-            renderInput={(params) => <TextField {...params} variant="outlined" size="small" placeholder="Select tags..." />}
+            renderInput={(params) => <TextField {...params} variant="outlined" size="small" placeholder="Sélectionner des étiquettes..." />
             sx={{ mb: 3 }}
           />
 
@@ -1172,19 +1172,19 @@ const Contacts = () => {
                 onChange={(e) => setImportForm({ ...importForm, updateExisting: e.target.checked })} 
               />
             }
-            label={<Typography variant="body2">Update existing contacts (match by email)</Typography>}
+            label={<Typography variant="body2">Mettre à jour les contacts existants (correspondance par email)</Typography>}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setImportOpen(false)} color="inherit">Cancel</Button>
-          <Button 
-            onClick={handleImportSubmit} 
-            variant="contained" 
-            color="secondary" 
+          <Button onClick={() => setImportOpen(false)} color="inherit">Annuler</Button>
+          <Button
+            onClick={handleImportSubmit}
+            variant="contained"
+            color="secondary"
             disabled={!importForm.file || importLoading}
             startIcon={importLoading && <CircularProgress size={16} color="inherit" />}
           >
-            {importLoading ? 'Importing...' : 'Start Import'}
+            {importLoading ? ‘Importation…’ : "Lancer l’importation"}
           </Button>
         </DialogActions>
       </Dialog>

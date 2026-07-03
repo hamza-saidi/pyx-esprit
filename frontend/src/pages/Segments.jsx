@@ -366,12 +366,12 @@ const Segments = () => {
             Segments
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Filter your audience into groups based on specific criteria.
+            Filtrez votre audience en groupes selon des critères spécifiques.
           </Typography>
         </Box>
         <Box display="flex" gap={2}>
           <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={() => handleOpen()} sx={{ px: 4 }}>
-            Create Segment
+            Créer un segment
           </Button>
         </Box>
       </Box>
@@ -397,7 +397,7 @@ const Segments = () => {
           }}
         >
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {selectedIds.length} segment{selectedIds.length > 1 ? 's' : ''} selected
+            {selectedIds.length} segment{selectedIds.length > 1 ? 's' : ''} sélectionné{selectedIds.length > 1 ? 's' : ''}
           </Typography>
           <Box display="flex" gap={1}>
             <Button 
@@ -406,10 +406,10 @@ const Segments = () => {
               onClick={() => navigate(`/contacts?segmentIds=${selectedIds.join(',')}`)}
               sx={{ bgcolor: '#0a84d6', color: '#FFFFFF', fontWeight: 600, '&:hover': { bgcolor: '#0761a0' } }}
             >
-              View Combined Audience
+              Voir l&apos;audience combinée
             </Button>
             <Button size="small" sx={{ color: 'white' }} onClick={() => setSelectedIds([])}>
-              Clear
+              Effacer
             </Button>
           </Box>
         </Box>
@@ -417,10 +417,10 @@ const Segments = () => {
 
       <Paper sx={{ mb: 6, p: 4, borderRadius: 0, border: '1px solid #bfc9cf', bgcolor: '#F5F7F9' }}>
         <Typography variant="h6" sx={{ fontFamily: 'Georgia, serif', mb: 2 }}>
-          Quick Segments
+          Segments rapides
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Use these templates to quickly group your audience.
+          Utilisez ces modèles pour regrouper rapidement votre audience.
         </Typography>
         <Box display="flex" gap={1} flexWrap="wrap">
           {segmentsExamples.map((example, index) => (
@@ -446,7 +446,7 @@ const Segments = () => {
               <Box gridColumn="1 / -1" textAlign="center" py={6} bgcolor="#F9F9F9" borderRadius={2} border="1px dashed #D9D9D9">
                 <FilterListIcon sx={{ fontSize: 48, color: '#ccc', mb: 2 }} />
                 <Typography variant="h6" color="text.secondary" fontFamily="Georgia, serif">Aucun segment</Typography>
-                <Typography variant="body2" color="text.secondary">Create your first segment to start grouping tags.</Typography>
+                <Typography variant="body2" color="text.secondary">Créez votre premier segment pour commencer à regrouper des contacts.</Typography>
               </Box>
             ) : (
               paginatedItems.map((s) => (
@@ -527,7 +527,7 @@ const Segments = () => {
                         '&:hover': { bgcolor: '#F5F7F9', color: '#0a84d6' }
                       }}
                     >
-                      View Audience
+                      Voir l&apos;audience
                     </Button>
                   </Box>
                 </Paper>
@@ -555,17 +555,17 @@ const Segments = () => {
 
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 2 }}}>
         <DialogTitle sx={{ fontSize: 24, fontWeight: 600, fontFamily: 'Georgia, serif', pb: 2 }}>
-          {edit ? 'Edit Segment' : 'Create Segment'}
+          {edit ? 'Modifier le segment' : 'Créer un segment'}
         </DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent sx={{ pt: 1 }}>
             <Box display="flex" alignItems="center" justifyContent="space-between" mb={4} p={2} bgcolor="#F5F7F9" borderRadius={0} border="1px solid #bfc9cf">
               <Box>
                 <Typography variant="subtitle1" fontWeight={600} fontFamily="Inter, sans-serif">
-                  Estimated Audience Size
+                  Taille estimée de l&apos;audience
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Based on your current criteria below.
+                  Basé sur vos critères actuels.
                 </Typography>
               </Box>
               <Box display="flex" alignItems="center" gap={1}>
@@ -577,30 +577,30 @@ const Segments = () => {
             </Box>
 
             <TextField 
-              label="Segment Name" 
-              name="nom" 
-              value={form.nom} 
-              onChange={handleChange} 
-              fullWidth 
-              margin="normal" 
-              required 
+              label="Nom du segment"
+              name="nom"
+              value={form.nom}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
               sx={{ mb: 4 }}
-              placeholder="e.g., Tour Operators (All)"
+              placeholder="ex. : Joueurs VIP"
               InputLabelProps={{ shrink: true }}
             />
             
             <Typography variant="h6" fontWeight={600} fontFamily="Georgia, serif" mb={1}>
-              Group Tags (Family Builder)
+              Groupes d&apos;étiquettes
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
-              Select multiple specific tags from the families below to group them.
+              Sélectionnez des étiquettes dans les familles ci-dessous pour créer votre segment.
             </Typography>
             
             <Box mb={3}>
               <TextField
                 fullWidth
                 size="small"
-                placeholder="Search tags..."
+                placeholder="Rechercher des étiquettes..."
                 value={tagSearch}
                 onChange={(e) => setTagSearch(e.target.value)}
                 InputProps={{
@@ -653,7 +653,7 @@ const Segments = () => {
                               }}
                             />
                           }
-                          label={<Typography variant="caption">Select All</Typography>}
+                          label={<Typography variant="caption">Tout sélectionner</Typography>}
                           onClick={(e) => e.stopPropagation()}
                         />
                       </Box>
@@ -688,7 +688,7 @@ const Segments = () => {
               <Box mt={1} display="flex" gap={1} flexWrap="wrap">
                 {(form.criteres.tag_ids || []).length > 0 && (
                   <>
-                    <Typography variant="caption" sx={{ width: '100%', fontWeight: 700 }}>Selected Tags:</Typography>
+                    <Typography variant="caption" sx={{ width: '100%', fontWeight: 700 }}>Étiquettes sélectionnées :</Typography>
                     {(form.criteres.tag_ids || []).map(id => {
                       const tag = tags.find(t => t.id === id);
                       return (
@@ -709,9 +709,9 @@ const Segments = () => {
             </Box>
           </DialogContent>
           <DialogActions sx={{ p: 3, bgcolor: '#F9F9F9', borderTop: '1px solid #E5E7EB' }}>
-            <Button onClick={handleClose} size="large" sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancel</Button>
+            <Button onClick={handleClose} size="large" sx={{ color: 'text.secondary', fontWeight: 600 }}>Annuler</Button>
             <Button type="submit" variant="contained" size="large" sx={{ borderRadius: 0, px: 4, bgcolor: '#0a84d6', color: '#FFFFFF', fontWeight: 600, '&:hover': { bgcolor: '#0761a0' } }}>
-              {edit ? 'Save Changes' : 'Create Segment'}
+              {edit ? 'Enregistrer' : 'Créer le segment'}
             </Button>
           </DialogActions>
         </form>
