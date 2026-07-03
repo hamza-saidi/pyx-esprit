@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 import { Box, Paper, Grid, TextField, Button, Typography, Chip, Checkbox, Alert, FormControl, InputLabel, Select, MenuItem, Tooltip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -65,6 +66,7 @@ const stripSignatureFromHtml = (htmlContent, signatureContent) => {
 const EmailComposer = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const toast = useToast();
   const searchParams = new URLSearchParams(location.search || '');
   const campagneId = searchParams.get('campagneId');
   const campagneMode = searchParams.get('campagneMode') === '1' || searchParams.get('campagneMode') === 'true' || !!campagneId;
@@ -188,7 +190,7 @@ const EmailComposer = () => {
           });
         } catch (err) {
           console.error('[FRONTEND] Error uploading attachment:', err);
-          alert(err?.response?.data?.message || 'Erreur lors du téléversement de la pièce jointe');
+          toast.error(err?.response?.data?.message || 'Erreur lors du téléversement de la pièce jointe');
         } finally {
           setUploadingAttachment(false);
         }
@@ -217,7 +219,7 @@ const EmailComposer = () => {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err?.response?.data?.message || 'Téléchargement impossible');
+      toast.error(err?.response?.data?.message || 'Téléchargement impossible');
     }
   };
 
@@ -338,7 +340,7 @@ const EmailComposer = () => {
         setSelectedTagIds(tagValues);
         setSelectedSegmentId(data.segment_id || null);
       } catch (e) {
-        alert(e?.response?.data?.message || 'Erreur lors du chargement de la campagne');
+        toast.error(e?.response?.data?.message || 'Erreur lors du chargement de la campagne');
       } finally {
         setCampagneLoading(false);
       }
@@ -355,7 +357,7 @@ const EmailComposer = () => {
       mailerAttachments.forEach((f) => formData.append('attachments', f, f.name));
       
       if (!(selectedTagIds || []).length && !selectedSegmentId && !(directContactIds || []).length) {
-        alert('Sélectionnez au moins un tag, un segment ou des contacts pour le follow-up.');
+        toast.warning('Sélectionnez au moins un tag, un segment ou des contacts pour le follow-up.');
         setSending(false);
         return;
       }
@@ -370,13 +372,13 @@ const EmailComposer = () => {
       
       if (res.data?.success) {
         const msg = res.data.total ? `Envoyés: ${res.data.processed}/${res.data.total} (batches=${res.data.batches})` : 'Email envoyé';
-        alert(msg);
+        toast.success(msg);
         clearDraft();
       } else {
-        alert('Erreur envoi');
+        toast.error('Erreur envoi');
       }
     } catch (e) {
-      alert(e?.response?.data?.message || e.message || 'Erreur envoi');
+      toast.error(e?.response?.data?.message || e.message || 'Erreur envoi');
     } finally {
       setSending(false);
     }
@@ -415,13 +417,13 @@ const EmailComposer = () => {
 
       if (campaignAction === 'schedule') {
         if (!scheduleDate) {
-          alert('Veuillez choisir une date/heure pour programmer la campagne.');
+          toast.warning('Veuillez choisir une date/heure pour programmer la campagne.');
           setSending(false);
           return;
         }
         const dateValue = new Date(scheduleDate);
         if (Number.isNaN(dateValue.getTime()) || dateValue <= new Date()) {
-          alert('La date programmée doit être valide et future.');
+          toast.warning('La date programmée doit être valide et future.');
           setSending(false);
           return;
         }
@@ -432,7 +434,7 @@ const EmailComposer = () => {
       if (campaignAction === 'send_now') {
         const hasRecipients = (selectedTagIds || []).length > 0 || selectedSegmentId || (directContactIds || []).length > 0;
         if (!hasRecipients) {
-          alert('Sélectionnez une audience (tags, segment ou contacts de suivi) avant d\'envoyer.');
+          toast.warning('Sélectionnez une audience (tags, segment ou contacts de suivi) avant d\'envoyer.');
           setSending(false);
           return;
         }
@@ -449,19 +451,19 @@ const EmailComposer = () => {
       if (campaignAction === 'send_now' && savedId) {
         try {
           await axios.post(`/campagnes/${savedId}/envoyer`);
-          alert('Campagne enregistrée et envoi immédiat déclenché.');
+          toast.success('Campagne enregistrée et envoi immédiat déclenché.');
         } catch (sendErr) {
-          alert(sendErr?.response?.data?.message || 'Campagne sauvegardée mais l\'envoi automatique a échoué.');
+          toast.warning(sendErr?.response?.data?.message || 'Campagne sauvegardée mais l\'envoi automatique a échoué.');
         }
       } else if (campaignAction === 'schedule') {
-        alert(res.data?.message || 'Campagne programmée avec succès.');
+        toast.success(res.data?.message || 'Campagne programmée avec succès.');
       } else {
-        alert(res.data?.message || (campagneId ? 'Campagne mise à jour' : 'Campagne créée'));
+        toast.success(res.data?.message || (campagneId ? 'Campagne mise à jour' : 'Campagne créée'));
       }
       clearDraft();
       navigate('/campagnes');
     } catch (e) {
-      alert(e?.response?.data?.message || 'Erreur lors de la sauvegarde de la campagne');
+      toast.error(e?.response?.data?.message || 'Erreur lors de la sauvegarde de la campagne');
     } finally {
       setSending(false);
     }

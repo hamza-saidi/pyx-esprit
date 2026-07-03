@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchStatistics, fetchDashboard, fetchComparison, fetchSegmentStats } from '../features/statistics/statisticsSlice';
 import { fetchCampaigns } from '../features/campaigns/campaignsSlice';
@@ -29,6 +30,7 @@ import {
 } from '@mui/icons-material';
 
 const Statistics = () => {
+  const toast = useToast();
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { items: campaigns = [] } = useSelector((state) => state.campaigns || {});
@@ -138,7 +140,7 @@ const Statistics = () => {
       if (data.groups && data.groups[groupKey]) {
         const ids = data.groups[groupKey].contact_ids;
         if (ids.length === 0) {
-          alert("Aucun contact dans cette catégorie.");
+          toast.info("Aucun contact dans cette catégorie.");
           return;
         }
         navigate(`/composer?campagneMode=1&isFollowUp=1&contactIds=${ids.join(',')}`);

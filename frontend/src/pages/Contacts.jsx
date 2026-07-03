@@ -52,6 +52,7 @@ import SellIcon from '@mui/icons-material/Sell';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import axios from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 countries.registerLocale(frLocale);
 
@@ -123,6 +124,7 @@ const downloadBlob = (blob, filename) => {
 };
 
 const Contacts = () => {
+  const toast = useToast();
   const dispatch = useDispatch();
   const { items, loading, error, total } = useSelector((state) => state.contacts);
   const { items: tags } = useSelector((state) => state.tags || { items: [] });
@@ -398,7 +400,7 @@ const Contacts = () => {
       dispatch(fetchContacts({ ...getFetchParams(), page: 1 }));
     } catch (e) {
       console.error('Import error:', e);
-      alert('Error importing contacts: ' + (e.response?.data?.message || e.message));
+      toast.error(e.response?.data?.message || e.message || "Erreur lors de l'import des contacts");
     } finally {
       setImportLoading(false);
     }

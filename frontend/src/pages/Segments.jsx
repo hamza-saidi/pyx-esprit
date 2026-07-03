@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useToast } from '../context/ToastContext';
 import countries from 'i18n-iso-countries';
 import frLocale from 'i18n-iso-countries/langs/fr.json';
 import { useDispatch, useSelector } from 'react-redux';
@@ -51,6 +52,7 @@ const emptySegment = {
 };
 
 const Segments = () => {
+  const toast = useToast();
   const dispatch = useDispatch();
   const { items, loading, error, previewCount, previewLoading, contactsPreview, contactsPreviewForId, contactsPreviewLoading } = useSelector((state) => state.segments);
   const { items: tags } = useSelector((state) => state.tags || { items: [] });
@@ -147,7 +149,7 @@ const Segments = () => {
         e.campaigns.forEach(c => { sel[c.id] = true; });
         setBlockDialog({ open: true, segmentId: id, campaigns: e.campaigns, selected: sel, message: msg });
       } else {
-        alert(msg);
+        toast.error(msg);
       }
     }
   };

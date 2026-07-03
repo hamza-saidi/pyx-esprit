@@ -7,8 +7,10 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchTags } from '../features/tags/tagsSlice';
 import axios from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const AudienceHealth = () => {
+    const toast = useToast();
     const dispatch = useDispatch();
     const { items: tags } = useSelector((state) => state.tags || { items: [] });
     const [stats, setStats] = useState({ invalid: 0, bounced: 0, inactive: 0 });
@@ -49,7 +51,7 @@ const AudienceHealth = () => {
             setConfirmDialog({ open: false, category: '', action: '' });
             setSelectedTag(null);
         } catch (err) {
-            alert('Action failed: ' + (err.response?.data?.message || err.message));
+            toast.error(err.response?.data?.message || err.message || 'Action impossible');
         } finally {
             setActionLoading(false);
         }

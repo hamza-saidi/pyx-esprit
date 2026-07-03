@@ -58,6 +58,7 @@ import 'react-quill/dist/quill.snow.css';
 import grapesjs from 'grapesjs';
 import 'grapesjs/dist/css/grapes.min.css';
 import axios from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const EmailEditor = ({ 
   value = '', 
@@ -68,6 +69,7 @@ const EmailEditor = ({
   loading = false,
   readOnly = false 
 }) => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState(3);
   const [sidebarTab, setSidebarTab] = useState('add');
   const [globalDesignOpen, setGlobalDesignOpen] = useState(true);
@@ -158,7 +160,7 @@ const EmailEditor = ({
             const limit = 10 * 1024 * 1024; // 10MB (raised from 1MB to match backend)
             for (let i = 0; i < files.length; i++) {
               if (files[i].size > limit) {
-                alert(`File too large (${Math.round(files[i].size/1024/1024 * 10)/10}MB). Please use images under 10MB.`);
+                toast.warning(`Fichier trop lourd (${Math.round(files[i].size/1024/1024 * 10)/10}MB). Utilisez des images < 10MB.`);
                 return false;
               }
             }
@@ -173,7 +175,7 @@ const EmailEditor = ({
           // Error handling
           onError: (err) => {
             console.error('Asset upload error:', err);
-            alert('Upload failed. Please check file size/type.');
+            toast.error("Échec de l'upload. Vérifiez la taille et le format du fichier.");
           }
         },
         panels: { defaults: [] },

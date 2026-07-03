@@ -19,6 +19,7 @@ import {
   Timer as TimerIcon
 } from '@mui/icons-material';
 import axios from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const AutomationCard = ({ automation, onToggle, onDelete, onEdit }) => {
   const [toggling, setToggling] = useState(false);
@@ -141,6 +142,7 @@ const AutomationCard = ({ automation, onToggle, onDelete, onEdit }) => {
 };
 
 const Automations = () => {
+  const toast = useToast();
   const [automations, setAutomations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -196,7 +198,7 @@ const Automations = () => {
       await axios.put(`/automations/${id}/toggle`, { actif });
       setAutomations(automations.map(a => a.id === id ? { ...a, actif } : a));
     } catch (err) {
-      alert("Failed to toggle automation status.");
+      toast.error("Impossible de modifier le statut de l'automation.");
     }
   };
 
@@ -206,7 +208,7 @@ const Automations = () => {
       await axios.delete(`/automations/${id}`);
       setAutomations(automations.filter(a => a.id !== id));
     } catch (err) {
-      alert("Failed to delete automation.");
+      toast.error("Impossible de supprimer l'automation.");
     }
   };
 
@@ -227,12 +229,12 @@ const Automations = () => {
 
   const handleSaveCustom = async () => {
     if (!nom || (!templateId && !quickMessage)) {
-      alert("Veuillez donner un nom et choisir un template ou écrire un message.");
+      toast.warning("Veuillez donner un nom et choisir un template ou écrire un message.");
       return;
     }
 
     if (trigger === 'scheduled' && (!scheduledDate || !audienceTag)) {
-      alert("Pour une automation programmée, la date et l'audience (Tag) sont requis.");
+      toast.warning("Pour une automation programmée, la date et l'audience (Tag) sont requis.");
       return;
     }
 
@@ -259,7 +261,7 @@ const Automations = () => {
       
       handleCloseBuilder();
     } catch(err) {
-      alert(err.response?.data?.message || 'Failed to save automation.');
+      toast.error(err.response?.data?.message || "Erreur lors de l'enregistrement de l'automation.");
     } finally {
       setSaving(false);
     }

@@ -3,7 +3,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../features/auth/authSlice';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import {
-  Box, Drawer, List, ListItem, ListItemIcon, ListItemText, Toolbar, Typography, IconButton, Divider, Button, Tooltip
+  Box, Drawer, List, ListItem, ListItemIcon, ListItemText,
+  Typography, IconButton, Divider, Button, Tooltip,
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -20,46 +21,150 @@ import StarIcon from '@mui/icons-material/Star';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import SettingsIcon from '@mui/icons-material/Settings';
+import AddIcon from '@mui/icons-material/Add';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 
-const expandedWidth = 260; // Slightly wider for Mailchimp feel
-const collapsedWidth = 80;
+const SIDEBAR_EXPANDED = 252;
+const SIDEBAR_COLLAPSED = 72;
 
-const navSections = [
+const NAV_SECTIONS = [
   {
-    title: 'Overview',
+    title: 'Vue d\'ensemble',
     items: [
-      { label: 'Dashboard', path: '/', icon: <BarChartIcon /> },
-    ]
+      { label: 'Tableau de bord', path: '/', icon: <DashboardIcon /> },
+    ],
   },
   {
     title: 'Audience',
     items: [
-      { label: 'Audience', path: '/contacts', icon: <ContactsIcon /> },
-      { label: 'Tags', path: '/tags', icon: <LabelIcon /> },
+      { label: 'Contacts', path: '/contacts', icon: <ContactsIcon /> },
+      { label: 'Étiquettes', path: '/tags', icon: <LabelIcon /> },
       { label: 'Segments', path: '/segments', icon: <GroupWorkIcon /> },
-      { label: 'Audience Health', path: '/health', icon: <AutoFixHighIcon /> },
-    ]
+      { label: 'Santé', path: '/health', icon: <AutoFixHighIcon /> },
+    ],
   },
   {
-    title: 'Membership',
+    title: 'Membres',
     items: [
-      { label: 'Members', path: '/members', icon: <VerifiedUserIcon /> },
-      { label: 'Membership Plans', path: '/membership-plans', icon: <StarIcon /> },
-    ]
+      { label: 'Membres', path: '/members', icon: <VerifiedUserIcon /> },
+      { label: 'Plans', path: '/membership-plans', icon: <StarIcon /> },
+    ],
   },
   {
     title: 'Marketing',
     items: [
-      { label: 'Campaigns', path: '/campagnes', icon: <EmailIcon /> },
-      { label: 'Templates', path: '/templates', icon: <ArticleIcon /> },
-      { label: 'Automations', path: '/automations', icon: <AutorenewIcon /> },
-    ]
-  }
+      { label: 'Campagnes', path: '/campagnes', icon: <EmailIcon /> },
+      { label: 'Modèles', path: '/templates', icon: <ArticleIcon /> },
+      { label: 'Automatisations', path: '/automations', icon: <AutorenewIcon /> },
+    ],
+  },
+  {
+    title: 'Analytique',
+    items: [
+      { label: 'Statistiques', path: '/statistics', icon: <BarChartIcon /> },
+    ],
+  },
 ];
 
-const adminNav = { label: 'Admin Users', path: '/users', icon: <PeopleIcon /> };
+const ADMIN_NAV_ITEMS = [
+  { label: 'Utilisateurs', path: '/users', icon: <PeopleIcon /> },
+  { label: 'Paramètres', path: '/settings', icon: <SettingsIcon /> },
+];
 
-const MainLayout = ({ children }) => {
+const SUPERADMIN_NAV_ITEMS = [
+  { label: 'Console Pylon', path: '/superadmin', icon: <AdminPanelSettingsIcon /> },
+];
+
+const PAGE_ACTIONS = {
+  '/contacts': { label: 'Nouveau contact', path: '/contacts?create=1' },
+  '/tags': { label: 'Nouvelle étiquette', path: '/tags?create=1' },
+  '/segments': { label: 'Nouveau segment', path: '/segments?create=1' },
+  '/campagnes': { label: 'Nouvelle campagne', path: '/composer' },
+  '/templates': { label: 'Nouveau modèle', path: '/templates?create=1' },
+  '/automations': { label: 'Nouvelle automation', path: '/automations?create=1' },
+  '/members': { label: 'Nouveau membre', path: '/members?create=1' },
+  '/membership-plans': { label: 'Nouveau plan', path: '/membership-plans?create=1' },
+  '/users': { label: 'Nouvel utilisateur', path: '/users?create=1' },
+};
+
+const PAGE_META = {
+  '/': { title: 'Tableau de bord', subtitle: 'Vue d\'ensemble de votre activité' },
+  '/contacts': { title: 'Contacts', subtitle: 'Gérez votre audience' },
+  '/tags': { title: 'Étiquettes', subtitle: 'Catégorisez vos contacts' },
+  '/segments': { title: 'Segments', subtitle: 'Groupes dynamiques' },
+  '/health': { title: 'Santé de l\'audience', subtitle: 'Qualité de votre liste' },
+  '/members': { title: 'Membres', subtitle: 'Licenciés du club' },
+  '/membership-plans': { title: 'Plans d\'abonnement', subtitle: 'Formules et tarifs' },
+  '/campagnes': { title: 'Campagnes', subtitle: 'Envois d\'emails en masse' },
+  '/templates': { title: 'Modèles', subtitle: 'Bibliothèque de designs' },
+  '/automations': { title: 'Automatisations', subtitle: 'Emails déclenchés automatiquement' },
+  '/birthdays': { title: 'Anniversaires', subtitle: 'Emails d\'anniversaire automatiques' },
+  '/statistics': { title: 'Statistiques', subtitle: 'Performance de vos campagnes' },
+  '/users': { title: 'Utilisateurs', subtitle: 'Gestion des accès' },
+  '/settings': { title: 'Paramètres', subtitle: 'Compte email et configuration' },
+  '/composer': { title: 'Éditeur', subtitle: 'Créer un email' },
+  '/superadmin': { title: 'Console Pylon', subtitle: 'Administration globale de la plateforme SaaS' },
+};
+
+const NavItem = ({ item, expanded }) => {
+  const location = useLocation();
+  const active = location.pathname === item.path;
+
+  return (
+    <ListItem
+      button
+      component={Link}
+      to={item.path}
+      selected={active}
+      sx={{
+        borderRadius: '8px',
+        mb: 0.5,
+        minHeight: 42,
+        px: expanded ? 1.5 : 1,
+        justifyContent: expanded ? 'flex-start' : 'center',
+        color: active ? '#38bdf8 !important' : '#94a3b8 !important',
+        bgcolor: active ? 'rgba(56,189,248,0.10) !important' : 'transparent',
+        borderLeft: active ? '2px solid #38bdf8' : '2px solid transparent',
+        transition: 'all 0.15s ease',
+        '&:hover': {
+          bgcolor: 'rgba(255,255,255,0.06) !important',
+          color: '#e2e8f0 !important',
+        },
+        '& .MuiListItemIcon-root': {
+          color: active ? '#38bdf8' : '#475569',
+          minWidth: expanded ? 36 : 'auto',
+          transition: 'color 0.15s ease',
+          '& svg': { fontSize: 19 },
+        },
+      }}
+    >
+      <ListItemIcon>
+        {expanded ? (
+          item.icon
+        ) : (
+          <Tooltip title={item.label} placement="right">
+            <Box display="inline-flex">{item.icon}</Box>
+          </Tooltip>
+        )}
+      </ListItemIcon>
+      {expanded && (
+        <ListItemText
+          primary={item.label}
+          primaryTypographyProps={{
+            fontSize: 13.5,
+            fontWeight: active ? 600 : 500,
+            letterSpacing: '-0.1px',
+            color: active ? '#e2e8f0' : '#94a3b8',
+          }}
+        />
+      )}
+    </ListItem>
+  );
+};
+
+const MainLayout = () => {
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const location = useLocation();
@@ -67,241 +172,248 @@ const MainLayout = ({ children }) => {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [expanded, setExpanded] = React.useState(true);
 
-  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
-  const handleToggleExpand = () => setExpanded((e) => !e);
+  const pageMeta = PAGE_META[location.pathname] || { title: 'Pylon Pyx', subtitle: '' };
+  const pageAction = PAGE_ACTIONS[location.pathname] || null;
+
   const handleLogout = () => {
     dispatch(logout());
     navigate('/login');
   };
 
-  const drawerContent = (
-    <Box display="flex" flexDirection="column" height="100%" sx={{ bgcolor: '#111827', color: '#e2e8f0', overflowX: 'hidden' }}>
-      {/* Logo / Brand */}
-      <Box sx={{ 
-        px: 2.5, 
-        py: 2.5, 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 1.5, 
-        cursor: 'pointer',
-        justifyContent: expanded ? 'flex-start' : 'center',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
-        minHeight: 64
-      }} onClick={() => navigate('/')}>
-        <Box component="img" src="/logo.svg" alt="Pylon Pyx" sx={{ height: 30, filter: 'brightness(0) invert(1)', flexShrink: 0 }} />
+  const sidebarContent = (
+    <Box display="flex" flexDirection="column" height="100%" sx={{ bgcolor: '#0b1120', overflowX: 'hidden' }}>
+      {/* Logo */}
+      <Box
+        onClick={() => navigate('/')}
+        sx={{
+          px: 2.5,
+          py: 2.25,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          cursor: 'pointer',
+          justifyContent: expanded ? 'flex-start' : 'center',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          minHeight: 60,
+          flexShrink: 0,
+        }}
+      >
+        <Box
+          component="img"
+          src="/logo.svg"
+          alt="Pylon Pyx"
+          sx={{ height: 26, filter: 'brightness(0) invert(1)', flexShrink: 0 }}
+        />
         {expanded && (
-          <Typography sx={{ fontFamily: 'Inter, sans-serif', fontWeight: 800, color: '#fff', fontSize: 16, letterSpacing: '-0.3px' }}>
-            Pylon <span style={{ color: '#38bdf8' }}>Pyx</span>
+          <Typography
+            sx={{
+              fontWeight: 800,
+              color: '#f8fafc',
+              fontSize: 15,
+              letterSpacing: '-0.3px',
+              lineHeight: 1,
+            }}
+          >
+            Pylon{' '}
+            <Box component="span" sx={{ color: '#38bdf8' }}>
+              Pyx
+            </Box>
           </Typography>
         )}
       </Box>
-      
-      {/* Nav Items */}
-      <Box sx={{ 
-        flexGrow: 1, 
-        overflowY: 'auto',
-        overflowX: 'hidden', 
-        py: 2,
-        px: 1.5,
-        '&::-webkit-scrollbar': { width: '3px' },
-        '&::-webkit-scrollbar-track': { background: 'transparent' },
-        '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.12)', borderRadius: '10px' },
-        '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(255,255,255,0.22)' }
-      }}>
-        {navSections.map((section) => (
-          <Box key={section.title} sx={{ mb: 2 }}>
-            {/* Section Label */}
-            {expanded && (
-              <Typography 
-                sx={{ 
-                  px: 1.5, 
-                  pb: 0.75,
-                  pt: 0.25,
-                  display: 'block', 
-                  color: '#9ca3af',
-                  fontWeight: 700, 
-                  letterSpacing: '0.08em', 
+
+      {/* Nav */}
+      <Box
+        sx={{
+          flexGrow: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          py: 2,
+          px: 1.25,
+          '&::-webkit-scrollbar': { width: '3px' },
+          '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.1)', borderRadius: '3px' },
+        }}
+      >
+        {NAV_SECTIONS.map((section, sIdx) => (
+          <Box key={section.title} sx={{ mb: 1.5 }}>
+            {expanded ? (
+              <Typography
+                sx={{
+                  px: 1.5,
+                  pb: 0.5,
+                  pt: sIdx > 0 ? 1 : 0,
+                  display: 'block',
+                  color: '#334155',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
                   textTransform: 'uppercase',
-                  fontSize: 11,
-                  fontFamily: 'Inter, sans-serif',
+                  fontSize: 10.5,
                 }}
               >
                 {section.title}
               </Typography>
+            ) : (
+              sIdx > 0 && <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', my: 1 }} />
             )}
-            {!expanded && <Box sx={{ height: 4 }} />}
-
             <List sx={{ p: 0 }}>
-              {section.items.map((item) => {
-                const active = location.pathname === item.path;
-                return (
-                  <ListItem
-                    button
-                    key={item.path}
-                    component={Link}
-                    to={item.path}
-                    selected={active}
-                    sx={{
-                      borderRadius: '8px',
-                      mb: 0.5,
-                      minHeight: 44,
-                      px: expanded ? 1.5 : 1,
-                      justifyContent: expanded ? 'flex-start' : 'center',
-                      color: active ? '#38bdf8 !important' : '#d1d5db !important',
-                      bgcolor: active ? 'rgba(56, 189, 248, 0.12) !important' : 'transparent',
-                      borderLeft: active ? '3px solid #38bdf8' : '3px solid transparent',
-                      transition: 'all 0.18s ease',
-                      '&:hover': { 
-                        bgcolor: active ? 'rgba(56, 189, 248, 0.16) !important' : 'rgba(255,255,255,0.06) !important',
-                        color: '#ffffff !important',
-                      },
-                      '& .MuiListItemIcon-root': { 
-                        color: active ? '#38bdf8' : '#c4c9d4', 
-                        minWidth: expanded ? 38 : 'auto',
-                        transition: 'color 0.18s ease',
-                        '& svg': { fontSize: 20 }
-                      },
-                    }}
-                  >
-                    <ListItemIcon>
-                      {expanded ? item.icon : (
-                        <Tooltip title={item.label} placement="right" arrow>
-                          <Box display="inline-flex">{item.icon}</Box>
-                        </Tooltip>
-                      )}
-                    </ListItemIcon>
-                    {expanded && (
-                      <ListItemText 
-                        primary={item.label} 
-                        primaryTypographyProps={{ 
-                          fontSize: 14, 
-                          fontWeight: active ? 600 : 500,
-                          fontFamily: 'Inter, sans-serif',
-                          letterSpacing: '-0.1px',
-                          color: active ? '#38bdf8' : '#e5e7eb',
-                        }} 
-                      />
-                    )}
-                  </ListItem>
-                );
-              })}
+              {section.items.map((item) => (
+                <NavItem key={item.path} item={item} expanded={expanded} />
+              ))}
             </List>
           </Box>
         ))}
-        
-        {/* Admin Section */}
-        {user?.role === 'admin' && (
-          <Box sx={{ mb: 2 }}>
+
+        {/* Admin section */}
+        {(user?.role === 'admin' || user?.role === 'global_admin') && (
+          <Box sx={{ mt: 1 }}>
             {expanded && (
-              <Typography sx={{ px: 1.5, pb: 0.75, pt: 0.25, display: 'block', color: '#9ca3af', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: 11, fontFamily: 'Inter, sans-serif' }}>
-                Settings
+              <Typography
+                sx={{
+                  px: 1.5,
+                  pb: 0.5,
+                  pt: 1,
+                  display: 'block',
+                  color: '#334155',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  fontSize: 10.5,
+                }}
+              >
+                Admin
               </Typography>
             )}
-            {(() => {
-              const active = location.pathname === adminNav.path;
-              return (
-                <ListItem
-                  button
-                  component={Link}
-                  to={adminNav.path}
-                  selected={active}
-                  sx={{
-                    borderRadius: '8px',
-                    mb: 0.5,
-                    minHeight: 44,
-                    px: expanded ? 1.5 : 1,
-                    justifyContent: expanded ? 'flex-start' : 'center',
-                    color: active ? '#38bdf8 !important' : '#d1d5db !important',
-                    bgcolor: active ? 'rgba(56, 189, 248, 0.12) !important' : 'transparent',
-                    borderLeft: active ? '3px solid #38bdf8' : '3px solid transparent',
-                    transition: 'all 0.18s ease',
-                    '&:hover': { 
-                      bgcolor: active ? 'rgba(56, 189, 248, 0.16) !important' : 'rgba(255,255,255,0.06) !important',
-                      color: '#ffffff !important',
-                    },
-                    '& .MuiListItemIcon-root': { 
-                      color: active ? '#38bdf8' : '#9ca3af', 
-                      minWidth: expanded ? 38 : 'auto',
-                      transition: 'color 0.18s ease',
-                      '& svg': { fontSize: 20 }
-                    },
-                  }}
-                >
-                  <ListItemIcon>
-                    {expanded ? adminNav.icon : (
-                      <Tooltip title={adminNav.label} placement="right" arrow>
-                        <Box display="inline-flex">{adminNav.icon}</Box>
-                      </Tooltip>
-                    )}
-                  </ListItemIcon>
-                  {expanded && (
-                    <ListItemText 
-                      primary={adminNav.label} 
-                      primaryTypographyProps={{ fontSize: 14, fontWeight: active ? 600 : 500, fontFamily: 'Inter, sans-serif', letterSpacing: '-0.1px', color: active ? '#38bdf8' : '#e5e7eb' }} 
-                    />
-                  )}
-                </ListItem>
-              );
-            })()}
+            {!expanded && <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', my: 1 }} />}
+            <List sx={{ p: 0 }}>
+              {ADMIN_NAV_ITEMS.map((item) => (
+                <NavItem key={item.path} item={item} expanded={expanded} />
+              ))}
+            </List>
+          </Box>
+        )}
+
+        {/* Console Pylon — global_admin uniquement */}
+        {user?.role === 'global_admin' && (
+          <Box sx={{ mt: 1 }}>
+            {expanded && (
+              <Typography
+                sx={{
+                  px: 1.5,
+                  pb: 0.5,
+                  pt: 1,
+                  display: 'block',
+                  color: '#38bdf8',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  fontSize: 10.5,
+                }}
+              >
+                Pylon SaaS
+              </Typography>
+            )}
+            {!expanded && <Divider sx={{ borderColor: 'rgba(56,189,248,0.2)', my: 1 }} />}
+            <List sx={{ p: 0 }}>
+              {SUPERADMIN_NAV_ITEMS.map((item) => (
+                <NavItem key={item.path} item={item} expanded={expanded} />
+              ))}
+            </List>
           </Box>
         )}
       </Box>
 
-      <Box p={2.5} sx={{ borderTop: '1px solid rgba(255,255,255,0.05)', bgcolor: 'rgba(0,0,0,0.15)' }}>
+      {/* User footer */}
+      <Box
+        sx={{
+          flexShrink: 0,
+          p: 1.5,
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          bgcolor: 'rgba(0,0,0,0.2)',
+        }}
+      >
         {expanded ? (
-          <Box display="flex" alignItems="center" gap={1.5}>
-            <Box 
-              sx={{ 
-                width: 36, height: 36, 
-                borderRadius: '50%', 
-                bgcolor: '#38bdf8', 
+          <Box display="flex" alignItems="center" gap={1.25}>
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                bgcolor: '#38bdf8',
                 color: '#0f172a',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, fontSize: 14,
-                flexShrink: 0
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: 13,
+                flexShrink: 0,
               }}
             >
               {user?.nom ? user.nom.charAt(0).toUpperCase() : 'A'}
             </Box>
             <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-              <Typography variant="subtitle2" noWrap sx={{ color: '#f8fafc', fontWeight: 600, fontSize: 13, lineHeight: 1.2 }}>{user?.nom || 'Admin'}</Typography>
-              <Typography variant="caption" noWrap sx={{ color: '#64748b', fontSize: 11, display: 'block' }}>{user?.email}</Typography>
+              <Typography
+                noWrap
+                sx={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13, lineHeight: 1.2 }}
+              >
+                {user?.nom || 'Admin'}
+              </Typography>
+              <Typography noWrap sx={{ color: '#475569', fontSize: 11, display: 'block' }}>
+                {user?.email}
+              </Typography>
             </Box>
-            <Tooltip title="Sign Out" placement="top" arrow>
-              <IconButton size="small" onClick={handleLogout} sx={{ color: '#64748b', '&:hover': { color: '#ef4444', bgcolor: 'rgba(239, 68, 68, 0.1)' } }}>
-                <ExitToAppIcon fontSize="small" />
+            <Tooltip title="Déconnexion" placement="top">
+              <IconButton
+                size="small"
+                onClick={handleLogout}
+                sx={{
+                  color: '#475569',
+                  '&:hover': { color: '#ef4444', bgcolor: 'rgba(239,68,68,0.1)' },
+                }}
+              >
+                <ExitToAppIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
           </Box>
         ) : (
-          <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-             <Box 
-              sx={{ 
-                width: 32, height: 32, 
-                borderRadius: '50%', 
-                bgcolor: '#38bdf8', 
-                color: '#0f172a',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, fontSize: 12
-              }}
-            >
-              {user?.nom ? user.nom.charAt(0).toUpperCase() : 'A'}
-            </Box>
-            <Tooltip title="Sign Out" placement="right" arrow>
-              <IconButton size="small" sx={{ color: '#64748b', '&:hover': { color: '#ef4444' } }} onClick={handleLogout}>
-                <ExitToAppIcon fontSize="small" />
+          <Box display="flex" flexDirection="column" alignItems="center" gap={1.5}>
+            <Tooltip title={user?.nom || 'Admin'} placement="right">
+              <Box
+                sx={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  bgcolor: '#38bdf8',
+                  color: '#0f172a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: 12,
+                  cursor: 'default',
+                }}
+              >
+                {user?.nom ? user.nom.charAt(0).toUpperCase() : 'A'}
+              </Box>
+            </Tooltip>
+            <Tooltip title="Déconnexion" placement="right">
+              <IconButton
+                size="small"
+                onClick={handleLogout}
+                sx={{ color: '#475569', '&:hover': { color: '#ef4444' } }}
+              >
+                <ExitToAppIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
           </Box>
         )}
-        
-        <Box display="flex" justifyContent={expanded ? 'flex-end' : 'center'} mt={1.5}>
-          <IconButton 
-            onClick={handleToggleExpand} 
+
+        <Box display="flex" justifyContent={expanded ? 'flex-end' : 'center'} mt={1}>
+          <IconButton
             size="small"
-            sx={{ color: '#64748b', '&:hover': { color: '#f8fafc', bgcolor: 'rgba(255,255,255,0.05)' } }}
+            onClick={() => setExpanded((e) => !e)}
+            sx={{ color: '#334155', '&:hover': { color: '#94a3b8', bgcolor: 'rgba(255,255,255,0.05)' } }}
           >
-            {expanded ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+            {expanded ? <ChevronLeftIcon sx={{ fontSize: 18 }} /> : <ChevronRightIcon sx={{ fontSize: 18 }} />}
           </IconButton>
         </Box>
       </Box>
@@ -309,56 +421,115 @@ const MainLayout = ({ children }) => {
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#FFFFFF' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f8fafc' }}>
+      {/* Sidebar */}
       <Box
         component="nav"
-        sx={{ width: { sm: expanded ? expandedWidth : collapsedWidth }, flexShrink: { sm: 0 } }}
+        sx={{
+          width: { sm: expanded ? SIDEBAR_EXPANDED : SIDEBAR_COLLAPSED },
+          flexShrink: { sm: 0 },
+          transition: 'width 0.22s cubic-bezier(0.4,0,0.2,1)',
+        }}
       >
+        {/* Mobile */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
-          onClose={handleDrawerToggle}
+          onClose={() => setMobileOpen(false)}
           ModalProps={{ keepMounted: true }}
-          PaperProps={{ sx: { bgcolor: '#3b3f44', borderRight: 'none' } }}
           sx={{
             display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: expandedWidth, border: 'none' }
+            '& .MuiDrawer-paper': { width: SIDEBAR_EXPANDED, border: 'none' },
           }}
         >
-          {drawerContent}
+          {sidebarContent}
         </Drawer>
+        {/* Desktop */}
         <Drawer
           variant="permanent"
-          PaperProps={{ sx: { bgcolor: '#0f172a', borderRight: '1px solid rgba(255,255,255,0.05)' } }}
           sx={{
             display: { xs: 'none', sm: 'block' },
             '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: expanded ? expandedWidth : collapsedWidth,
-              overflowX: 'hidden',
+              width: expanded ? SIDEBAR_EXPANDED : SIDEBAR_COLLAPSED,
               border: 'none',
-              transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
-            }
+              overflowX: 'hidden',
+              transition: 'width 0.22s cubic-bezier(0.4,0,0.2,1)',
+            },
           }}
           open
         >
-          {drawerContent}
+          {sidebarContent}
         </Drawer>
       </Box>
+
+      {/* Main area */}
       <Box
         component="main"
-        sx={{ 
-          flexGrow: 1, 
-          p: { xs: 2, sm: 4, md: 6 }, // More whitespace
-          width: { sm: `calc(100% - ${expanded ? expandedWidth : collapsedWidth}px)` },
-          maxWidth: '1600px', // Prevent too wide layouts
-          mx: 'auto'
+        sx={{
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
+          overflow: 'hidden',
         }}
       >
-        <Outlet />
+        {/* TopBar */}
+        <Box
+          sx={{
+            height: 60,
+            px: { xs: 3, sm: 4 },
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            bgcolor: '#ffffff',
+            borderBottom: '1px solid #e2e8f0',
+            flexShrink: 0,
+            gap: 2,
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="subtitle1"
+              fontWeight={700}
+              noWrap
+              sx={{ lineHeight: 1.25, color: '#0f172a' }}
+            >
+              {pageMeta.title}
+            </Typography>
+            {pageMeta.subtitle && (
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                {pageMeta.subtitle}
+              </Typography>
+            )}
+          </Box>
+          {pageAction && (
+            <Button
+              variant="contained"
+              color="secondary"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => navigate(pageAction.path)}
+              sx={{ flexShrink: 0 }}
+            >
+              {pageAction.label}
+            </Button>
+          )}
+        </Box>
+
+        {/* Scrollable content */}
+        <Box
+          sx={{
+            flexGrow: 1,
+            overflowY: 'auto',
+            p: { xs: 3, sm: 4 },
+            bgcolor: '#f8fafc',
+          }}
+        >
+          <Outlet />
+        </Box>
       </Box>
     </Box>
   );
 };
 
-export default MainLayout; 
+export default MainLayout;

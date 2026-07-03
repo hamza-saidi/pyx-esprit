@@ -18,10 +18,12 @@ import {
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import axios from '../api/axios';
+import { useToast } from '../context/ToastContext';
 import EmailEditor from '../components/EmailEditor';
 import { PRO_TEMPLATES } from '../data/proTemplates';
 
 const Templates = () => {
+  const toast = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,7 +67,7 @@ const Templates = () => {
   };
 
   const handleSave = async () => {
-    if (!form.nom) return alert("Le nom est requis.");
+    if (!form.nom) { toast.warning("Le nom est requis."); return; }
     setSaving(true);
     try {
       if (editingTemplate && editingTemplate.id) {
@@ -79,7 +81,7 @@ const Templates = () => {
       }
       setOpenEditor(false);
     } catch (err) {
-      alert("Erreur lors de l'enregistrement.");
+      toast.error("Erreur lors de l'enregistrement.");
     } finally {
       setSaving(false);
     }
@@ -91,7 +93,7 @@ const Templates = () => {
       await axios.delete(`/templates/${id}`);
       setItems(items.filter(item => item.id !== id));
     } catch (err) {
-      alert("Erreur lors de la suppression.");
+      toast.error("Erreur lors de la suppression.");
     }
   };
 
@@ -104,9 +106,9 @@ const Templates = () => {
       const res = await axios.post('/templates', payload);
       setItems([res.data, ...items]);
       setTab(0);
-      alert(`${proTemplate.nom} a été ajouté à vos modèles !`);
+      toast.success(`${proTemplate.nom} a été ajouté à vos modèles !`);
     } catch (err) {
-      alert("Erreur lors de l'import.");
+      toast.error("Erreur lors de l'import.");
     }
   };
 

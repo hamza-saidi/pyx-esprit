@@ -15,8 +15,10 @@ import {
   TrendingUp as TrendingUpIcon
 } from '@mui/icons-material';
 import axios from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const MembershipPlans = () => {
+  const toast = useToast();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -55,7 +57,7 @@ const MembershipPlans = () => {
   };
 
   const handleSave = async () => {
-    if (!form.nom) return alert("Le nom est requis.");
+    if (!form.nom) { toast.warning("Le nom est requis."); return; }
     setSaving(true);
     try {
       if (editPlan) {
@@ -66,7 +68,7 @@ const MembershipPlans = () => {
       setOpen(false);
       fetchPlans();
     } catch (err) {
-      alert(err.response?.data?.message || "Erreur lors de l'enregistrement.");
+      toast.error(err.response?.data?.message || "Erreur lors de l'enregistrement.");
     } finally {
       setSaving(false);
     }
@@ -78,7 +80,7 @@ const MembershipPlans = () => {
       await axios.delete(`/contacts/memberships/${id}`);
       fetchPlans();
     } catch (err) {
-      alert(err.response?.data?.message || "Erreur lors de la suppression.");
+      toast.error(err.response?.data?.message || "Erreur lors de la suppression.");
     }
   };
 
