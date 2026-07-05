@@ -44,6 +44,11 @@ const MembersAndPlansHub = React.lazy(() => import('./pages/MembersAndPlansHub')
 const CampaignDetail = React.lazy(() => import('./pages/CampaignDetail'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const SuperAdmin = React.lazy(() => import('./pages/SuperAdmin'));
+const OwnerMonitoring = React.lazy(() => import('./pages/OwnerMonitoring'));
+const OwnerPlans = React.lazy(() => import('./pages/OwnerPlans'));
+const OwnerLicences = React.lazy(() => import('./pages/OwnerLicences'));
+const OwnerSupport = React.lazy(() => import('./pages/OwnerSupport'));
+const OwnerBilling = React.lazy(() => import('./pages/OwnerBilling'));
 
 function App() {
   return (
@@ -80,6 +85,11 @@ function App() {
               <Route path="users" element={<Users />} />
               <Route path="settings" element={<Settings />} />
               <Route path="superadmin" element={<SuperAdmin />} />
+              <Route path="superadmin/monitoring" element={<OwnerMonitoring />} />
+              <Route path="superadmin/plans" element={<OwnerPlans />} />
+              <Route path="superadmin/licences" element={<OwnerLicences />} />
+              <Route path="superadmin/support" element={<OwnerSupport />} />
+              <Route path="superadmin/billing" element={<OwnerBilling />} />
               <Route path="*" element={<NotFound />} />
             </Route>
             <Route path="*" element={<NotFound />} />
