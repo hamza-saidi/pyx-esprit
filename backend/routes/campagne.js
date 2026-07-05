@@ -87,6 +87,10 @@ router.get('/stats/events', statisticsController.getEventStats);
 // ── Mailer send (was /api/mailer/send*) ───────────────────────────────────────
 router.post('/send', uploadAttachment.array('attachments', 10), mailerController.send);
 router.get('/recipients/count', mailerController.countRecipientsByTags);
-router.post('/send-by-tags', uploadAttachment.array('attachments', 10), mailerController.sendByTags);
+router.post(
+  '/send-by-tags',
+  uploadAttachment.array('attachments', 10),
+  mailerController.sendByTags
+);
 
 module.exports = router;

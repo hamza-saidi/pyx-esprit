@@ -23,10 +23,13 @@ exports.campaignSuggest = async (req, res) => {
     res.json(result);
   } catch (err) {
     logger.error('[AI] campaignSuggest error:', err.message);
-    const status = err.message.includes('API Groq invalide') ? 401
-      : err.message.includes('Limite') ? 429
-      : err.message.includes('non configuré') ? 503
-      : 500;
+    const status = err.message.includes('API Groq invalide')
+      ? 401
+      : err.message.includes('Limite')
+        ? 429
+        : err.message.includes('non configuré')
+          ? 503
+          : 500;
     res.status(status).json({ message: err.message });
   }
 };

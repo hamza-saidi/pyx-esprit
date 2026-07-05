@@ -8,12 +8,12 @@ const GROQ_MODEL = 'llama-3.1-70b-versatile';
 const EVENT_LABELS = {
   tournament: 'Tournoi / Compétition',
   newsletter: 'Newsletter mensuelle',
-  welcome: 'Accueil d\'un nouveau membre',
-  birthday: 'Email d\'anniversaire',
+  welcome: "Accueil d'un nouveau membre",
+  birthday: "Email d'anniversaire",
   reengagement: 'Ré-engagement de membres inactifs',
   results: 'Résultats de compétition',
   announcement: 'Annonce importante',
-  subscription: 'Renouvellement d\'abonnement',
+  subscription: "Renouvellement d'abonnement",
   event: 'Événement spécial',
   promotion: 'Offre / Promotion',
 };
@@ -26,7 +26,8 @@ const TONE_LABELS = {
 
 exports.suggestCampaign = async ({ eventType, audience, recipientCount, tone, context }) => {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error('GROQ_API_KEY non configuré. Obtenez une clé gratuite sur console.groq.com');
+  if (!apiKey)
+    throw new Error('GROQ_API_KEY non configuré. Obtenez une clé gratuite sur console.groq.com');
 
   const eventLabel = EVENT_LABELS[eventType] || eventType;
   const toneLabel = TONE_LABELS[tone] || 'amical et chaleureux';
@@ -71,7 +72,7 @@ Réponds UNIQUEMENT avec un objet JSON (pas de markdown, pas de code block):
         {
           role: 'system',
           content:
-            "Tu es un expert en email marketing. Tu génères des emails professionnels et engageants en français. Tu réponds UNIQUEMENT en JSON valide, sans markdown ni code block.",
+            'Tu es un expert en email marketing. Tu génères des emails professionnels et engageants en français. Tu réponds UNIQUEMENT en JSON valide, sans markdown ni code block.',
         },
         { role: 'user', content: userPrompt },
       ],
@@ -85,13 +86,14 @@ Réponds UNIQUEMENT avec un objet JSON (pas de markdown, pas de code block):
     const body = await res.text();
     logger.error('[AI] Groq error:', res.status, body.slice(0, 300));
     if (res.status === 401) throw new Error('Clé API Groq invalide.');
-    if (res.status === 429) throw new Error('Limite de requêtes Groq atteinte. Réessayez dans 1 minute.');
+    if (res.status === 429)
+      throw new Error('Limite de requêtes Groq atteinte. Réessayez dans 1 minute.');
     throw new Error(`Erreur Groq (${res.status})`);
   }
 
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Réponse vide de l\'IA.');
+  if (!content) throw new Error("Réponse vide de l'IA.");
 
   try {
     const parsed = JSON.parse(content);

@@ -140,13 +140,7 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
     if (['non', 'false', '0'].includes(v)) criteres.actif = false;
   }
 
-  const equalityKeys = [
-    'type_client',
-    'ville',
-    'sexe',
-    'nationalite',
-    'actif',
-  ];
+  const equalityKeys = ['type_client', 'ville', 'sexe', 'nationalite', 'actif'];
   equalityKeys.forEach((key) => {
     // Skip if already handled by filterRules to avoid double filtering
     if (criteres.filterRules && criteres.filterRules.some((r) => r.field === key)) return;

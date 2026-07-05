@@ -9,9 +9,15 @@ exports.getEmailSettings = async (req, res) => {
     const club = await Club.findByPk(req.user.club_id, {
       attributes: [
         'email_provider',
-        'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user',
-        'email_from_address', 'email_from_name',
-        'azure_tenant_id', 'graph_from_email', 'graph_consent_at',
+        'smtp_host',
+        'smtp_port',
+        'smtp_secure',
+        'smtp_user',
+        'email_from_address',
+        'email_from_name',
+        'azure_tenant_id',
+        'graph_from_email',
+        'graph_consent_at',
       ],
     });
     if (!club) return res.status(404).json({ message: 'Organisation non trouvée' });

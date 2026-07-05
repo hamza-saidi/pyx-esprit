@@ -5,6 +5,9 @@ module.exports = {
     es2021: true,
     jest: true,
   },
+  globals: {
+    fetch: 'readonly',
+  },
   extends: ['eslint:recommended', 'plugin:node/recommended', 'plugin:prettier/recommended'],
   parserOptions: {
     ecmaVersion: 'latest',

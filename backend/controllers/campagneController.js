@@ -160,14 +160,7 @@ function buildContactQueryFromCriteria(rawCriteres) {
     else where.sexe = criteres.sexe;
   }
 
-  const equalityKeys = [
-    'type_client',
-    'ville',
-    'nationalite',
-    'statut',
-    'source',
-    'actif',
-  ];
+  const equalityKeys = ['type_client', 'ville', 'nationalite', 'statut', 'source', 'actif'];
   equalityKeys.forEach((key) => {
     if (key === 'actif') return; // already defaulted to true unless explicitly provided
     const value = criteres[key];
@@ -1024,9 +1017,7 @@ const calculerDestinataires = async (req, res) => {
     }
 
     const hasCriteria =
-      (tags_ids && tags_ids.length > 0) ||
-      segment_id ||
-      (where && Object.keys(where).length > 0);
+      (tags_ids && tags_ids.length > 0) || segment_id || (where && Object.keys(where).length > 0);
 
     if (allManualIds.size > 0) {
       const extra = await Contact.findAll({ where: { id: { [Op.in]: Array.from(allManualIds) } } });

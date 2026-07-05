@@ -60,7 +60,9 @@ exports.listBirthdaysToday = async (req, res, next) => {
     const dd = String(today.getDate()).padStart(2, '0');
     const contacts = await Contact.findAll({
       where: seqWhere(fn('DATE_FORMAT', col('date_naissance'), '%m-%d'), `${mm}-${dd}`),
-      include: [{ model: Tag, as: 'tags', through: { attributes: [] }, where: { nom: 'Membre VIP' } }],
+      include: [
+        { model: Tag, as: 'tags', through: { attributes: [] }, where: { nom: 'Membre VIP' } },
+      ],
       attributes: ['id', 'prenom', 'nom', 'email', 'date_naissance'],
     });
     res.json({ count: contacts.length, contacts });
@@ -76,11 +78,14 @@ exports.sendBirthdaysToday = async (req, res, next) => {
     const dd = String(today.getDate()).padStart(2, '0');
     const contacts = await Contact.findAll({
       where: seqWhere(fn('DATE_FORMAT', col('date_naissance'), '%m-%d'), `${mm}-${dd}`),
-      include: [{ model: Tag, as: 'tags', through: { attributes: [] }, where: { nom: 'Membre VIP' } }],
+      include: [
+        { model: Tag, as: 'tags', through: { attributes: [] }, where: { nom: 'Membre VIP' } },
+      ],
       attributes: ['id', 'prenom', 'nom', 'email'],
     });
 
-    let sent = 0, errors = 0;
+    let sent = 0,
+      errors = 0;
     const results = [];
     for (const c of contacts) {
       try {
@@ -90,12 +95,24 @@ exports.sendBirthdaysToday = async (req, res, next) => {
           contenu_html: `<p>Joyeux anniversaire ${c.prenom} ${c.nom} 🎉</p><p>Toute l'équipe vous souhaite une merveilleuse journée.</p>`,
           contenu_texte: `Joyeux anniversaire ${c.prenom} ${c.nom} !`,
         };
-        const envoiShim = { contact_id: c.id, email_destinataire: c.email, token_tracking: `bday-${c.id}-${Date.now()}` };
+        const envoiShim = {
+          contact_id: c.id,
+          email_destinataire: c.email,
+          token_tracking: `bday-${c.id}-${Date.now()}`,
+        };
         await emailService.envoyerEmail(campagneShim, envoiShim);
         sent++;
         results.push({ id: c.id, email: c.email, status: 'sent' });
         try {
-          await EnvoiEmail.create({ campagne_id: null, contact_id: c.id, email_destinataire: c.email, statut: 'envoyé', date_envoi: new Date(), token_tracking: envoiShim.token_tracking, actif: true });
+          await EnvoiEmail.create({
+            campagne_id: null,
+            contact_id: c.id,
+            email_destinataire: c.email,
+            statut: 'envoyé',
+            date_envoi: new Date(),
+            token_tracking: envoiShim.token_tracking,
+            actif: true,
+          });
         } catch {}
       } catch (e) {
         errors++;

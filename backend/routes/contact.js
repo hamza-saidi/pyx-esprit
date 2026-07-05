@@ -29,7 +29,11 @@ router.delete('/tags/:id', requireAuthAndTenant, tagController.delete);
 
 // ── Segments sub-resource (was /api/segments) ─────────────────────────────────
 router.post('/segments/preview-count', requireAuthAndTenant, segmentController.previewCount);
-router.post('/segments/:id/detach-campaigns', requireAuthAndTenant, segmentController.detachCampaigns);
+router.post(
+  '/segments/:id/detach-campaigns',
+  requireAuthAndTenant,
+  segmentController.detachCampaigns
+);
 router.get('/segments/:id/contacts', requireAuthAndTenant, segmentController.getContacts);
 router.post('/segments', requireAuthAndTenant, segmentController.create);
 router.get('/segments', requireAuthAndTenant, segmentController.getAll);

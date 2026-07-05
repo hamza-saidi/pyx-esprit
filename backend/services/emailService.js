@@ -724,7 +724,8 @@ class EmailService {
     const effectiveProvider =
       club?.email_provider ||
       (club?.azure_tenant_id ? 'graph' : null) ||
-      (emailConfig.provider || 'smtp');
+      emailConfig.provider ||
+      'smtp';
 
     if (effectiveProvider === 'graph' && club?.azure_tenant_id) {
       return this.envoyerEmailViaGraph(campagne, envoi, htmlContent, club);
@@ -794,9 +795,7 @@ class EmailService {
 
   // Send a diagnostic test email using the club's current (or draft) settings.
   async sendTestEmail(toEmail, club, smtpOverride = null) {
-    const effectiveProvider =
-      club?.email_provider ||
-      (club?.azure_tenant_id ? 'graph' : 'smtp');
+    const effectiveProvider = club?.email_provider || (club?.azure_tenant_id ? 'graph' : 'smtp');
 
     const fromAddress = club?.email_from_address || emailConfig.from;
     const fromName = club?.email_from_name;
@@ -839,7 +838,10 @@ class EmailService {
       transporter = this._getTransporterForClub(club);
     }
 
-    if (!transporter) throw new Error('Aucun transporteur SMTP configuré. Veuillez sauvegarder vos paramètres SMTP d\'abord.');
+    if (!transporter)
+      throw new Error(
+        "Aucun transporteur SMTP configuré. Veuillez sauvegarder vos paramètres SMTP d'abord."
+      );
     const info = await transporter.sendMail({ from, to: toEmail, subject, html });
     return { success: true, messageId: info?.messageId };
   }

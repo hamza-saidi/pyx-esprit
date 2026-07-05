@@ -99,8 +99,6 @@ exports.create = async (req, res) => {
           allAddedTagNames.push(...addedTags.map((t) => t.nom));
         }
 
-
-
         if (allAddedTagNames.length > 0) {
           automationService.triggerAutomation('tag_added', { contact, tagNames: allAddedTagNames });
         }
@@ -279,12 +277,7 @@ const getContactsWhereClause = async (query) => {
               crit = {};
             }
           const sw = {};
-          [
-            'type_client',
-            'ville',
-            'nationalite',
-            'actif',
-          ].forEach((k) => {
+          ['type_client', 'ville', 'nationalite', 'actif'].forEach((k) => {
             if (crit[k] !== undefined && crit[k] !== '') sw[k] = crit[k];
           });
           if (Array.isArray(crit.tag_ids) && crit.tag_ids.length > 0) {
@@ -375,9 +368,7 @@ exports.getObsoleteEmails = async (req, res) => {
 
     const contacts = await Contact.findAll({
       where: { id: { [Op.in]: contactIds } },
-      include: [
-        { model: Tag, as: 'tags', through: { attributes: [] } },
-      ],
+      include: [{ model: Tag, as: 'tags', through: { attributes: [] } }],
     });
 
     res.json({ total: contacts.length, data: contacts });
@@ -790,9 +781,7 @@ exports.exportCsv = async (req, res) => {
 
     const contacts = await Contact.findAll({
       where,
-      include: [
-        { model: Tag, as: 'tags', through: { attributes: [] } },
-      ],
+      include: [{ model: Tag, as: 'tags', through: { attributes: [] } }],
       order: [['date_creation', 'DESC']],
     });
 
@@ -843,9 +832,7 @@ exports.exportExcel = async (req, res) => {
 
     const contacts = await Contact.findAll({
       where,
-      include: [
-        { model: Tag, as: 'tags', through: { attributes: [] } },
-      ],
+      include: [{ model: Tag, as: 'tags', through: { attributes: [] } }],
       order: [['date_creation', 'DESC']],
     });
 
@@ -978,7 +965,6 @@ exports.exportTemplate = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
 
 /**
  * GET /api/contacts/health/stats

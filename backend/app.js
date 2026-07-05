@@ -49,14 +49,17 @@ app.use(cookieParser());
 
 // ── Global API rate limit: 300 req/min per IP ─────────────────────────────────
 const rateLimit = require('express-rate-limit');
-app.use('/api', rateLimit({
-  windowMs: 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: 'Trop de requêtes — réessayez dans une minute.' },
-  skip: (req) => req.method === 'OPTIONS',
-}));
+app.use(
+  '/api',
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Trop de requêtes — réessayez dans une minute.' },
+    skip: (req) => req.method === 'OPTIONS',
+  })
+);
 
 // ── Pagination guard: cap ?limit at 200 ───────────────────────────────────────
 app.use((req, _res, next) => {
@@ -94,15 +97,27 @@ app.get('/api-docs', (req, res) => {
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   const checks = { status: 'ok', db: 'ok', redis: 'ok', uptime: process.uptime() };
-  try { await sequelize.authenticate(); } catch { checks.db = 'error'; checks.status = 'degraded'; }
+  try {
+    await sequelize.authenticate();
+  } catch {
+    checks.db = 'error';
+    checks.status = 'degraded';
+  }
   try {
     const Redis = require('ioredis');
     const r = process.env.REDIS_URL
       ? new Redis(process.env.REDIS_URL)
-      : new Redis({ host: process.env.REDIS_HOST || '127.0.0.1', port: Number(process.env.REDIS_PORT || 6379), lazyConnect: true });
+      : new Redis({
+          host: process.env.REDIS_HOST || '127.0.0.1',
+          port: Number(process.env.REDIS_PORT || 6379),
+          lazyConnect: true,
+        });
     await r.ping();
     r.disconnect();
-  } catch { checks.redis = 'error'; checks.status = 'degraded'; }
+  } catch {
+    checks.redis = 'error';
+    checks.status = 'degraded';
+  }
   res.status(checks.status === 'ok' ? 200 : 503).json(checks);
 });
 
