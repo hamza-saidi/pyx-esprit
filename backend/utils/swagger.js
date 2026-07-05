@@ -8,9 +8,9 @@
 const openApiSpec = {
   openapi: '3.0.0',
   info: {
-    title: 'Golf Huub Marketing API',
+    title: 'Pylon Pyx Marketing API',
     version: '1.0.0',
-    description: 'API documentation for the Golf Huub marketing automation platform.',
+    description: 'API documentation for the Pylon Pyx email marketing automation platform.',
   },
   servers: [
     {

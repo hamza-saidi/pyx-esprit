@@ -99,11 +99,7 @@ exports.create = async (req, res) => {
           allAddedTagNames.push(...addedTags.map((t) => t.nom));
         }
 
-        // Add CMT2026 and Golfeurs Allemagne tags for public registrations
-        if (isPublicRegistration) {
-          allAddedTagNames.push(...(await ensureTag(contact, 'CMT2026')));
-          allAddedTagNames.push(...(await ensureTag(contact, 'Golfeurs Allemagne')));
-        }
+
 
         if (allAddedTagNames.length > 0) {
           automationService.triggerAutomation('tag_added', { contact, tagNames: allAddedTagNames });
@@ -157,20 +153,7 @@ const getContactsWhereClause = async (query) => {
   if (entreprise) whereConditions.push({ entreprise: { [Op.like]: `%${entreprise}%` } });
 
   if (onlyMembers === 'true' || onlyMembers === true) {
-    whereConditions.push({
-      [Op.or]: [
-        { statut_abonnement: { [Op.ne]: 'aucun' } },
-        {
-          id: {
-            [Op.in]: sequelize.literal(`(
-              SELECT ct.contact_id FROM contact_tag ct
-              INNER JOIN tag t ON t.id = ct.tag_id
-              WHERE t.nom = 'ABONNES GOLF CITRUS'
-            )`),
-          },
-        },
-      ],
-    });
+    whereConditions.push({ statut_abonnement: { [Op.ne]: 'aucun' } });
   }
 
   // 2. Search

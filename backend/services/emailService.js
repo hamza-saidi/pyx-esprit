@@ -1085,14 +1085,14 @@ class EmailService {
 
       if (!baseUrl) return html;
 
-      // 1. Replace localhost URLs: http://localhost:51000/api/... -> https://crm2.citrusgolfclub.com/api/...
+      // 1. Replace localhost URLs with the configured BACKEND_URL
       // This handles any port and any path starting with /api/
       const localhostPattern = /https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/api\/[^"'\s<>\)]+)/gi;
       let processedHtml = html.replace(localhostPattern, (match, host, port, path) => {
         return `${baseUrl}${path}`;
       });
 
-      // 2. Replace relative paths: src="/api/..." -> src="https://crm2.citrusgolfclub.com/api/..."
+      // 2. Replace relative paths with the configured BACKEND_URL
       // Covers src and href attributes for images, links, etc.
       const relativePattern = /(src|href)=["'](\/(api|uploads|logo\.svg)[^"'\s<>\)]+)["']/gi;
       processedHtml = processedHtml.replace(relativePattern, (match, attr, path) => {

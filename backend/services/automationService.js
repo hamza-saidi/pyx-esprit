@@ -325,7 +325,7 @@ class AutomationService {
           ${message.replace(/\n/g, '<br>')}
         </div>
         <div style="border-top: 1px solid #eee; padding-top: 20px; font-size: 12px; color: #888; text-align: center;">
-          Sent via <strong>Golf Huub Automations</strong>
+          Sent via <strong>Pylon Pyx</strong>
         </div>
       </div>
     </body>

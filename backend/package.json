@@ -1,7 +1,7 @@
 {
   "name": "pylon-pyx-backend",
   "version": "1.0.0",
-  "description": "Golf Club Marketing Platform Backend",
+  "description": "Pylon Pyx — Email Marketing Platform Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

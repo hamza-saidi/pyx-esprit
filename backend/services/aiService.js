@@ -31,11 +31,11 @@ exports.suggestCampaign = async ({ eventType, audience, recipientCount, tone, co
   const eventLabel = EVENT_LABELS[eventType] || eventType;
   const toneLabel = TONE_LABELS[tone] || 'amical et chaleureux';
 
-  const userPrompt = `Tu génères un email marketing pour un club de golf.
+  const userPrompt = `Tu génères un email marketing professionnel.
 
 Paramètres:
 - Occasion: ${eventLabel}
-- Destinataires: ${audience || 'membres du club'}${recipientCount ? ` (${recipientCount} contacts)` : ''}
+- Destinataires: ${audience || 'contacts de la liste'}${recipientCount ? ` (${recipientCount} contacts)` : ''}
 - Ton: ${toneLabel}
 ${context ? `- Contexte: ${context}` : ''}
 
@@ -44,17 +44,17 @@ Génère:
 2. Le contenu HTML complet de l'email
 
 Structure de l'email attendue:
-- Salutation personnalisée (utilise "Cher(e) membre" ou similaire)
+- Salutation personnalisée (utilise "Bonjour" ou similaire)
 - Corps principal: 2-3 paragraphes pertinents et engageants
 - Un bouton d'appel à l'action clair
-- Signature du club
+- Signature de l'expéditeur
 
 Contraintes HTML:
 - Compatible email (balises: div, h2, p, strong, em, ul, li, a, br)
 - Style inline pour les éléments clés
 - Bouton CTA: style="display:inline-block;background:#2563eb;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px"
 - Wrapper: style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;line-height:1.6"
-- En français, adapté au contexte d'un club de golf professionnel
+- En français
 
 Réponds UNIQUEMENT avec un objet JSON (pas de markdown, pas de code block):
 {"sujet":"...","html":"..."}`;
@@ -71,7 +71,7 @@ Réponds UNIQUEMENT avec un objet JSON (pas de markdown, pas de code block):
         {
           role: 'system',
           content:
-            'Tu es un expert en email marketing pour clubs de golf. Tu génères des emails professionnels et engageants en français. Tu réponds UNIQUEMENT en JSON valide, sans markdown ni code block.',
+            "Tu es un expert en email marketing. Tu génères des emails professionnels et engageants en français. Tu réponds UNIQUEMENT en JSON valide, sans markdown ni code block.",
         },
         { role: 'user', content: userPrompt },
       ],
