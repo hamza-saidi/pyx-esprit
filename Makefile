@@ -43,6 +43,9 @@ test: ## Lancer les tests Jest (dans le conteneur backend)
 test-cov: ## Tests Jest avec rapport de couverture
 	docker compose run --rm backend npm run test:coverage
 
+smoke: ## Smoke test — vérifier toutes les fonctionnalités en 1 commande
+	docker compose exec backend node smoke-test.js
+
 lint: ## ESLint backend
 	docker compose run --rm backend npm run lint
 
