@@ -95,6 +95,160 @@ const EmptyChart = ({ message, actionLabel, actionPath }) => {
   );
 };
 
+const ONBOARDING_STEPS = [
+  {
+    num: 1,
+    title: 'Configurez votre expéditeur',
+    desc: 'Connectez SMTP, SendGrid ou Microsoft 365 pour envoyer depuis votre propre domaine.',
+    path: '/settings',
+    cta: 'Configurer',
+    time: '3 min',
+  },
+  {
+    num: 2,
+    title: 'Importez vos premiers contacts',
+    desc: 'Chargez un fichier CSV ou ajoutez des contacts manuellement.',
+    path: '/contacts',
+    cta: 'Importer',
+    time: '5 min',
+  },
+  {
+    num: 3,
+    title: 'Choisissez un modèle d\'email',
+    desc: 'Parcourez la bibliothèque ou créez le vôtre avec l\'assistant IA.',
+    path: '/templates',
+    cta: 'Voir les modèles',
+    time: '10 min',
+  },
+  {
+    num: 4,
+    title: 'Envoyez votre première campagne',
+    desc: 'Sélectionnez une audience et envoyez immédiatement ou planifiez.',
+    path: '/composer',
+    cta: 'Créer',
+    time: '5 min',
+  },
+];
+
+const OnboardingBanner = ({ totalAudience }) => {
+  const navigate = useNavigate();
+  const [dismissed, setDismissed] = React.useState(
+    () => localStorage.getItem('pylon_onboarding_dismissed') === '1'
+  );
+
+  if (dismissed || totalAudience > 0) return null;
+
+  const dismiss = () => {
+    localStorage.setItem('pylon_onboarding_dismissed', '1');
+    setDismissed(true);
+  };
+
+  return (
+    <Box
+      sx={{
+        mb: 4,
+        border: '1px solid #e2e8f0',
+        borderRadius: 3,
+        overflow: 'hidden',
+        bgcolor: '#fff',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      }}
+    >
+      <Box
+        sx={{
+          px: 3,
+          py: 2,
+          bgcolor: '#f8fafc',
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Box>
+          <Typography fontWeight={700} fontSize={15} color="#0f172a">
+            Démarrer avec Pylon Pyx
+          </Typography>
+          <Typography fontSize={12.5} color="#64748b">
+            Complétez ces étapes pour envoyer votre première campagne.
+          </Typography>
+        </Box>
+        <Button
+          size="small"
+          onClick={dismiss}
+          sx={{ color: '#94a3b8', fontSize: 12, textTransform: 'none', minWidth: 0 }}
+        >
+          Ignorer
+        </Button>
+      </Box>
+
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+        }}
+      >
+        {ONBOARDING_STEPS.map((step, i) => (
+          <Box
+            key={step.num}
+            sx={{
+              p: 2.5,
+              borderRight: { sm: i < ONBOARDING_STEPS.length - 1 ? '1px solid #e2e8f0' : 'none' },
+              borderBottom: { xs: i < ONBOARDING_STEPS.length - 1 ? '1px solid #e2e8f0' : 'none', sm: 'none' },
+            }}
+          >
+            <Box
+              sx={{
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                bgcolor: '#f1f5f9',
+                border: '1.5px solid #cbd5e1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                fontWeight: 800,
+                color: '#64748b',
+                mb: 1.5,
+              }}
+            >
+              {step.num}
+            </Box>
+            <Typography fontWeight={700} fontSize={13} color="#0f172a" mb={0.5}>
+              {step.title}
+            </Typography>
+            <Typography fontSize={12} color="#64748b" lineHeight={1.55} mb={1.5}>
+              {step.desc}
+            </Typography>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => navigate(step.path)}
+                sx={{
+                  fontSize: 11.5,
+                  textTransform: 'none',
+                  py: 0.5,
+                  px: 1.5,
+                  borderColor: '#0969da',
+                  color: '#0969da',
+                  '&:hover': { bgcolor: '#f0f7ff' },
+                }}
+              >
+                {step.cta}
+              </Button>
+              <Typography fontSize={11} color="#94a3b8">
+                ~{step.time}
+              </Typography>
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({ loading: true, data: null });
@@ -228,6 +382,9 @@ const Dashboard = () => {
           ))}
         </Box>
       )}
+
+      {/* Onboarding */}
+      <OnboardingBanner totalAudience={totalAudience} />
 
       {/* KPI Cards */}
       <Grid container spacing={3} mb={4}>

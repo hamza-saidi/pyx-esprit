@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Typography, Grid, Card, CardContent, Switch, CircularProgress, 
   Alert, Tooltip as MuiTooltip, Button, Dialog, DialogTitle, DialogContent,
@@ -23,6 +24,7 @@ import { useToast } from '../context/ToastContext';
 
 const AutomationCard = ({ automation, onToggle, onDelete, onEdit }) => {
   const [toggling, setToggling] = useState(false);
+  const navigate = useNavigate();
 
   const handleToggle = async (e) => {
     const newStatus = e.target.checked;
@@ -127,15 +129,36 @@ const AutomationCard = ({ automation, onToggle, onDelete, onEdit }) => {
             </Typography>
           </Box>
           {config?.recurrence && config.recurrence !== 'once' && (
-            <Chip 
-              icon={<AutorenewIcon style={{ fontSize: '0.9rem' }} />} 
-              label={config.recurrence} 
-              size="small" 
+            <Chip
+              icon={<AutorenewIcon style={{ fontSize: '0.9rem' }} />}
+              label={config.recurrence}
+              size="small"
               variant="outlined"
               sx={{ borderStyle: 'dashed' }}
             />
           )}
         </Box>
+
+        {automation.type === 'birthday' && (
+          <Box mt={1.5}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => navigate('/birthdays')}
+              sx={{
+                fontSize: 11.5,
+                textTransform: 'none',
+                borderColor: '#0a84d6',
+                color: '#0a84d6',
+                py: 0.5,
+                px: 1.5,
+                '&:hover': { bgcolor: 'rgba(10,132,214,0.06)' },
+              }}
+            >
+              Anniversaires du jour →
+            </Button>
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
@@ -143,6 +166,7 @@ const AutomationCard = ({ automation, onToggle, onDelete, onEdit }) => {
 
 const Automations = () => {
   const toast = useToast();
+  const location = useLocation();
   const [automations, setAutomations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -192,6 +216,12 @@ const Automations = () => {
     fetchAutomations();
     fetchDependencies();
   }, []);
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('create') === '1') {
+      setOpenBuilder(true);
+    }
+  }, [location.search]);
 
   const handleToggle = async (id, actif) => {
     try {

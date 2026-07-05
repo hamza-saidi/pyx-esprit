@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchUsers, addUser, deleteUser } from '../features/users/usersSlice';
 import {
@@ -15,6 +16,8 @@ const Users = () => {
   const [form, setForm] = useState({ nom: '', email: '', mot_de_passe: '', role: 'user' });
   const [formError, setFormError] = useState('');
 
+  const location = useLocation();
+
   useEffect(() => { dispatch(fetchUsers()); }, [dispatch]);
 
   const handleOpen = () => {
@@ -22,6 +25,12 @@ const Users = () => {
     setFormError('');
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('create') === '1') {
+      handleOpen();
+    }
+  }, [location.search]);
 
   const handleClose = () => {
     setOpen(false);

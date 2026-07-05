@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchContacts,
@@ -50,6 +50,13 @@ const Members = () => {
   const [pageSize, setPageSize] = useState(25);
   const [selectedIds, setSelectedIds] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('create') === '1') {
+      setOpen(true);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     dispatch(fetchTags());

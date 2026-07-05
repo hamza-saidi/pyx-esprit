@@ -11,13 +11,9 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import ContactsIcon from '@mui/icons-material/Contacts';
 import LabelIcon from '@mui/icons-material/Label';
-import GroupWorkIcon from '@mui/icons-material/GroupWork';
 import EmailIcon from '@mui/icons-material/Email';
 import BarChartIcon from '@mui/icons-material/BarChart';
-import CakeIcon from '@mui/icons-material/Cake';
-import ArticleIcon from '@mui/icons-material/Article';
 import PeopleIcon from '@mui/icons-material/People';
-import StarIcon from '@mui/icons-material/Star';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
@@ -29,39 +25,32 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 const SIDEBAR_EXPANDED = 252;
 const SIDEBAR_COLLAPSED = 72;
 
+// matchPaths: paths that should highlight this nav item as active
 const NAV_SECTIONS = [
   {
-    title: 'Vue d\'ensemble',
+    title: null,
     items: [
-      { label: 'Tableau de bord', path: '/', icon: <DashboardIcon /> },
+      { label: 'Accueil', path: '/', icon: <DashboardIcon /> },
+    ],
+  },
+  {
+    title: 'Engager',
+    items: [
+      { label: 'Campagnes', path: '/campagnes', icon: <EmailIcon />, matchPaths: ['/campagnes', '/composer'] },
+      { label: 'Automatisations', path: '/automations', icon: <AutorenewIcon />, matchPaths: ['/automations', '/birthdays'] },
     ],
   },
   {
     title: 'Audience',
     items: [
       { label: 'Contacts', path: '/contacts', icon: <ContactsIcon /> },
-      { label: 'Étiquettes', path: '/tags', icon: <LabelIcon /> },
-      { label: 'Segments', path: '/segments', icon: <GroupWorkIcon /> },
-      { label: 'Santé', path: '/health', icon: <AutoFixHighIcon /> },
+      { label: 'Tags & Segments', path: '/tags', icon: <LabelIcon />, matchPaths: ['/tags', '/segments'] },
+      { label: 'Santé de liste', path: '/health', icon: <AutoFixHighIcon /> },
+      { label: 'Membres', path: '/members', icon: <VerifiedUserIcon />, matchPaths: ['/members', '/membership-plans'] },
     ],
   },
   {
-    title: 'Membres',
-    items: [
-      { label: 'Membres', path: '/members', icon: <VerifiedUserIcon /> },
-      { label: 'Plans', path: '/membership-plans', icon: <StarIcon /> },
-    ],
-  },
-  {
-    title: 'Marketing',
-    items: [
-      { label: 'Campagnes', path: '/campagnes', icon: <EmailIcon /> },
-      { label: 'Modèles', path: '/templates', icon: <ArticleIcon /> },
-      { label: 'Automatisations', path: '/automations', icon: <AutorenewIcon /> },
-    ],
-  },
-  {
-    title: 'Analytique',
+    title: 'Analyser',
     items: [
       { label: 'Statistiques', path: '/statistics', icon: <BarChartIcon /> },
     ],
@@ -69,7 +58,7 @@ const NAV_SECTIONS = [
 ];
 
 const ADMIN_NAV_ITEMS = [
-  { label: 'Utilisateurs', path: '/users', icon: <PeopleIcon /> },
+  { label: 'Équipe', path: '/users', icon: <PeopleIcon /> },
   { label: 'Paramètres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
@@ -79,10 +68,6 @@ const SUPERADMIN_NAV_ITEMS = [
 
 const PAGE_ACTIONS = {
   '/contacts': { label: 'Nouveau contact', path: '/contacts?create=1' },
-  '/tags': { label: 'Nouvelle étiquette', path: '/tags?create=1' },
-  '/segments': { label: 'Nouveau segment', path: '/segments?create=1' },
-  '/campagnes': { label: 'Nouvelle campagne', path: '/composer' },
-  '/templates': { label: 'Nouveau modèle', path: '/templates?create=1' },
   '/automations': { label: 'Nouvelle automation', path: '/automations?create=1' },
   '/members': { label: 'Nouveau membre', path: '/members?create=1' },
   '/membership-plans': { label: 'Nouveau plan', path: '/membership-plans?create=1' },
@@ -92,25 +77,32 @@ const PAGE_ACTIONS = {
 const PAGE_META = {
   '/': { title: 'Tableau de bord', subtitle: 'Vue d\'ensemble de votre activité' },
   '/contacts': { title: 'Contacts', subtitle: 'Gérez votre audience' },
-  '/tags': { title: 'Étiquettes', subtitle: 'Catégorisez vos contacts' },
+  '/tags': { title: 'Tags & Segments', subtitle: 'Étiquettes et groupes dynamiques' },
   '/segments': { title: 'Segments', subtitle: 'Groupes dynamiques' },
-  '/health': { title: 'Santé de l\'audience', subtitle: 'Qualité de votre liste' },
-  '/members': { title: 'Membres', subtitle: 'Licenciés du club' },
+  '/health': { title: 'Santé de liste', subtitle: 'Qualité et engagement de votre audience' },
+  '/members': { title: 'Membres', subtitle: 'Membres & abonnements' },
   '/membership-plans': { title: 'Plans d\'abonnement', subtitle: 'Formules et tarifs' },
-  '/campagnes': { title: 'Campagnes', subtitle: 'Envois d\'emails en masse' },
+  '/campagnes': { title: 'Campagnes', subtitle: 'Envois d\'emails' },
   '/templates': { title: 'Modèles', subtitle: 'Bibliothèque de designs' },
   '/automations': { title: 'Automatisations', subtitle: 'Emails déclenchés automatiquement' },
   '/birthdays': { title: 'Anniversaires', subtitle: 'Emails d\'anniversaire automatiques' },
   '/statistics': { title: 'Statistiques', subtitle: 'Performance de vos campagnes' },
-  '/users': { title: 'Utilisateurs', subtitle: 'Gestion des accès' },
+  '/users': { title: 'Équipe', subtitle: 'Gestion des accès et des rôles' },
   '/settings': { title: 'Paramètres', subtitle: 'Compte email et configuration' },
   '/composer': { title: 'Éditeur', subtitle: 'Créer un email' },
   '/superadmin': { title: 'Console Pylon', subtitle: 'Administration globale de la plateforme SaaS' },
 };
 
+const isNavActive = (item, pathname) => {
+  const paths = item.matchPaths || [item.path];
+  return paths.some((p) =>
+    p === '/' ? pathname === '/' : pathname === p || pathname.startsWith(p + '/')
+  );
+};
+
 const NavItem = ({ item, expanded }) => {
   const location = useLocation();
-  const active = location.pathname === item.path;
+  const active = isNavActive(item, location.pathname);
 
   return (
     <ListItem
@@ -222,26 +214,75 @@ const MainLayout = () => {
         )}
       </Box>
 
+      {/* Quick action */}
+      <Box sx={{ px: 1.25, pt: 1.5, pb: 0.5, flexShrink: 0 }}>
+        {expanded ? (
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={() => navigate('/campagnes?create=1')}
+            sx={{
+              bgcolor: '#38bdf8',
+              color: '#0b1120',
+              fontWeight: 700,
+              fontSize: 13,
+              borderRadius: '8px',
+              textTransform: 'none',
+              justifyContent: 'flex-start',
+              px: 1.75,
+              minHeight: 36,
+              gap: 0.75,
+              '&:hover': { bgcolor: '#7dd3fc' },
+              '& .MuiButton-startIcon': { mr: 0 },
+            }}
+            startIcon={<AddIcon sx={{ fontSize: '18px !important' }} />}
+          >
+            Créer une campagne
+          </Button>
+        ) : (
+          <Tooltip title="Créer une campagne" placement="right">
+            <Box
+              onClick={() => navigate('/campagnes?create=1')}
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: '8px',
+                bgcolor: '#38bdf8',
+                color: '#0b1120',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                mx: 'auto',
+                '&:hover': { bgcolor: '#7dd3fc' },
+              }}
+            >
+              <AddIcon sx={{ fontSize: 20 }} />
+            </Box>
+          </Tooltip>
+        )}
+      </Box>
+
       {/* Nav */}
       <Box
         sx={{
           flexGrow: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
-          py: 2,
+          py: 1.5,
           px: 1.25,
           '&::-webkit-scrollbar': { width: '3px' },
           '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.1)', borderRadius: '3px' },
         }}
       >
         {NAV_SECTIONS.map((section, sIdx) => (
-          <Box key={section.title} sx={{ mb: 1.5 }}>
-            {expanded ? (
+          <Box key={sIdx} sx={{ mb: 1 }}>
+            {expanded && section.title && (
               <Typography
                 sx={{
                   px: 1.5,
                   pb: 0.5,
-                  pt: sIdx > 0 ? 1 : 0,
+                  pt: sIdx > 0 ? 1.25 : 0,
                   display: 'block',
                   color: '#334155',
                   fontWeight: 700,
@@ -252,8 +293,9 @@ const MainLayout = () => {
               >
                 {section.title}
               </Typography>
-            ) : (
-              sIdx > 0 && <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', my: 1 }} />
+            )}
+            {!expanded && sIdx > 0 && (
+              <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', my: 1 }} />
             )}
             <List sx={{ p: 0 }}>
               {section.items.map((item) => (

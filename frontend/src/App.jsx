@@ -29,8 +29,7 @@ const PageLoader = () => (
 );
 
 const Contacts = React.lazy(() => import('./pages/Contacts'));
-const Tags = React.lazy(() => import('./pages/Tags'));
-const Segments = React.lazy(() => import('./pages/Segments'));
+const TagsAndSegmentsHub = React.lazy(() => import('./pages/TagsAndSegmentsHub'));
 const Campagnes = React.lazy(() => import('./pages/Campaigns'));
 const Statistics = React.lazy(() => import('./pages/Statistics'));
 const Birthdays = React.lazy(() => import('./pages/Birthdays'));
@@ -41,8 +40,7 @@ const AudienceHealth = React.lazy(() => import('./pages/AudienceHealth'));
 const PublicRegister = React.lazy(() => import('./pages/PublicRegister'));
 const Unsubscribe = React.lazy(() => import('./pages/Unsubscribe'));
 const Automations = React.lazy(() => import('./pages/Automations'));
-const MembershipPlans = React.lazy(() => import('./pages/MembershipPlans'));
-const Members = React.lazy(() => import('./pages/Members'));
+const MembersAndPlansHub = React.lazy(() => import('./pages/MembersAndPlansHub'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const SuperAdmin = React.lazy(() => import('./pages/SuperAdmin'));
 
@@ -67,15 +65,15 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="contacts" element={<Contacts />} />
               <Route path="health" element={<AudienceHealth />} />
-              <Route path="tags" element={<Tags />} />
-              <Route path="segments" element={<Segments />} />
+              <Route path="tags" element={<TagsAndSegmentsHub />} />
+              <Route path="segments" element={<TagsAndSegmentsHub />} />
               <Route path="campagnes" element={<Campagnes />} />
               <Route path="automations" element={<Automations />} />
               <Route path="statistics" element={<Statistics />} />
               <Route path="birthdays" element={<Birthdays />} />
               <Route path="templates" element={<Templates />} />
-              <Route path="membership-plans" element={<MembershipPlans />} />
-              <Route path="members" element={<Members />} />
+              <Route path="membership-plans" element={<MembersAndPlansHub />} />
+              <Route path="members" element={<MembersAndPlansHub />} />
               <Route path="composer" element={<EmailComposer />} />
               <Route path="users" element={<Users />} />
               <Route path="settings" element={<Settings />} />

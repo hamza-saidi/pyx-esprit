@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   fetchCampaigns,
   addCampaign,
@@ -23,6 +23,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import EmailEditor from '../components/EmailEditor';
 import AIAssistDrawer from '../components/AIAssistDrawer';
 
@@ -58,6 +59,7 @@ const STATUS_LABELS = {
 
 const Campaigns = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { items, loading, error, recipientPreview, progress } = useSelector((state) => state.campaigns);
   const safeItems = Array.isArray(items) ? items : [];
   const tagsState = useSelector((state) => state.tags || { items: [] });
@@ -260,7 +262,11 @@ const Campaigns = () => {
                 <TableCell>Objet</TableCell>
                 <TableCell>Date d'envoi</TableCell>
                 <TableCell>Statut</TableCell>
-                <TableCell>Progression</TableCell>
+                <TableCell>
+                  <Tooltip title="Envois / Ouvertures / Clics">
+                    <span>Performances</span>
+                  </Tooltip>
+                </TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -299,18 +305,80 @@ const Campaigns = () => {
                         sx={{ fontWeight: 600, fontSize: 11 }}
                       />
                     </TableCell>
-                    <TableCell sx={{ minWidth: 120 }}>
+                    <TableCell sx={{ minWidth: 200 }}>
                       {prog && prog.total > 0 ? (
+                        /* Live progress during/after send */
                         <Box>
                           <LinearProgress
                             variant="determinate"
                             value={progPct}
-                            sx={{ height: 6, mb: 0.5 }}
+                            sx={{ height: 5, mb: 0.5, borderRadius: 3 }}
                           />
-                          <Typography variant="caption" color="text.secondary">
-                            {prog.envoyes}/{prog.total}
-                            {prog.erreurs > 0 && ` · ${prog.erreurs} err.`}
-                          </Typography>
+                          <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
+                            <Typography variant="caption" color="text.secondary">
+                              {prog.envoyes}/{prog.total} envois
+                            </Typography>
+                            {prog.ouverts > 0 && (
+                              <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 600 }}>
+                                {prog.total > 0 ? `${Math.round((prog.ouverts / prog.total) * 100)}%` : '—'} ouv.
+                              </Typography>
+                            )}
+                            {prog.clics > 0 && (
+                              <Typography variant="caption" sx={{ color: '#2563eb', fontWeight: 600 }}>
+                                {prog.total > 0 ? `${Math.round((prog.clics / prog.total) * 100)}%` : '—'} clics
+                              </Typography>
+                            )}
+                            {prog.erreurs > 0 && (
+                              <Typography variant="caption" sx={{ color: '#dc2626' }}>
+                                {prog.erreurs} err.
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      ) : c.statut === 'envoyée' && c.statistiques ? (
+                        /* Stored stats for past sent campaigns */
+                        <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
+                          <Tooltip title="Emails envoyés">
+                            <Typography variant="caption" color="text.secondary">
+                              {(c.statistiques.nb_envoyes || 0).toLocaleString()} envois
+                            </Typography>
+                          </Tooltip>
+                          <Tooltip title="Taux d'ouverture">
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: '#16a34a',
+                                fontWeight: 700,
+                                bgcolor: '#f0fdf4',
+                                px: 0.75,
+                                py: 0.25,
+                                borderRadius: 1,
+                              }}
+                            >
+                              {c.statistiques.nb_envoyes > 0
+                                ? `${Math.round((c.statistiques.nb_ouverts / c.statistiques.nb_envoyes) * 100)}%`
+                                : '—'}{' '}
+                              ouv.
+                            </Typography>
+                          </Tooltip>
+                          <Tooltip title="Taux de clic">
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: '#2563eb',
+                                fontWeight: 700,
+                                bgcolor: '#eff6ff',
+                                px: 0.75,
+                                py: 0.25,
+                                borderRadius: 1,
+                              }}
+                            >
+                              {c.statistiques.nb_envoyes > 0
+                                ? `${Math.round((c.statistiques.nb_clics / c.statistiques.nb_envoyes) * 100)}%`
+                                : '—'}{' '}
+                              clics
+                            </Typography>
+                          </Tooltip>
                         </Box>
                       ) : (
                         <Typography fontSize={12} color="text.disabled">
@@ -318,7 +386,18 @@ const Campaigns = () => {
                         </Typography>
                       )}
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {c.statut === 'envoyée' && (
+                        <Tooltip title="Voir les statistiques">
+                          <IconButton
+                            size="small"
+                            onClick={() => navigate(`/statistics?campaignId=${c.id}`)}
+                            sx={{ color: '#2563eb' }}
+                          >
+                            <BarChartIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title="Modifier">
                         <IconButton size="small" onClick={() => handleOpen(c)}>
                           <EditIcon fontSize="small" />

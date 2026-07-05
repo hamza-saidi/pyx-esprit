@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Box, Typography, Button, Paper, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, CircularProgress, Grid,
@@ -19,10 +20,11 @@ import { useToast } from '../context/ToastContext';
 
 const MembershipPlans = () => {
   const toast = useToast();
+  const location = useLocation();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Form State
   const [open, setOpen] = useState(false);
   const [editPlan, setEditPlan] = useState(null);
@@ -55,6 +57,12 @@ const MembershipPlans = () => {
     }
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('create') === '1') {
+      handleOpen();
+    }
+  }, [location.search]);
 
   const handleSave = async () => {
     if (!form.nom) { toast.warning("Le nom est requis."); return; }

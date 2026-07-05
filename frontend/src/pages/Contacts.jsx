@@ -184,12 +184,6 @@ const Contacts = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [importForm, setImportForm] = useState({ file: null, batchTagIds: [], updateExisting: false });
 
-  // URL parameter sync (only for updates, initial state handled in useState)
-  useEffect(() => {
-    // Current state is initialized from URL. This hook could handle dynamically 
-    // changing URL params without full page reloads if needed.
-  }, [location.search]);
-
   const tableContainerRef = useRef(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [showObsoleteOnly, setShowObsoleteOnly] = useState(false);
@@ -274,6 +268,13 @@ const Contacts = () => {
     setEmailError('');
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('create') === '1') {
+      handleOpen();
+    }
+  }, [location.search]);
+
   const handleClose = () => setOpen(false);
 
   const handleChange = (e) => {
