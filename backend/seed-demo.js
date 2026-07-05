@@ -383,6 +383,25 @@ async function seed() {
   await db.sequelize.authenticate();
   console.log('✅ MySQL OK');
 
+  // ── Global Admin (Owner Platform) ─────────────────────────────────────────
+  // club_id = NULL : global_admin n'appartient à aucun tenant
+  const ownerHash = await bcrypt.hash('Owner2026!', 12);
+  await runWithTenant({ clubId: null, isSystem: true }, () =>
+    db.Utilisateur.findOrCreate({
+      where: { email: 'owner@pylon-pyx.com' },
+      defaults: {
+        nom: 'Pylon Owner',
+        email: 'owner@pylon-pyx.com',
+        mot_de_passe: ownerHash,
+        role: 'global_admin',
+        club_id: null,
+      },
+    })
+  );
+  // Ensure any existing global_admin has club_id = NULL
+  await db.sequelize.query("UPDATE utilisateur SET club_id = NULL WHERE role = 'global_admin'");
+  console.log('✅ Owner (global_admin) : owner@pylon-pyx.com / Owner2026!');
+
   // ── Club ──────────────────────────────────────────────────────────────────
   let club = await db.Club.findByPk(1);
   if (!club) {

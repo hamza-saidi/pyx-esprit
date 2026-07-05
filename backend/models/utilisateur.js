@@ -12,7 +12,7 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 'employee',
       },
       date_creation: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-      club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
+      club_id: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
     },
     {
       tableName: 'utilisateur',
