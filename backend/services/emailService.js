@@ -720,26 +720,37 @@ class EmailService {
     // Ajouter le tracking des clics (+ UTM)
     htmlContent = this.ajouterTrackingClics(htmlContent, envoi.token_tracking, campagne);
 
-    if ((emailConfig.provider || 'smtp') === 'graph') {
+    // Determine effective provider: club-level override > global config > fallback smtp
+    const effectiveProvider =
+      club?.email_provider ||
+      (club?.azure_tenant_id ? 'graph' : null) ||
+      (emailConfig.provider || 'smtp');
+
+    if (effectiveProvider === 'graph' && club?.azure_tenant_id) {
       return this.envoyerEmailViaGraph(campagne, envoi, htmlContent, club);
     }
 
+    const transporter = this._getTransporterForClub(club);
+    const fromAddress = club?.email_from_address || emailConfig.from;
+    const fromName = club?.email_from_name;
+    const from = fromName ? `"${fromName}" <${fromAddress}>` : fromAddress;
+
     const persistentAttachments = this._getCampaignAttachments(campagne);
     logger.debug(
-      `[EMAIL][SMTP] Sending email to ${envoi.email_destinataire} with ${persistentAttachments.length} attachment(s)`
+      `[EMAIL][SMTP] Sending to ${envoi.email_destinataire} (${persistentAttachments.length} attachments)`
     );
 
     const processed = this._processImagesAndInlining(htmlContent);
     htmlContent = processed.html;
 
     const mailOptions = {
-      from: emailConfig.from,
+      from,
       to: envoi.email_destinataire,
       subject: campagne.sujet,
       html: htmlContent,
       text: campagne.contenu_texte || this.htmlToText(htmlContent),
       headers: {
-        ...emailConfig.headers,
+        'X-Mailer': 'Pylon Pyx',
         'X-Campaign-ID': campagne.id,
         'X-Contact-ID': envoi.contact_id,
         'X-Tracking-Token': envoi.token_tracking,
@@ -754,13 +765,83 @@ class EmailService {
       ],
     };
 
-    const info = await this.transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
     try {
       logger.debug(
         `[SMTP] messageId=${info?.messageId} to=${envoi.email_destinataire} campagne=${campagne.id}`
       );
     } catch {}
     return info;
+  }
+
+  // Returns a nodemailer transporter configured for the given club's SMTP settings,
+  // falling back to the global transporter if the club has no settings.
+  _getTransporterForClub(club) {
+    if (club?.smtp_host && club?.smtp_user) {
+      return nodemailer.createTransport({
+        host: club.smtp_host,
+        port: club.smtp_port || 587,
+        secure: club.smtp_secure || false,
+        auth: {
+          user: club.smtp_user,
+          pass: club.smtp_pass || '',
+        },
+        tls: { rejectUnauthorized: false },
+      });
+    }
+    return this.transporter;
+  }
+
+  // Send a diagnostic test email using the club's current (or draft) settings.
+  async sendTestEmail(toEmail, club, smtpOverride = null) {
+    const effectiveProvider =
+      club?.email_provider ||
+      (club?.azure_tenant_id ? 'graph' : 'smtp');
+
+    const fromAddress = club?.email_from_address || emailConfig.from;
+    const fromName = club?.email_from_name;
+    const from = fromName ? `"${fromName}" <${fromAddress}>` : fromAddress;
+    const subject = '✅ Test de connexion email — Pylon Pyx';
+    const html = `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px;color:#0f172a">
+        <h2 style="margin:0 0 12px;font-size:20px">Connexion email vérifiée</h2>
+        <p style="color:#475569;line-height:1.6;margin:0 0 24px">
+          Votre configuration email fonctionne correctement.<br>
+          Les campagnes seront envoyées depuis <strong>${fromAddress}</strong>.
+        </p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 24px">
+        <p style="color:#94a3b8;font-size:12px;margin:0">
+          Envoyé depuis <strong>Pylon Pyx</strong> — plateforme d'email marketing
+        </p>
+      </div>`;
+
+    if (effectiveProvider === 'graph' && club?.azure_tenant_id) {
+      await this.envoyerEmailViaGraph(
+        { sujet: subject, contenu_html: html, id: 0, campagne_id: 0, attachments: null },
+        { email_destinataire: toEmail, token_tracking: 'test-email', contact_id: 0 },
+        html,
+        club
+      );
+      return { success: true };
+    }
+
+    // Use override SMTP if provided (for testing unsaved draft settings)
+    let transporter;
+    if (smtpOverride?.host && smtpOverride?.user) {
+      transporter = nodemailer.createTransport({
+        host: smtpOverride.host,
+        port: smtpOverride.port || 587,
+        secure: smtpOverride.secure || false,
+        auth: { user: smtpOverride.user, pass: smtpOverride.pass || '' },
+        tls: { rejectUnauthorized: false },
+      });
+    } else {
+      transporter = this._getTransporterForClub(club);
+    }
+
+    if (!transporter) throw new Error('Aucun transporteur SMTP configuré. Veuillez sauvegarder vos paramètres SMTP d\'abord.');
+    const info = await transporter.sendMail({ from, to: toEmail, subject, html });
+    return { success: true, messageId: info?.messageId };
   }
 
   // Fetch a Microsoft Graph access token for a specific tenant using the

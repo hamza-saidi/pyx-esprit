@@ -22,12 +22,12 @@ module.exports = {
     ignoreTLS: true,
   },
 
-  // Configuration de l'expéditeur
-  from: process.env.SMTP_FROM || process.env.GRAPH_FROM || 'noreply@golfclub.com',
+  // Configuration de l'expéditeur (fallback global — préférer les paramètres par organisation)
+  from: process.env.SMTP_FROM || process.env.GRAPH_FROM || 'noreply@example.com',
 
   // Configuration des en-têtes personnalisés
   headers: {
-    'X-Mailer': 'Golf Club Marketing Platform',
+    'X-Mailer': 'Pylon Pyx',
     'X-Priority': '3',
   },
 
@@ -47,7 +47,7 @@ module.exports = {
     clientSecret: process.env.GRAPH_CLIENT_SECRET || '',
     // Utilisateur/boîte aux lettres expéditeur: email ou id Graph
     senderUserId: process.env.GRAPH_SENDER_USER_ID || '',
-    senderEmail: process.env.GRAPH_SENDER_EMAIL || process.env.SMTP_FROM || 'noreply@golfclub.com',
+    senderEmail: process.env.GRAPH_SENDER_EMAIL || process.env.SMTP_FROM || 'noreply@example.com',
     saveToSentItems: (process.env.GRAPH_SAVE_TO_SENT_ITEMS || 'true') === 'true',
   },
 

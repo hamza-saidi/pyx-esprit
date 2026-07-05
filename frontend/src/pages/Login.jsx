@@ -71,16 +71,16 @@ const Login = () => {
               letterSpacing: '-0.03em',
             }}
           >
-            Gérez votre club,
+            Envoyez plus,
             <br />
             <Box component="span" sx={{ color: '#38bdf8' }}>
-              engagez
+              convertissez
             </Box>{' '}
-            votre audience.
+            mieux.
           </Typography>
           <Typography sx={{ color: '#64748b', mt: 2, fontSize: 14, lineHeight: 1.6 }}>
-            CRM email marketing conçu pour les clubs de golf — contacts,
-            membres, campagnes et automatisations dans un seul outil.
+            Plateforme d&apos;email marketing multi-tenant — contacts, segments,
+            campagnes et automatisations dans un seul outil.
           </Typography>
         </Box>
 

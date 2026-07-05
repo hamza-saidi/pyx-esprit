@@ -16,6 +16,15 @@ module.exports = (sequelize, DataTypes) => {
       azure_tenant_id: { type: DataTypes.STRING(36), allowNull: true, defaultValue: null },
       graph_from_email: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
       graph_consent_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
+      // Per-club email provider settings
+      email_provider: { type: DataTypes.STRING(50), allowNull: false, defaultValue: 'smtp' },
+      smtp_host: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+      smtp_port: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 587 },
+      smtp_secure: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: false },
+      smtp_user: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+      smtp_pass: { type: DataTypes.TEXT, allowNull: true, defaultValue: null },
+      email_from_address: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+      email_from_name: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
     },
     {
       tableName: 'club',

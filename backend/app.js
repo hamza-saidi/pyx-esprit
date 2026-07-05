@@ -118,6 +118,7 @@ app.use('/api/templates', require('./routes/template'));
 app.use('/api/mailer', require('./routes/mailer'));
 app.use('/api/tracking', require('./routes/tracking'));
 app.use('/api/superadmin', require('./routes/superadmin'));
+app.use('/api/settings', require('./routes/settings'));
 
 // Error handling middleware
 app.use(errorHandler);
