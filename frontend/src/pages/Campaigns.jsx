@@ -388,10 +388,10 @@ const Campaigns = () => {
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {c.statut === 'envoyée' && (
-                        <Tooltip title="Voir les statistiques">
+                        <Tooltip title="Voir le détail">
                           <IconButton
                             size="small"
-                            onClick={() => navigate(`/statistics?campaignId=${c.id}`)}
+                            onClick={() => navigate(`/campagnes/${c.id}`)}
                             sx={{ color: '#2563eb' }}
                           >
                             <BarChartIcon fontSize="small" />

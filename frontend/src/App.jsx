@@ -41,6 +41,7 @@ const PublicRegister = React.lazy(() => import('./pages/PublicRegister'));
 const Unsubscribe = React.lazy(() => import('./pages/Unsubscribe'));
 const Automations = React.lazy(() => import('./pages/Automations'));
 const MembersAndPlansHub = React.lazy(() => import('./pages/MembersAndPlansHub'));
+const CampaignDetail = React.lazy(() => import('./pages/CampaignDetail'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const SuperAdmin = React.lazy(() => import('./pages/SuperAdmin'));
 
@@ -68,6 +69,7 @@ function App() {
               <Route path="tags" element={<TagsAndSegmentsHub />} />
               <Route path="segments" element={<TagsAndSegmentsHub />} />
               <Route path="campagnes" element={<Campagnes />} />
+              <Route path="campagnes/:id" element={<CampaignDetail />} />
               <Route path="automations" element={<Automations />} />
               <Route path="statistics" element={<Statistics />} />
               <Route path="birthdays" element={<Birthdays />} />
