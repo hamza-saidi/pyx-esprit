@@ -1,0 +1,128 @@
+# ==========================================================
+# .github/workflows/cd.yml — Pylon Pyx CD Pipeline
+#
+# Déclenché : création d'un tag vX.Y.Z sur main
+#   git tag v1.2.0 && git push origin v1.2.0
+#
+# Ce workflow :
+#   1. Build et push les images taguées sur GHCR
+#   2. Déploie sur le VPS via SSH (si DEPLOY_HOST est configuré)
+#
+# Secrets GitHub à configurer (Settings → Secrets → Actions) :
+#   DEPLOY_HOST      — IP ou hostname du VPS
+#   DEPLOY_USER      — Utilisateur SSH (ex: ubuntu)
+#   DEPLOY_SSH_KEY   — Clé privée SSH (contenu complet)
+#   DEPLOY_PATH      — Chemin sur le VPS (ex: /opt/pylon-pyx)
+# ==========================================================
+
+name: CD · Deploy
+
+on:
+  push:
+    tags: [ 'v*.*.*' ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE: ghcr.io/${{ github.repository }}
+
+jobs:
+
+  # ── Build & tag versioned images ───────────────────────────
+  build-and-push:
+    name: Build & Push versioned images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.tag.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Extract version
+        id: tag
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}-backend:${{ steps.tag.outputs.version }}
+            ${{ env.IMAGE_BASE }}-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}-frontend:${{ steps.tag.outputs.version }}
+            ${{ env.IMAGE_BASE }}-frontend:latest
+          build-args: VITE_API_BASE_URL=/api
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Deploy to VPS ──────────────────────────────────────────
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    # Ne déploie que si DEPLOY_HOST est configuré (secret non vide)
+    if: ${{ secrets.DEPLOY_HOST != '' }}
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy docker-compose.prod.yml to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: docker-compose.prod.yml
+          target: ${{ secrets.DEPLOY_PATH }}
+
+      - name: Pull & restart containers
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # Pull nouvelles images
+            IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+            export IMAGE_TAG
+            export GITHUB_REPOSITORY=${{ github.repository }}
+
+            echo "Deploying version $IMAGE_TAG..."
+
+            docker compose -f docker-compose.prod.yml pull
+
+            # Run migrations avant de redémarrer le backend
+            docker compose -f docker-compose.prod.yml run --rm backend \
+              npx sequelize-cli db:migrate --env production
+
+            # Rolling restart (zero-downtime si plusieurs replicas)
+            docker compose -f docker-compose.prod.yml up -d --no-build
+
+            # Cleanup images anciennes (garde les 3 dernières)
+            docker image prune -f --filter "until=72h"
+
+            echo "Deploy complete: $IMAGE_TAG"

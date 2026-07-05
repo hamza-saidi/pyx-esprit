@@ -1,156 +1,210 @@
 # ==========================================================
-# .github/workflows/ci.yml — Golf Huub Backend CI Pipeline
-# 
+# .github/workflows/ci.yml — Pylon Pyx CI Pipeline
+#
 # Déclenché sur : push sur main/develop, et toute Pull Request
-# Ce pipeline garantit que :
-#   1. Le code respecte les règles ESLint
-#   2. Tous les tests Jest passent
-#   3. Le rapport de couverture est généré
+# Jobs :
+#   backend-lint   → ESLint backend
+#   backend-test   → Jest + migrations Sequelize (MySQL + Redis réels)
+#   frontend-build → Vite build check
+#   docker-build   → Validation Dockerfile backend + frontend
+#   push-images    → Push GHCR (push sur main uniquement)
 # ==========================================================
 
-name: 🧪 Backend CI — Lint & Tests
+name: CI
 
 on:
   push:
     branches: [ main, develop ]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main, develop ]
-    paths:
-      - 'backend/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE: ghcr.io/${{ github.repository }}
 
 jobs:
-  # ── Job 1 : Lint ───────────────────────────────────────────
-  lint:
-    name: 📋 ESLint Code Quality
+
+  # ── Backend lint ────────────────────────────────────────────
+  backend-lint:
+    name: Backend · ESLint
     runs-on: ubuntu-latest
-
     steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 🟢 Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: backend/package-lock.json
+      - run: cd backend && npm ci
+      - run: cd backend && npx eslint . --ext .js
 
-      - name: 📦 Install dependencies
-        run: cd backend && npm ci
-
-      - name: 🔍 Run ESLint
-        run: cd backend && npx eslint . --ext .js
-
-  # ── Job 2 : Tests Unitaires & Intégration ─────────────────
-  test:
-    name: 🧪 Jest Unit & Integration Tests
+  # ── Backend tests ────────────────────────────────────────────
+  backend-test:
+    name: Backend · Jest + Migrations
     runs-on: ubuntu-latest
-    needs: lint   # Les tests ne tournent que si le lint passe
+    needs: backend-lint
 
     services:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: ci_root_password
-          MYSQL_DATABASE: golf_marketing_test
+          MYSQL_ROOT_PASSWORD: ci_root
+          MYSQL_DATABASE: pylon_test
           MYSQL_USER: ci_user
-          MYSQL_PASSWORD: ci_password
-        ports:
-          - 3306:3306
+          MYSQL_PASSWORD: ci_pass
+        ports: [ "3306:3306" ]
         options: >-
           --health-cmd="mysqladmin ping -h localhost"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
-
       redis:
         image: redis:7-alpine
-        ports:
-          - 6379:6379
+        ports: [ "6379:6379" ]
         options: >-
           --health-cmd="redis-cli ping"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
 
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
+    env:
+      NODE_ENV: test
+      PORT: 5001
+      JWT_SECRET: ci-test-jwt-secret-at-least-32-chars-long
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-different-32chars
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: pylon_test
+      DB_USER: ci_user
+      DB_PASSWORD: ci_pass
+      DB_DIALECT: mysql
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      MAIL_PROVIDER: mock
+      FRONTEND_URL: http://localhost:3000
+      PUBLIC_BASE_URL: http://localhost:5001
 
-      - name: 🟢 Setup Node.js 20
-        uses: actions/setup-node@v4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: 📦 Install dependencies
+      - name: Install dependencies
         run: cd backend && npm ci
 
-      - name: ⏳ Wait for MySQL to be ready
-        run: |
-          until mysqladmin ping -h 127.0.0.1 -u ci_user -pci_password --silent; do
-            echo "Waiting for MySQL..."
-            sleep 2
-          done
+      - name: Bootstrap schema (base tables)
+        run: mysql -h 127.0.0.1 -u ci_user -pci_pass pylon_test < sql/golf_marketing_schema.sql
 
-      - name: 🗄️ Initialize test database schema
-        run: |
-          mysql -h 127.0.0.1 -u ci_user -pci_password golf_marketing_test < sql/golf_marketing_schema.sql || true
-        # "|| true" : ne pas échouer si le fichier SQL a déjà été importé
+      - name: Run Sequelize migrations
+        run: cd backend && npx sequelize-cli db:migrate --env test
+        # Teste que toutes les migrations s'appliquent proprement sur le schéma de base
 
-      - name: 🧪 Run Jest tests with coverage
-        env:
-          NODE_ENV: test
-          PORT: 5001
-          # JWT
-          JWT_SECRET: ci-test-jwt-secret-at-least-32-chars
-          JWT_REFRESH_SECRET: ci-test-refresh-secret-at-least-32
-          # Base de données de test
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_NAME: golf_marketing_test
-          DB_USER: ci_user
-          DB_PASSWORD: ci_password
-          DB_DIALECT: mysql
-          # Redis (BullMQ queue service + auth session)
-          REDIS_HOST: 127.0.0.1
-          REDIS_PORT: 6379
-          # Désactiver les emails pendant les tests
-          MAIL_PROVIDER: mock
-          FRONTEND_URL: http://localhost:3000
-          PUBLIC_BASE_URL: http://localhost:5001
+      - name: Run Jest tests
         run: cd backend && npm test -- --coverage --coverageReporters=text --coverageReporters=lcov
 
-      - name: 📊 Upload Coverage Report
+      - name: Upload coverage
         uses: actions/upload-artifact@v4
-        if: always()   # Même si les tests échouent, on veut voir le rapport
+        if: always()
         with:
           name: coverage-report
           path: backend/coverage/
           retention-days: 7
 
-  # ── Job 3 : Build Docker (validation que le Dockerfile est valide) ──
-  docker-build:
-    name: 🐳 Docker Build Validation
+  # ── Frontend build ────────────────────────────────────────────
+  frontend-build:
+    name: Frontend · Vite build
     runs-on: ubuntu-latest
-    needs: test
-
     steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - name: Build
+        run: cd frontend && npm run build
+        env:
+          VITE_API_BASE_URL: /api
 
-      - name: 🐳 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  # ── Docker build validation ────────────────────────────────────
+  docker-build:
+    name: Docker · Build validation
+    runs-on: ubuntu-latest
+    needs: [ backend-test, frontend-build ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
 
-      - name: 🔨 Build Backend Docker image (validation uniquement)
+      - name: Build backend image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          push: false   # Ne pas push sur Docker Hub, juste valider la compilation
-          tags: golf-huub-backend:ci-test
+          push: false
+          tags: pylon-pyx-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: pylon-pyx-frontend:ci
+          build-args: VITE_API_BASE_URL=/api
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Push to GHCR (main branch only) ───────────────────────────
+  push-images:
+    name: Docker · Push to GHCR
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.IMAGE_BASE }}-backend
+            ${{ env.IMAGE_BASE }}-frontend
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      - name: Push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ env.IMAGE_BASE }}-backend:latest,${{ env.IMAGE_BASE }}-backend:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ env.IMAGE_BASE }}-frontend:latest,${{ env.IMAGE_BASE }}-frontend:sha-${{ github.sha }}
+          build-args: VITE_API_BASE_URL=/api
           cache-from: type=gha
           cache-to: type=gha,mode=max
