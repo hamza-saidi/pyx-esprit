@@ -55,16 +55,15 @@ const OWNER_NAV_SECTIONS = [
   },
 ];
 
-// matchPaths: paths that should highlight this nav item as active
 const NAV_SECTIONS = [
   {
     title: null,
     items: [
-      { label: 'Accueil', path: '/', icon: <DashboardIcon /> },
+      { label: 'Home', path: '/', icon: <DashboardIcon /> },
     ],
   },
   {
-    title: 'Engager',
+    title: 'Campagnes',
     items: [
       { label: 'Campagnes', path: '/campagnes', icon: <EmailIcon />, matchPaths: ['/campagnes', '/composer'] },
       { label: 'Automatisations', path: '/automations', icon: <AutorenewIcon />, matchPaths: ['/automations', '/birthdays'] },
@@ -80,7 +79,7 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    title: 'Analyser',
+    title: 'Analytics',
     items: [
       { label: 'Statistiques', path: '/statistics', icon: <BarChartIcon /> },
     ],
@@ -92,10 +91,6 @@ const ADMIN_NAV_ITEMS = [
   { label: 'Paramètres', path: '/settings', icon: <SettingsIcon /> },
 ];
 
-const SUPERADMIN_NAV_ITEMS = [
-  { label: 'Console Pylon', path: '/superadmin', icon: <AdminPanelSettingsIcon /> },
-];
-
 const PAGE_ACTIONS = {
   '/contacts': { label: 'Nouveau contact', path: '/contacts?create=1' },
   '/automations': { label: 'Nouvelle automation', path: '/automations?create=1' },
@@ -105,7 +100,7 @@ const PAGE_ACTIONS = {
 };
 
 const PAGE_META = {
-  '/': { title: 'Tableau de bord', subtitle: 'Vue d\'ensemble de votre activité' },
+  '/': { title: 'Home', subtitle: 'Vue d\'ensemble de votre activité' },
   '/contacts': { title: 'Contacts', subtitle: 'Gérez votre audience' },
   '/tags': { title: 'Tags & Segments', subtitle: 'Étiquettes et groupes dynamiques' },
   '/segments': { title: 'Segments', subtitle: 'Groupes dynamiques' },
@@ -366,7 +361,7 @@ const MainLayout = () => {
                     display: 'block', color: '#334155', fontWeight: 700,
                     letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: 10.5,
                   }}>
-                    Admin
+                    Workspace
                   </Typography>
                 )}
                 {!expanded && <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', my: 1 }} />}
