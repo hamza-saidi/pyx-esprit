@@ -13,7 +13,7 @@ const Users = () => {
   const { items, loading, error } = useSelector((state) => state.users);
   const { user } = useSelector((state) => state.auth);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nom: '', email: '', mot_de_passe: '', role: 'user' });
+  const [form, setForm] = useState({ nom: '', email: '', mot_de_passe: '', role: 'employee' });
   const [formError, setFormError] = useState('');
 
   const location = useLocation();
@@ -149,7 +149,7 @@ const Users = () => {
                 onChange={handleChange}
                 label="Rôle"
               >
-                <MenuItem value="user">Utilisateur</MenuItem>
+                <MenuItem value="employee">Employé</MenuItem>
                 <MenuItem value="admin">Administrateur</MenuItem>
               </Select>
             </FormControl>
