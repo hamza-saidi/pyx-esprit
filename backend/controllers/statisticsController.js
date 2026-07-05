@@ -377,7 +377,7 @@ exports.getDashboard = async (req, res) => {
     });
     const audience_growth = Array.from(growthMap.entries()).map(([date, count]) => ({
       date: date.substring(5), // MM-DD
-      'New Contacts': count,
+      'Nouveaux contacts': count,
     }));
 
     // Top Tags globaux

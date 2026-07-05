@@ -328,7 +328,7 @@ const Dashboard = () => {
                       />
                       <Line
                         type="monotone"
-                        dataKey="New Contacts"
+                        dataKey="Nouveaux contacts"
                         stroke="#2563eb"
                         strokeWidth={2.5}
                         dot={false}

@@ -41,6 +41,7 @@ const Tags = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { items, loading, error, tagsWithCounts, countsLoading } = useSelector((state) => state.tags);
+  const { items: segments } = useSelector((state) => state.segments || { items: [] });
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(null);
   const [form, setForm] = useState(emptyTag);
@@ -58,9 +59,10 @@ const Tags = () => {
   const [expandedFamilies, setExpandedFamilies] = useState({});
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  useEffect(() => { 
-    dispatch(fetchTags()); 
+  useEffect(() => {
+    dispatch(fetchTags());
     dispatch(fetchTagsWithCounts());
+    dispatch(fetchSegments());
   }, [dispatch]);
 
   const handleOpen = (tag = null) => {
@@ -205,7 +207,7 @@ const Tags = () => {
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} tags?`)) return;
+    if (!window.confirm(`Supprimer ${selectedIds.length} étiquette(s) ? Cette action est irréversible.`)) return;
     for (const id of selectedIds) {
       await dispatch(deleteTag(id));
     }
@@ -220,11 +222,11 @@ const Tags = () => {
     
     const res = await dispatch(mergeTags({ sourceIds, targetId }));
     if (!res.error) {
-      setSnackbar({ open: true, message: 'Tags merged successfully', severity: 'success' });
+      setSnackbar({ open: true, message: 'Étiquettes fusionnées avec succès', severity: 'success' });
       setSelectedIds([]);
       setMergeDialogOpen(false);
     } else {
-      setSnackbar({ open: true, message: res.payload || 'Merge failed', severity: 'error' });
+      setSnackbar({ open: true, message: res.payload || 'Fusion échouée', severity: 'error' });
     }
   };
 
@@ -247,7 +249,7 @@ const Tags = () => {
     const res = await dispatch(mergeTags({ sourceIds, targetId: master.id }));
     if (!res.error) {
       setDuplicateGroups(prev => prev.filter(g => g !== group));
-      setSnackbar({ open: true, message: `Merged into "${master.nom}"`, severity: 'success' });
+      setSnackbar({ open: true, message: `Fusionné dans "${master.nom}"`, severity: 'success' });
     }
   };
 
@@ -263,10 +265,10 @@ const Tags = () => {
       >
         <Box>
           <Typography variant="h2" sx={{ fontFamily: 'Georgia, serif', mb: 1 }}>
-            Tags
+            Étiquettes
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Use tags to label and organize your audience.
+            Utilisez des étiquettes pour labelliser et organiser votre audience.
           </Typography>
         </Box>
         <Box display="flex" gap={2}>
@@ -281,7 +283,7 @@ const Tags = () => {
                 }}
                 startIcon={<VisibilityIcon />}
               >
-                View Contacts ({selectedIds.length})
+                Voir les contacts ({selectedIds.length})
               </Button>
               <Button 
                 variant="outlined" 
@@ -292,7 +294,7 @@ const Tags = () => {
                 }}
                 startIcon={<MergeTypeIcon />}
               >
-                Merge ({selectedIds.length})
+                Fusionner ({selectedIds.length})
               </Button>
               <Button 
                 variant="outlined" 
@@ -304,22 +306,22 @@ const Tags = () => {
                 }}
                 startIcon={<GroupsIcon />}
               >
-                Create Segment
+                Créer un segment
               </Button>
-              <Button 
-                variant="outlined" 
-                color="error" 
+              <Button
+                variant="outlined"
+                color="error"
                 onClick={handleBulkDelete}
                 startIcon={<DeleteIcon />}
               >
-                Delete ({selectedIds.length})
+                Supprimer ({selectedIds.length})
               </Button>
             </>
           )}
           <Box display="flex" gap={2} alignItems="center">
             <FormControlLabel
               control={<Switch checked={groupByPrefix} onChange={(e) => setGroupByPrefix(e.target.checked)} size="small" color="secondary" />}
-              label={<Typography variant="body2" sx={{ fontWeight: 700 }}>Group Families</Typography>}
+              label={<Typography variant="body2" sx={{ fontWeight: 700 }}>Grouper par familles</Typography>}
               sx={{ ml: 1 }}
             />
             <Button 
@@ -328,7 +330,7 @@ const Tags = () => {
               onClick={findDuplicates}
               startIcon={<AutoFixHighIcon />}
             >
-              Duplicates
+              Doublons
             </Button>
           </Box>
           <Button 
@@ -338,7 +340,7 @@ const Tags = () => {
             onClick={() => handleOpen()} 
             sx={{ px: 4 }}
           >
-            Create Tag
+            Créer une étiquette
           </Button>
         </Box>
       </Box>
@@ -346,8 +348,8 @@ const Tags = () => {
       <Paper sx={{ mb: 6, p: 4, borderRadius: 0, border: '1px solid #bfc9cf', bgcolor: '#F5F7F9' }}>
         <Box display="flex" gap={3} alignItems="center" flexWrap="wrap">
           <TextField 
-            label="Search tags"
-            placeholder="Search by name..."
+            label="Rechercher"
+            placeholder="Rechercher par nom..."
             value={search} 
             onChange={(e)=>setSearch(e.target.value)}
             variant="outlined"
@@ -355,8 +357,8 @@ const Tags = () => {
           />
           {groupByPrefix && families.length > 0 && (
             <Box display="flex" gap={1}>
-              <Button size="small" onClick={expandAll}>Expand All</Button>
-              <Button size="small" onClick={collapseAll}>Collapse All</Button>
+              <Button size="small" onClick={expandAll}>Tout déplier</Button>
+              <Button size="small" onClick={collapseAll}>Tout replier</Button>
             </Box>
           )}
         </Box>
@@ -399,11 +401,11 @@ const Tags = () => {
                   <Typography variant="h6" sx={{ fontWeight: 700, fontFamily: 'Georgia, serif' }}>
                     {family.name}
                   </Typography>
-                  <Chip label={`${family.tags.length} tags`} size="small" sx={{ borderRadius: 0, fontWeight: 700 }} />
+                  <Chip label={`${family.tags.length} étiquette${family.tags.length > 1 ? 's' : ''}`} size="small" sx={{ borderRadius: 0, fontWeight: 700 }} />
                 </Box>
                 <Box display="flex" alignItems="center" gap={4}>
                    <Box textAlign="right">
-                      <Typography variant="caption" color="text.secondary" display="block">REACH</Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">PORTÉE</Typography>
                       <Typography variant="subtitle2" fontWeight={700}>{family.totalContacts} Contacts</Typography>
                    </Box>
                    <Button 
@@ -418,7 +420,7 @@ const Tags = () => {
                       setCreateSegmentDialogOpen(true);
                     }}
                    >
-                     Make Segment
+                     Créer un segment
                    </Button>
                 </Box>
               </Box>
@@ -474,7 +476,7 @@ const Tags = () => {
                 sx={{ border: '1px dashed #D9D9D9', bgcolor: '#FAFAFA' }}
               >
                  <Typography variant="h6" color="text.secondary">
-                  {search ? 'No tags found matching your search.' : 'You haven\'t created any tags yet.'}
+                  {search ? 'Aucune étiquette ne correspond à votre recherche.' : "Vous n'avez encore créé aucune étiquette."}
                 </Typography>
               </Box>
             </Grid>
@@ -520,13 +522,13 @@ const Tags = () => {
                         </Typography>
                       </Box>
                       <Box display="flex">
-                        <Tooltip title="Edit">
+                        <Tooltip title="Modifier">
                           <IconButton size="small" onClick={() => handleOpen(t)}>
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         {!isSelected && (
-                          <Tooltip title="Delete">
+                          <Tooltip title="Supprimer">
                             <IconButton size="small" onClick={() => handleDelete(t.id)} sx={{ color: 'error.main' }}>
                               <DeleteIcon fontSize="small" />
                             </IconButton>
@@ -574,7 +576,7 @@ const Tags = () => {
                         onClick={() => navigate(`/composer?campagneMode=1&tagIds=${t.id}`)}
                         sx={{ fontWeight: 700 }}
                       >
-                        Target
+                        Cibler
                       </Button>
                     </Box>
                   </Paper>
@@ -604,23 +606,23 @@ const Tags = () => {
       )}
       <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>
-          {edit ? 'Edit' : 'Create'} Tag
+          {edit ? "Modifier l'étiquette" : 'Créer une étiquette'}
         </DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
             <TextField 
-              label="Tag name" 
-              name="nom" 
-              value={form.nom} 
-              onChange={handleChange} 
-              fullWidth 
-              margin="normal" 
-              required 
-              placeholder="e.g. Supplier, VIP, Member" 
+              label="Nom de l'étiquette"
+              name="nom"
+              value={form.nom}
+              onChange={handleChange}
+              fullWidth
+              margin="normal"
+              required
+              placeholder="ex. : VIP, Membre, Partenaire"
             />
             <Box sx={{ mt: 3 }}>
               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
-                Suggestions:
+                Suggestions :
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
                 {suggestions.map((s, i) => (
@@ -637,9 +639,9 @@ const Tags = () => {
             </Box>
           </DialogContent>
           <DialogActions sx={{ p: 3 }}>
-            <Button onClick={handleClose}>Cancel</Button>
+            <Button onClick={handleClose}>Annuler</Button>
             <Button type="submit" variant="contained" color="secondary">
-              {edit ? 'Save Changes' : 'Create Tag'}
+              {edit ? 'Enregistrer' : 'Créer'}
             </Button>
           </DialogActions>
         </form>
@@ -648,16 +650,16 @@ const Tags = () => {
       {/* MERGE DIALOG */}
       <Dialog open={mergeDialogOpen} onClose={() => setMergeDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>
-          Merge Selected Tags
+          Fusionner les étiquettes sélectionnées
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 3 }}>
-            Choose the <strong>Master Tag</strong>. All other selected tags will be deleted, and their contacts will be moved to this tag.
+            Choisissez l&apos;<strong>étiquette principale</strong>. Toutes les autres étiquettes sélectionnées seront supprimées et leurs contacts déplacés vers cette étiquette.
           </Typography>
           <TextField
             select
             fullWidth
-            label="Master Tag"
+            label="Étiquette principale"
             value={targetId}
             onChange={(e) => setTargetId(e.target.value)}
             SelectProps={{ native: true }}
@@ -669,9 +671,9 @@ const Tags = () => {
           </TextField>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setMergeDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setMergeDialogOpen(false)}>Annuler</Button>
           <Button onClick={handleMerge} variant="contained" color="secondary" startIcon={<MergeTypeIcon />}>
-            Merge Tags
+            Fusionner
           </Button>
         </DialogActions>
       </Dialog>
@@ -679,22 +681,22 @@ const Tags = () => {
       {/* DUP WIZARD */}
       <Dialog open={wizardOpen} onClose={() => setWizardOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Duplicate Cleanup Wizard
-          <Chip label={`${duplicateGroups.length} groups found`} size="small" color="primary" />
+          Assistant de nettoyage des doublons
+          <Chip label={`${duplicateGroups.length} groupe${duplicateGroups.length > 1 ? 's' : ''} trouvé${duplicateGroups.length > 1 ? 's' : ''}`} size="small" color="primary" />
         </DialogTitle>
         <DialogContent dividers>
           {duplicateGroups.length === 0 ? (
             <Box p={4} textAlign="center">
               <CheckCircleIcon color="success" sx={{ fontSize: 48, mb: 1 }} />
-              <Typography>No potential duplicates found (using case-insensitive matching).</Typography>
+              <Typography>Aucun doublon potentiel trouvé (comparaison insensible à la casse).</Typography>
             </Box>
           ) : (
             <List>
               {duplicateGroups.map((group, idx) => (
                 <ListItem key={idx} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', mb: 2, p: 2, bgcolor: '#F8F9FA', border: '1px solid #E9ecef' }}>
                    <Box display="flex" justifyContent="space-between" width="100%" mb={1}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Group: "{group[0].nom.trim()}"</Typography>
-                      <Button size="small" variant="contained" onClick={() => mergeGroup(group)} startIcon={<MergeTypeIcon />}>Merge All</Button>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Groupe : &ldquo;{group[0].nom.trim()}&rdquo;</Typography>
+                      <Button size="small" variant="contained" onClick={() => mergeGroup(group)} startIcon={<MergeTypeIcon />}>Tout fusionner</Button>
                    </Box>
                    <Box display="flex" flexWrap="wrap" gap={0.5}>
                      {group.map(t => (
@@ -707,7 +709,7 @@ const Tags = () => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setWizardOpen(false)}>Close</Button>
+          <Button onClick={() => setWizardOpen(false)}>Fermer</Button>
         </DialogActions>
       </Dialog>
 
@@ -725,11 +727,11 @@ const Tags = () => {
       {/* CREATE/UPDATE SEGMENT DIALOG */}
       <Dialog open={createSegmentDialogOpen} onClose={() => setCreateSegmentDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>
-          Manage Segment for Selection
+          Gérer le segment pour la sélection
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 3 }}>
-            Save these {selectedIds.length} tags into a new or existing segment.
+            Enregistrer ces {selectedIds.length} étiquette{selectedIds.length > 1 ? 's' : ''} dans un segment nouveau ou existant.
           </Typography>
 
           <RadioGroup 
@@ -740,14 +742,14 @@ const Tags = () => {
             }}
             sx={{ mb: 2 }}
           >
-            <FormControlLabel value="create" control={<Radio size="small" />} label={<Typography variant="body2" fontWeight={600}>Create New Segment</Typography>} labelPlacement="end" />
-            <FormControlLabel value="update" control={<Radio size="small" />} label={<Typography variant="body2" fontWeight={600}>Update Existing Segment</Typography>} labelPlacement="end" />
+            <FormControlLabel value="create" control={<Radio size="small" />} label={<Typography variant="body2" fontWeight={600}>Créer un nouveau segment</Typography>} labelPlacement="end" />
+            <FormControlLabel value="update" control={<Radio size="small" />} label={<Typography variant="body2" fontWeight={600}>Mettre à jour un segment existant</Typography>} labelPlacement="end" />
           </RadioGroup>
 
           {!targetSegmentId ? (
             <TextField
               fullWidth
-              label="Segment Name"
+              label="Nom du segment"
               value={newSegmentName}
               onChange={(e) => setNewSegmentName(e.target.value)}
               required
@@ -758,7 +760,7 @@ const Tags = () => {
             <TextField
               select
               fullWidth
-              label="Select Segment"
+              label="Sélectionner un segment"
               value={targetSegmentId}
               onChange={(e) => setTargetSegmentId(e.target.value)}
               size="small"
@@ -771,7 +773,7 @@ const Tags = () => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button onClick={() => setCreateSegmentDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setCreateSegmentDialogOpen(false)}>Annuler</Button>
           <Button 
             variant="contained" 
             color="primary" 
@@ -793,7 +795,7 @@ const Tags = () => {
                 }));
                  
                 if (!res.error) {
-                   setSnackbar({ open: true, message: `Segment "${segment.nom}" updated!`, severity: 'success' });
+                   setSnackbar({ open: true, message: `Segment "${segment.nom}" mis à jour !`, severity: 'success' });
                    setCreateSegmentDialogOpen(false);
                    setSelectedIds([]);
                    dispatch(fetchSegments());
@@ -819,17 +821,17 @@ const Tags = () => {
                   criteres
                 }));
                 if (!res.error) {
-                  setSnackbar({ open: true, message: `Segment "${newSegmentName}" created!`, severity: 'success' });
+                  setSnackbar({ open: true, message: `Segment "${newSegmentName}" créé !`, severity: 'success' });
                   setCreateSegmentDialogOpen(false);
                   setSelectedIds([]);
                   dispatch(fetchSegments());
                 } else {
-                  setSnackbar({ open: true, message: res.payload || 'Failed to create segment', severity: 'error' });
+                  setSnackbar({ open: true, message: res.payload || 'Échec de la création du segment', severity: 'error' });
                 }
               }
             }}
           >
-            {targetSegmentId ? 'Update Segment' : 'Create Segment'}
+            {targetSegmentId ? 'Mettre à jour' : 'Créer le segment'}
           </Button>
         </DialogActions>
       </Dialog>
