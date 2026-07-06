@@ -385,9 +385,7 @@ const Contacts = () => {
       formData.append('batchTagIds', importForm.batchTagIds.join(','));
       formData.append('updateExisting', importForm.updateExisting);
 
-      await axios.post('/contacts/import', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await axios.post('/contacts/import', formData);
       setImportOpen(false);
       setImportForm({ file: null, batchTagIds: [], updateExisting: false });
       setCurrentPage(1);
