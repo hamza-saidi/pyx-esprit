@@ -33,7 +33,10 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 },
+});
 router.post('/media/upload', requireAuthAndTenant, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'Fichier manquant' });
   const fileUrl = `${getPublicBaseUrl(req)}/api/templates/media/${req.file.filename}`;

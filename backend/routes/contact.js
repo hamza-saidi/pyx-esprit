@@ -7,7 +7,10 @@ const abonnementController = require('../controllers/abonnementController');
 const eventController = require('../controllers/eventController');
 const { requireAuthAndTenant } = require('../middleware/auth');
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+  dest: 'uploads/',
+  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 },
+});
 
 // Public registration endpoint (no auth)
 router.post('/public', contactController.create);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import axios from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchStatistics, fetchDashboard, fetchComparison, fetchSegmentStats } from '../features/statistics/statisticsSlice';
@@ -133,20 +134,17 @@ const Statistics = () => {
 
   const handleFollowUp = async (groupKey) => {
     try {
-      const response = await fetch(`/api/campagnes/${selectedCampaign}/followup-groups`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-      const data = await response.json();
+      const { data } = await axios.get(`/campagnes/${selectedCampaign}/followup-groups`);
       if (data.groups && data.groups[groupKey]) {
         const ids = data.groups[groupKey].contact_ids;
         if (ids.length === 0) {
-          toast.info("Aucun contact dans cette catégorie.");
+          toast.info('Aucun contact dans cette catégorie.');
           return;
         }
         navigate(`/composer?campagneMode=1&isFollowUp=1&contactIds=${ids.join(',')}`);
       }
     } catch (err) {
-      console.error("Erreur follow-up:", err);
+      toast.error(err.response?.data?.message || 'Erreur lors du chargement des groupes.');
     }
   };
 
@@ -216,7 +214,7 @@ const Statistics = () => {
                         Campagnes
                       </Typography>
                       <Typography variant="h4">
-                        {dashboard.metriques_globales.total_campagnes}
+                        {dashboard.metriques_globales?.total_campagnes ?? '—'}
                       </Typography>
                     </Box>
                   </Box>
@@ -233,7 +231,7 @@ const Statistics = () => {
                         Emails envoyés
                       </Typography>
                       <Typography variant="h4">
-                        {dashboard.metriques_globales.total_envois}
+                        {dashboard.metriques_globales?.total_envois ?? '—'}
                       </Typography>
                     </Box>
                   </Box>
@@ -250,7 +248,7 @@ const Statistics = () => {
                         Contacts
                       </Typography>
                       <Typography variant="h4">
-                        {dashboard.metriques_globales.total_contacts}
+                        {dashboard.metriques_globales?.total_contacts ?? '—'}
                       </Typography>
                     </Box>
                   </Box>
@@ -270,12 +268,12 @@ const Statistics = () => {
                     <Box display="flex" justifyContent="space-between" mb={1}>
                       <Typography>Taux d'ouverture</Typography>
                       <Typography variant="h6" color="primary">
-                        {dashboard.performance_email.taux_ouverture}%
+                        {dashboard.performance_email?.taux_ouverture ?? '—'}{dashboard.performance_email?.taux_ouverture != null ? '%' : ''}
                       </Typography>
                     </Box>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={dashboard.performance_email.taux_ouverture} 
+                    <LinearProgress
+                      variant="determinate"
+                      value={dashboard.performance_email?.taux_ouverture ?? 0}
                       sx={{ height: 8, borderRadius: 4 }}
                     />
                   </Box>
@@ -283,12 +281,12 @@ const Statistics = () => {
                     <Box display="flex" justifyContent="space-between" mb={1}>
                       <Typography>Taux de clic</Typography>
                       <Typography variant="h6" color="success">
-                        {dashboard.performance_email.taux_clic}%
+                        {dashboard.performance_email?.taux_clic ?? '—'}{dashboard.performance_email?.taux_clic != null ? '%' : ''}
                       </Typography>
                     </Box>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={dashboard.performance_email.taux_clic} 
+                    <LinearProgress
+                      variant="determinate"
+                      value={dashboard.performance_email?.taux_clic ?? 0}
                       sx={{ height: 8, borderRadius: 4 }}
                     />
                   </Box>
@@ -302,7 +300,7 @@ const Statistics = () => {
                   <ResponsiveContainer width="100%" height={200}>
                     <PieChart>
                       <Pie
-                        data={dashboard.repartition_campagnes.map((stat, index) => ({
+                        data={(dashboard.repartition_campagnes || []).map((stat) => ({
                           name: `${stat.statut} (${stat.type})`,
                           value: stat.count
                         }))}
@@ -313,7 +311,7 @@ const Statistics = () => {
                         dataKey="value"
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                       >
-                        {dashboard.repartition_campagnes.map((entry, index) => (
+                        {(dashboard.repartition_campagnes || []).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -332,7 +330,7 @@ const Statistics = () => {
                 <CardHeader title="Performance des campagnes par statut" />
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={dashboard.repartition_campagnes}>
+                    <BarChart data={dashboard.repartition_campagnes || []}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="statut" />
                       <YAxis />
@@ -350,7 +348,7 @@ const Statistics = () => {
                 <CardHeader title="Répartition des contacts" />
                 <CardContent>
                   <Box>
-                    {dashboard.repartition_contacts.map((stat, index) => (
+                    {(dashboard.repartition_contacts || []).map((stat) => (
                       <Box key={stat.type_client} mb={2}>
                         <Box display="flex" justifyContent="space-between" mb={1}>
                           <Typography variant="body2">
@@ -360,9 +358,11 @@ const Statistics = () => {
                             {stat.count}
                           </Typography>
                         </Box>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={(stat.count / dashboard.metriques_globales.total_contacts) * 100} 
+                        <LinearProgress
+                          variant="determinate"
+                          value={dashboard.metriques_globales?.total_contacts
+                            ? (stat.count / dashboard.metriques_globales.total_contacts) * 100
+                            : 0}
                           sx={{ height: 6, borderRadius: 3 }}
                         />
                       </Box>
@@ -446,7 +446,7 @@ const Statistics = () => {
           <Card sx={{ mt: 3 }}>
             <CardHeader title="Analyse automatique" />
             <CardContent>
-              {comparison.analyse.map((analyse, index) => (
+              {(comparison.analyse || []).map((analyse, index) => (
                 <Alert key={index} severity="info" sx={{ mb: 1 }}>
                   {analyse}
                 </Alert>
@@ -830,7 +830,7 @@ const Statistics = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {segmentStats.performance_par_campagne.map((campagne) => (
+                          {(segmentStats.performance_par_campagne || []).map((campagne) => (
                             <TableRow key={campagne.id}>
                               <TableCell>{campagne.titre}</TableCell>
                               <TableCell align="right">{campagne.nb_envoyes}</TableCell>

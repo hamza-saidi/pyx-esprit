@@ -3,7 +3,7 @@
 const logger = require('../utils/logger');
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.1-70b-versatile';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 const EVENT_LABELS = {
   tournament: 'Tournoi / Compétition',

@@ -21,7 +21,10 @@ const attachmentStorage = multer.diskStorage({
     cb(null, `${unique}${ext}`);
   },
 });
-const uploadAttachment = multer({ storage: attachmentStorage });
+const uploadAttachment = multer({
+  storage: attachmentStorage,
+  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 },
+});
 
 // Toutes les routes nécessitent une authentification
 router.use(requireAuthAndTenant);

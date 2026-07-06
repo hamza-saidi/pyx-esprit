@@ -339,6 +339,7 @@ const Contacts = () => {
       }
       setOpen(false);
     } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Erreur lors de la sauvegarde du contact.');
     }
   };
 
@@ -426,7 +427,7 @@ const Contacts = () => {
       });
       downloadBlob(res.data, isExcel ? 'contacts.xlsx' : 'contacts.csv');
     } catch (e) {
-      console.error('Export error:', e);
+      toast.error(e.response?.data?.message || "Erreur lors de l'export des contacts.");
     }
   };
 
@@ -438,7 +439,7 @@ const Contacts = () => {
       });
       downloadBlob(res.data, minimal ? 'template_minimal.xlsx' : 'template_contacts.xlsx');
     } catch (e) {
-      console.error('Template error:', e);
+      toast.error(e.response?.data?.message || 'Erreur lors du téléchargement du modèle.');
     }
   };
   // Ajout/suppression de tags sur un contact
