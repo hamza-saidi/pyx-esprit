@@ -105,6 +105,33 @@ async function saveFile(filename, buffer, mimeType = 'image/png') {
 }
 
 /**
+ * Lists the most recently uploaded files (S3/MinIO only — local fallback
+ * listing is handled by the caller via the filesystem directly).
+ * @param {number} limit
+ * @returns {Promise<Array<{name: string, mtime: number, url: string}>>}
+ */
+async function listRecent(limit = 50) {
+  if (!s3Client || !s3Bucket) return [];
+  try {
+    const { ListObjectsV2Command } = require('@aws-sdk/client-s3');
+    const result = await s3Client.send(
+      new ListObjectsV2Command({ Bucket: s3Bucket, MaxKeys: 1000 })
+    );
+    return (result.Contents || [])
+      .map((obj) => ({
+        name: obj.Key,
+        mtime: obj.LastModified ? new Date(obj.LastModified).getTime() : 0,
+        url: `${s3BaseUrl}/${obj.Key}`,
+      }))
+      .sort((a, b) => b.mtime - a.mtime)
+      .slice(0, limit);
+  } catch (err) {
+    logger.error('[STORAGE] Failed to list S3 objects:', { error: err.message });
+    return [];
+  }
+}
+
+/**
  * Deletes a file from storage.
  * @param {string} filename
  * @returns {Promise<boolean>}
@@ -122,6 +149,7 @@ async function deleteFile(filename) {
   }
 
   const filePath = path.join(uploadsDir, filename);
+  if (!filePath.startsWith(uploadsDir + path.sep)) return false; // reject path traversal (e.g. filename === '..')
   if (fs.existsSync(filePath)) {
     try {
       fs.unlinkSync(filePath);
@@ -134,4 +162,4 @@ async function deleteFile(filename) {
   return false;
 }
 
-module.exports = { saveFile, deleteFile, isCloud: () => !!s3Client };
+module.exports = { saveFile, deleteFile, listRecent, isCloud: () => !!s3Client };
