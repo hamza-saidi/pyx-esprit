@@ -3,8 +3,8 @@ import axios from '../../api/axios';
 
 export const fetchCampaigns = createAsyncThunk('campaigns/fetchAll', async (_, thunkAPI) => {
   try {
-    const res = await axios.get('/campagnes');
-    return res.data; // { data, total, ... }
+    const res = await axios.get('/campagnes?limit=1000');
+    return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur chargement campagnes');
   }
@@ -88,6 +88,15 @@ export const duplicateCampaign = createAsyncThunk('campaigns/duplicate', async (
     return res.data;
   } catch (err) {
     return thunkAPI.rejectWithValue(err.response?.data?.message || 'Erreur duplication campagne');
+  }
+});
+
+export const sendTestEmail = createAsyncThunk('campaigns/sendTestEmail', async ({ email_test, sujet, contenu_html }, thunkAPI) => {
+  try {
+    const res = await axios.post('/campagnes/test-send', { email_test, sujet, contenu_html });
+    return res.data;
+  } catch (err) {
+    return thunkAPI.rejectWithValue(err.response?.data?.message || "Erreur lors de l'envoi du test");
   }
 });
 
