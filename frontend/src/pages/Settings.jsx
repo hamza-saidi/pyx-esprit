@@ -41,32 +41,6 @@ const PROVIDERS = [
     color: '#0f172a',
   },
   {
-    id: 'sendgrid',
-    label: 'SendGrid',
-    desc: 'Envoi via l\'API SendGrid',
-    logo: (
-      <Box sx={{ width: 24, height: 24, bgcolor: '#1a82e2', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography sx={{ color: 'white', fontSize: 9, fontWeight: 800, lineHeight: 1 }}>SG</Typography>
-      </Box>
-    ),
-    color: '#1a82e2',
-    preset: { host: 'smtp.sendgrid.net', port: 587, secure: false, user: 'apikey' },
-    passLabel: 'API Key SendGrid',
-  },
-  {
-    id: 'mailgun',
-    label: 'Mailgun',
-    desc: 'Envoi via Mailgun SMTP',
-    logo: (
-      <Box sx={{ width: 24, height: 24, bgcolor: '#f06b26', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography sx={{ color: 'white', fontSize: 9, fontWeight: 800, lineHeight: 1 }}>MG</Typography>
-      </Box>
-    ),
-    color: '#f06b26',
-    preset: { host: 'smtp.mailgun.org', port: 587, secure: false, user: '' },
-    passLabel: 'Mot de passe SMTP Mailgun',
-  },
-  {
     id: 'graph',
     label: 'Microsoft 365',
     desc: 'Exchange Online · OAuth 2.0',

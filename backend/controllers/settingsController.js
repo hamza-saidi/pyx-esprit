@@ -57,7 +57,7 @@ exports.updateEmailSettings = async (req, res) => {
 
     const updates = {};
 
-    if (provider && ['smtp', 'sendgrid', 'mailgun', 'graph'].includes(provider)) {
+    if (provider && ['smtp', 'graph'].includes(provider)) {
       updates.email_provider = provider;
     }
 
