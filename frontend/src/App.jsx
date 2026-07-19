@@ -42,6 +42,8 @@ const Unsubscribe = React.lazy(() => import('./pages/Unsubscribe'));
 const Automations = React.lazy(() => import('./pages/Automations'));
 const MembersAndPlansHub = React.lazy(() => import('./pages/MembersAndPlansHub'));
 const CampaignDetail = React.lazy(() => import('./pages/CampaignDetail'));
+const Events = React.lazy(() => import('./pages/Events'));
+const EventDetail = React.lazy(() => import('./pages/EventDetail'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const SuperAdmin = React.lazy(() => import('./pages/SuperAdmin'));
 const OwnerMonitoring = React.lazy(() => import('./pages/OwnerMonitoring'));
@@ -49,6 +51,8 @@ const OwnerPlans = React.lazy(() => import('./pages/OwnerPlans'));
 const OwnerLicences = React.lazy(() => import('./pages/OwnerLicences'));
 const OwnerSupport = React.lazy(() => import('./pages/OwnerSupport'));
 const OwnerBilling = React.lazy(() => import('./pages/OwnerBilling'));
+const MediaLibrary = React.lazy(() => import('./pages/MediaLibrary'));
+const CampaignWizardPage = React.lazy(() => import('./pages/CampaignWizardPage'));
 
 function App() {
   return (
@@ -74,9 +78,13 @@ function App() {
               <Route path="tags" element={<TagsAndSegmentsHub />} />
               <Route path="segments" element={<TagsAndSegmentsHub />} />
               <Route path="campagnes" element={<Campagnes />} />
+              <Route path="campagnes/nouvelle" element={<CampaignWizardPage />} />
+              <Route path="campagnes/:id/modifier" element={<CampaignWizardPage />} />
               <Route path="campagnes/:id" element={<CampaignDetail />} />
               <Route path="automations" element={<Automations />} />
               <Route path="statistics" element={<Statistics />} />
+              <Route path="events" element={<Events />} />
+              <Route path="events/:id" element={<EventDetail />} />
               <Route path="birthdays" element={<Birthdays />} />
               <Route path="templates" element={<Templates />} />
               <Route path="membership-plans" element={<MembersAndPlansHub />} />
@@ -90,6 +98,7 @@ function App() {
               <Route path="superadmin/licences" element={<OwnerLicences />} />
               <Route path="superadmin/support" element={<OwnerSupport />} />
               <Route path="superadmin/billing" element={<OwnerBilling />} />
+              <Route path="media" element={<MediaLibrary />} />
               <Route path="*" element={<NotFound />} />
             </Route>
             <Route path="*" element={<NotFound />} />

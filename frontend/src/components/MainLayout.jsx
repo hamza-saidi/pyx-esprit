@@ -27,6 +27,8 @@ import LayersIcon from '@mui/icons-material/Layers';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
+import PermMediaIcon from '@mui/icons-material/PermMedia';
+import EventIcon from '@mui/icons-material/Event';
 
 const SIDEBAR_EXPANDED = 252;
 const SIDEBAR_COLLAPSED = 72;
@@ -84,6 +86,18 @@ const NAV_SECTIONS = [
       { label: 'Statistiques', path: '/statistics', icon: <BarChartIcon /> },
     ],
   },
+  {
+    title: 'Événements',
+    items: [
+      { label: 'Tournois', path: '/events', icon: <EventIcon /> },
+    ],
+  },
+  {
+    title: 'Contenus',
+    items: [
+      { label: 'Médias', path: '/media', icon: <PermMediaIcon /> },
+    ],
+  },
 ];
 
 const ADMIN_NAV_ITEMS = [
@@ -112,6 +126,7 @@ const PAGE_META = {
   '/automations': { title: 'Automatisations', subtitle: 'Emails déclenchés automatiquement' },
   '/birthdays': { title: 'Anniversaires', subtitle: 'Emails d\'anniversaire automatiques' },
   '/statistics': { title: 'Statistiques', subtitle: 'Performance de vos campagnes' },
+  '/media': { title: 'Médias', subtitle: 'Images et fichiers de vos campagnes' },
   '/users': { title: 'Équipe', subtitle: 'Gestion des accès et des rôles' },
   '/settings': { title: 'Paramètres', subtitle: 'Compte email et configuration' },
   '/composer': { title: 'Éditeur', subtitle: 'Créer un email' },
@@ -475,7 +490,7 @@ const MainLayout = () => {
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f8fafc' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f8fafc', '--sidebar-w': expanded ? `${SIDEBAR_EXPANDED}px` : `${SIDEBAR_COLLAPSED}px`, '--topbar-h': '60px' }}>
       {/* Sidebar */}
       <Box
         component="nav"

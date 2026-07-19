@@ -7,6 +7,7 @@ import campaignsReducer from '../features/campaigns/campaignsSlice';
 import statisticsReducer from '../features/statistics/statisticsSlice';
 import templatesReducer from '../features/templates/templatesSlice';
 import usersReducer from '../features/users/usersSlice';
+import eventsReducer from '../features/events/eventsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -18,6 +19,7 @@ export const store = configureStore({
     statistics: statisticsReducer,
     templates: templatesReducer,
     users: usersReducer,
+    events: eventsReducer,
     // Ajouter d'autres reducers ici (contacts, tags, etc.)
   },
 }); 
