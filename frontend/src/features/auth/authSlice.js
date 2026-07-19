@@ -48,7 +48,7 @@ const persisted = loadPersistedAuth();
 
 const authSlice = createSlice({
   name: 'auth',
-  initialState: { token: persisted.token, user: persisted.user, loading: false, error: null, mfa: { required: false, pendingToken: null } },
+  initialState: { token: persisted.token, user: persisted.user, loading: false, error: null, mfa: { required: false, pendingToken: null, method: null } },
   reducers: {},
   extraReducers: (builder) => {
     builder
@@ -58,6 +58,7 @@ const authSlice = createSlice({
         if (action.payload?.mfa_required) {
           state.mfa.required = true;
           state.mfa.pendingToken = action.payload.pending_token;
+          state.mfa.method = action.payload.mfa_method || 'email';
           return;
         }
         state.token = action.payload?.token || null;
@@ -73,6 +74,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.mfa.required = false;
         state.mfa.pendingToken = null;
+        state.mfa.method = null;
         state.token = action.payload?.token || null;
         state.user = action.payload?.user || null;
         try {
@@ -84,7 +86,7 @@ const authSlice = createSlice({
       .addCase(logout.fulfilled, (state) => {
         state.token = null;
         state.user = null;
-        state.mfa = { required: false, pendingToken: null };
+        state.mfa = { required: false, pendingToken: null, method: null };
         state.error = null;
         try {
           localStorage.removeItem('token');

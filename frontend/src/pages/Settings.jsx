@@ -106,6 +106,17 @@ const Settings = () => {
   const [testEmail, setTestEmail] = useState('');
   const [testing, setTesting] = useState(false);
 
+  // MFA TOTP (app-based two-factor authentication)
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [mfaStatusLoading, setMfaStatusLoading] = useState(true);
+  const [mfaSetupData, setMfaSetupData] = useState(null);
+  const [mfaSettingUp, setMfaSettingUp] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaVerifying, setMfaVerifying] = useState(false);
+  const [disableDialogOpen, setDisableDialogOpen] = useState(false);
+  const [disablePassword, setDisablePassword] = useState('');
+  const [disabling, setDisabling] = useState(false);
+
   const [feedback, setFeedback] = useState(null);
 
   const showFeedback = (type, message) => {
@@ -152,6 +163,69 @@ const Settings = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  const fetchMfaStatus = useCallback(async () => {
+    setMfaStatusLoading(true);
+    try {
+      const res = await axios.get('/auth/me');
+      setMfaEnabled(!!res.data.mfa_totp_enabled);
+    } catch {
+      // leave default (disabled) — not fatal to the rest of the page
+    } finally {
+      setMfaStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchMfaStatus(); }, [fetchMfaStatus]);
+
+  const handleStartMfaSetup = async () => {
+    setMfaSettingUp(true);
+    try {
+      const res = await axios.post('/auth/mfa/totp/setup');
+      setMfaSetupData(res.data);
+    } catch (err) {
+      showFeedback('error', err.response?.data?.message || 'Impossible de générer le QR code.');
+    } finally {
+      setMfaSettingUp(false);
+    }
+  };
+
+  const handleCancelMfaSetup = () => {
+    setMfaSetupData(null);
+    setMfaCode('');
+  };
+
+  const handleVerifyMfaSetup = async () => {
+    if (!mfaCode) return;
+    setMfaVerifying(true);
+    try {
+      await axios.post('/auth/mfa/totp/verify-setup', { code: mfaCode });
+      showFeedback('success', 'Authentification à deux facteurs activée.');
+      setMfaSetupData(null);
+      setMfaCode('');
+      setMfaEnabled(true);
+    } catch (err) {
+      showFeedback('error', err.response?.data?.message || 'Code incorrect.');
+    } finally {
+      setMfaVerifying(false);
+    }
+  };
+
+  const handleDisableMfa = async () => {
+    if (!disablePassword) return;
+    setDisabling(true);
+    try {
+      await axios.post('/auth/mfa/totp/disable', { mot_de_passe: disablePassword });
+      showFeedback('success', 'Authentification à deux facteurs désactivée.');
+      setMfaEnabled(false);
+      setDisableDialogOpen(false);
+      setDisablePassword('');
+    } catch (err) {
+      showFeedback('error', err.response?.data?.message || 'Mot de passe incorrect.');
+    } finally {
+      setDisabling(false);
+    }
+  };
 
   // When provider is selected, apply preset if available
   const handleSelectProvider = (id) => {
@@ -263,6 +337,7 @@ const Settings = () => {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 4, borderBottom: '1px solid #e2e8f0' }}>
         <Tab label="Configuration email" />
         <Tab label="Organisation" />
+        <Tab label="Sécurité" />
       </Tabs>
 
       {/* ── TAB 0: Email configuration ──────────────────────────────── */}
@@ -601,6 +676,89 @@ const Settings = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* ── TAB 2: Sécurité (MFA TOTP) ───────────────────────────────── */}
+      {tab === 2 && (
+        <Card>
+          <CardContent sx={{ p: 3 }}>
+            <Typography variant="subtitle1" fontWeight={700} mb={0.5}>
+              Authentification à deux facteurs (application)
+            </Typography>
+            <Typography variant="body2" color="text.secondary" mb={3}>
+              Protégez votre compte avec un code généré par une application d&apos;authentification
+              (Google Authenticator, Microsoft Authenticator, etc.), en remplacement du code envoyé par email.
+            </Typography>
+
+            {mfaStatusLoading ? (
+              <Box display="flex" justifyContent="center" py={2}><CircularProgress size={24} /></Box>
+            ) : mfaSetupData ? (
+              <Box display="flex" flexDirection="column" gap={2} maxWidth={360}>
+                <Typography variant="body2">
+                  Scannez ce QR code avec votre application d&apos;authentification, puis entrez le code à 6 chiffres généré pour confirmer.
+                </Typography>
+                <Box
+                  component="img"
+                  src={mfaSetupData.qr_code}
+                  alt="QR code MFA"
+                  sx={{ width: 200, height: 200, alignSelf: 'center', border: '1px solid #e2e8f0', borderRadius: 1 }}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  Impossible de scanner ? Entrez cette clé manuellement : <strong>{mfaSetupData.secret}</strong>
+                </Typography>
+                <TextField
+                  label="Code à 6 chiffres"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  inputProps={{ maxLength: 6, inputMode: 'numeric' }}
+                  fullWidth
+                  autoFocus
+                />
+                <Box display="flex" gap={1.5}>
+                  <Button variant="contained" onClick={handleVerifyMfaSetup} disabled={mfaVerifying || !mfaCode}>
+                    {mfaVerifying ? <CircularProgress size={16} color="inherit" /> : 'Confirmer et activer'}
+                  </Button>
+                  <Button onClick={handleCancelMfaSetup} disabled={mfaVerifying}>Annuler</Button>
+                </Box>
+              </Box>
+            ) : mfaEnabled ? (
+              <Box display="flex" alignItems="center" gap={2}>
+                <Chip icon={<CheckCircleIcon />} label="Activée" color="success" variant="outlined" />
+                <Button color="error" variant="outlined" onClick={() => setDisableDialogOpen(true)}>
+                  Désactiver
+                </Button>
+              </Box>
+            ) : (
+              <Button variant="contained" onClick={handleStartMfaSetup} disabled={mfaSettingUp}>
+                {mfaSettingUp ? <CircularProgress size={16} color="inherit" /> : 'Activer'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Disable MFA dialog */}
+      <Dialog open={disableDialogOpen} onClose={() => !disabling && setDisableDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Désactiver l&apos;authentification à deux facteurs ?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Confirmez votre mot de passe pour désactiver la protection par application d&apos;authentification.
+          </Typography>
+          <TextField
+            label="Mot de passe"
+            type="password"
+            value={disablePassword}
+            onChange={(e) => setDisablePassword(e.target.value)}
+            fullWidth
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => { setDisableDialogOpen(false); setDisablePassword(''); }} disabled={disabling}>Annuler</Button>
+          <Button color="error" variant="contained" onClick={handleDisableMfa} disabled={disabling || !disablePassword} sx={{ minWidth: 130 }}>
+            {disabling ? <CircularProgress size={16} color="inherit" /> : 'Désactiver'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Disconnect dialog */}
       <Dialog open={disconnectOpen} onClose={() => !disconnectLoading && setDisconnectOpen(false)} maxWidth="xs" fullWidth>

@@ -8,6 +8,7 @@ router.post('/login', authController.login);
 router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.post('/verify-mfa', authController.verifyMfa);
+router.get('/me', authenticateToken, authController.getProfile);
 
 // TOTP MFA setup (app-based) — requires a logged-in session, unlike
 // /verify-mfa above which happens mid-login before a full session exists.

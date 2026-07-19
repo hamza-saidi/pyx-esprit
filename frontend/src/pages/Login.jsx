@@ -182,7 +182,9 @@ const Login = () => {
                 Vérification
               </Typography>
               <Typography variant="body2" color="text.secondary" mb={3}>
-                Un code à 6 chiffres a été envoyé à votre adresse email.
+                {mfa.method === 'totp'
+                  ? "Entrez le code affiché dans votre application d'authentification."
+                  : 'Un code à 6 chiffres a été envoyé à votre adresse email.'}
               </Typography>
               <form onSubmit={handleVerify}>
                 <TextField
