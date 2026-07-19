@@ -47,6 +47,12 @@ router.get('/:id', campagneController.getOne);
 // Créer une nouvelle campagne
 router.post('/', campagneController.create);
 
+// Envoyer un email de test sans campagne sauvegardée (wizard en cours)
+router.post('/test-send', campagneController.testSendDirect);
+
+// Vérifier les liens d'un email avant envoi
+router.post('/check-links', campagneController.checkLinks);
+
 // Mettre à jour une campagne
 router.put('/:id', campagneController.update);
 
@@ -81,8 +87,10 @@ router.get('/:id/performances', campagneController.getPerformancesParPeriode);
 router.get('/:id/followup-groups', campagneController.getFollowupGroups);
 
 // ── Statistics (was /api/statistics) ──────────────────────────────────────────
+router.get('/stats/optimal-time', campagneController.getOptimalSendTime);
 router.get('/stats/campaign/:campaignId', statisticsController.getByCampaign);
 router.get('/stats/dashboard', statisticsController.getDashboard);
+router.get('/stats/dashboard/pdf', statisticsController.exportDashboardPdf);
 router.get('/stats/comparaison', statisticsController.getComparaisonPeriodes);
 router.get('/stats/segment/:segmentId', statisticsController.getStatsBySegment);
 router.get('/stats/events', statisticsController.getEventStats);

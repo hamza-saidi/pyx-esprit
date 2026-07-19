@@ -238,255 +238,355 @@ exports.getByCampaign = async (req, res) => {
   }
 };
 
+// Rassemble les données du tableau de bord — utilisé par getDashboard (JSON)
+// et exportDashboardPdf (PDF), pour ne pas dupliquer toutes ces requêtes.
+async function computeDashboardData(periode) {
+  // Calculer la période
+  const maintenant = new Date();
+  let dateDebut;
+
+  switch (periode) {
+    case '7j':
+      dateDebut = new Date(maintenant.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case '30j':
+      dateDebut = new Date(maintenant.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    case '90j':
+      dateDebut = new Date(maintenant.getTime() - 90 * 24 * 60 * 60 * 1000);
+      break;
+    case '1an':
+      dateDebut = new Date(maintenant.getTime() - 365 * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      dateDebut = new Date(maintenant.getTime() - 30 * 24 * 60 * 60 * 1000);
+  }
+
+  // Statistiques globales des campagnes
+  const statsCampagnes = await CampagneEmail.findAll({
+    where: {
+      date_creation: { [Op.gte]: dateDebut },
+      actif: true,
+    },
+    attributes: [
+      'statut',
+      'type_campagne',
+      [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+      [sequelize.fn('SUM', sequelize.col('nb_envoyes')), 'total_envoyes'],
+      [sequelize.fn('SUM', sequelize.col('nb_erreurs')), 'total_erreurs'],
+    ],
+    group: ['statut', 'type_campagne'],
+  });
+
+  // Statistiques des envois
+  const statsEnvois = await EnvoiEmail.findAll({
+    where: {
+      date_envoi: { [Op.gte]: dateDebut },
+    },
+    attributes: [
+      'statut',
+      [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+      [
+        sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('campagne_id'))),
+        'campagnes_uniques',
+      ],
+    ],
+    group: ['statut'],
+  });
+
+  // Statistiques des contacts
+  const statsContacts = await Contact.findAll({
+    where: {
+      date_creation: { [Op.gte]: dateDebut },
+      actif: true,
+    },
+    attributes: ['type_client', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+    group: ['type_client'],
+  });
+
+  // Statistiques des événements
+  const statsEvenements = await Evenement.findAll({
+    where: {
+      date: { [Op.gte]: dateDebut },
+    },
+    attributes: [[sequelize.fn('COUNT', sequelize.col('id')), 'total_evenements']],
+  });
+
+  // Statistiques des RSVP (pas de filtre par date car pas de createdAt)
+  const statsRsvp = await Rsvp.findAll({
+    attributes: ['statut', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+    group: ['statut'],
+  });
+
+  // Calculer les métriques de performance
+  const totalCampagnes = statsCampagnes.reduce(
+    (sum, stat) => sum + parseInt(stat.dataValues.count),
+    0
+  );
+  const totalEnvois = statsEnvois.reduce((sum, stat) => sum + parseInt(stat.dataValues.count), 0);
+  const totalContacts = statsContacts.reduce(
+    (sum, stat) => sum + parseInt(stat.dataValues.count),
+    0
+  );
+  const totalEvenements =
+    statsEvenements.length > 0 ? parseInt(statsEvenements[0].dataValues.total_evenements) : 0;
+
+  // Calculer les taux de conversion
+  const envoisEnvoyes = statsEnvois.find((s) => s.statut === 'envoyé')?.dataValues?.count || 0;
+  const envoisOuverts = statsEnvois.find((s) => s.statut === 'ouvert')?.dataValues?.count || 0;
+  const envoisClics = statsEnvois.find((s) => s.statut === 'clic')?.dataValues?.count || 0;
+
+  const tauxOuverture = envoisEnvoyes > 0 ? ((envoisOuverts / envoisEnvoyes) * 100).toFixed(2) : 0;
+  const tauxClic = envoisEnvoyes > 0 ? ((envoisClics / envoisEnvoyes) * 100).toFixed(2) : 0;
+
+  // Métriques globales de l'Audience
+  const audience_total = await Contact.count();
+  const audience_actif = await Contact.count({ where: { actif: true } });
+
+  // Growth sur 30 jours
+  const thirtyDaysAgoGrowth = new Date(maintenant.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const growthDataRaw = await Contact.findAll({
+    where: { date_creation: { [Op.gte]: thirtyDaysAgoGrowth } },
+    attributes: [
+      [sequelize.fn('DATE', sequelize.col('date_creation')), 'date'],
+      [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+    ],
+    group: [sequelize.fn('DATE', sequelize.col('date_creation'))],
+    order: [[sequelize.fn('DATE', sequelize.col('date_creation')), 'ASC']],
+    raw: true,
+  });
+
+  const growthMap = new Map();
+  for (let i = 30; i >= 0; i--) {
+    const d = new Date(maintenant.getTime() - i * 24 * 60 * 60 * 1000);
+    growthMap.set(d.toISOString().split('T')[0], 0);
+  }
+  growthDataRaw.forEach((row) => {
+    const dStr = row.date;
+    const dateStr =
+      dStr instanceof Date
+        ? dStr.toISOString().split('T')[0]
+        : typeof dStr === 'string' && dStr.length >= 10
+          ? dStr.substring(0, 10)
+          : dStr;
+    if (growthMap.has(dateStr)) {
+      growthMap.set(dateStr, parseInt(row.count));
+    }
+  });
+  const audience_growth = Array.from(growthMap.entries()).map(([date, count]) => ({
+    date: date.substring(5), // MM-DD
+    'Nouveaux contacts': count,
+  }));
+
+  // Top Tags globaux
+  const topTagsRaw = await Tag.findAll({
+    include: [
+      {
+        model: Contact,
+        as: 'contacts',
+        attributes: [],
+        through: { attributes: [] },
+      },
+    ],
+    attributes: ['nom', [sequelize.fn('COUNT', sequelize.col('contacts.id')), 'contactCount']],
+    group: ['Tag.id', 'Tag.nom'],
+    order: [[sequelize.fn('COUNT', sequelize.col('contacts.id')), 'DESC']],
+    limit: 10,
+    subQuery: false,
+    raw: true,
+  });
+  const audience_top_tags = topTagsRaw.map((t) => ({
+    nom: t.nom,
+    count: parseInt(t.contactCount || 0),
+  }));
+
+  // Anniversaires à venir (14 prochains jours) sans automation d'anniversaire active
+  const BIRTHDAY_WINDOW_DAYS = 14;
+  const upcomingBirthdayDays = [];
+  for (let i = 0; i <= BIRTHDAY_WINDOW_DAYS; i++) {
+    const d = new Date(maintenant.getTime() + i * 24 * 60 * 60 * 1000);
+    upcomingBirthdayDays.push(
+      `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    );
+  }
+  const upcomingBirthdaysCount = await Contact.count({
+    where: {
+      date_naissance: { [Op.ne]: null },
+      [Op.and]: sequelize.literal(
+        `DATE_FORMAT(date_naissance, '%m-%d') IN (${upcomingBirthdayDays.map((d) => `'${d}'`).join(',')})`
+      ),
+    },
+  });
+  const activeBirthdayAutomation = await Automation.findOne({
+    where: { type: 'birthday', actif: true },
+  });
+
+  // Renouvellements dans les 30 prochains jours (même fenêtre que le rappel par défaut de automationService)
+  const RENEWAL_WINDOW_DAYS = 30;
+  const renewalWindowEnd = new Date(
+    maintenant.getTime() + RENEWAL_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  );
+  const renewalsDueSoonCount = await Contact.count({
+    where: {
+      statut_abonnement: 'actif',
+      date_expiration_abonnement: { [Op.gte]: maintenant, [Op.lte]: renewalWindowEnd },
+    },
+  });
+
+  return {
+    periode,
+    date_debut: dateDebut,
+    date_fin: maintenant,
+    metriques_globales: {
+      total_campagnes: totalCampagnes,
+      total_envois: totalEnvois,
+      total_contacts: totalContacts,
+      total_evenements: totalEvenements,
+    },
+    audience_metrics: {
+      total: audience_total,
+      actif: audience_actif,
+      growth: audience_growth,
+      top_tags: audience_top_tags,
+    },
+    performance_email: {
+      taux_ouverture: parseFloat(tauxOuverture),
+      taux_clic: parseFloat(tauxClic),
+      envois_envoyes: envoisEnvoyes,
+      envois_ouverts: envoisOuverts,
+      envois_clics: envoisClics,
+    },
+    membership_alerts: {
+      upcoming_birthdays_without_automation: activeBirthdayAutomation ? 0 : upcomingBirthdaysCount,
+      renewals_due_soon: renewalsDueSoonCount,
+    },
+    repartition_campagnes: statsCampagnes.map((stat) => ({
+      statut: stat.statut,
+      type: stat.type_campagne,
+      count: parseInt(stat.dataValues.count),
+      total_envoyes: parseInt(stat.dataValues.total_envoyes || 0),
+      total_erreurs: parseInt(stat.dataValues.total_erreurs || 0),
+    })),
+    repartition_contacts: statsContacts.map((stat) => ({
+      type_client: stat.type_client,
+      count: parseInt(stat.dataValues.count),
+    })),
+    repartition_rsvp: statsRsvp.map((stat) => ({
+      statut: stat.statut,
+      count: parseInt(stat.dataValues.count),
+    })),
+  };
+}
+
 // Tableau de bord principal avec toutes les statistiques
 exports.getDashboard = async (req, res) => {
   try {
     const { periode = '30j' } = req.query;
-
-    // Calculer la période
-    const maintenant = new Date();
-    let dateDebut;
-
-    switch (periode) {
-      case '7j':
-        dateDebut = new Date(maintenant.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case '30j':
-        dateDebut = new Date(maintenant.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      case '90j':
-        dateDebut = new Date(maintenant.getTime() - 90 * 24 * 60 * 60 * 1000);
-        break;
-      case '1an':
-        dateDebut = new Date(maintenant.getTime() - 365 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        dateDebut = new Date(maintenant.getTime() - 30 * 24 * 60 * 60 * 1000);
-    }
-
-    // Statistiques globales des campagnes
-    const statsCampagnes = await CampagneEmail.findAll({
-      where: {
-        date_creation: { [Op.gte]: dateDebut },
-        actif: true,
-      },
-      attributes: [
-        'statut',
-        'type_campagne',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-        [sequelize.fn('SUM', sequelize.col('nb_envoyes')), 'total_envoyes'],
-        [sequelize.fn('SUM', sequelize.col('nb_erreurs')), 'total_erreurs'],
-      ],
-      group: ['statut', 'type_campagne'],
-    });
-
-    // Statistiques des envois
-    const statsEnvois = await EnvoiEmail.findAll({
-      where: {
-        date_envoi: { [Op.gte]: dateDebut },
-      },
-      attributes: [
-        'statut',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-        [
-          sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('campagne_id'))),
-          'campagnes_uniques',
-        ],
-      ],
-      group: ['statut'],
-    });
-
-    // Statistiques des contacts
-    const statsContacts = await Contact.findAll({
-      where: {
-        date_creation: { [Op.gte]: dateDebut },
-        actif: true,
-      },
-      attributes: ['type_client', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-      group: ['type_client'],
-    });
-
-    // Statistiques des événements
-    const statsEvenements = await Evenement.findAll({
-      where: {
-        date: { [Op.gte]: dateDebut },
-      },
-      attributes: [[sequelize.fn('COUNT', sequelize.col('id')), 'total_evenements']],
-    });
-
-    // Statistiques des RSVP (pas de filtre par date car pas de createdAt)
-    const statsRsvp = await Rsvp.findAll({
-      attributes: ['statut', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-      group: ['statut'],
-    });
-
-    // Calculer les métriques de performance
-    const totalCampagnes = statsCampagnes.reduce(
-      (sum, stat) => sum + parseInt(stat.dataValues.count),
-      0
-    );
-    const totalEnvois = statsEnvois.reduce((sum, stat) => sum + parseInt(stat.dataValues.count), 0);
-    const totalContacts = statsContacts.reduce(
-      (sum, stat) => sum + parseInt(stat.dataValues.count),
-      0
-    );
-    const totalEvenements =
-      statsEvenements.length > 0 ? parseInt(statsEvenements[0].dataValues.total_evenements) : 0;
-
-    // Calculer les taux de conversion
-    const envoisEnvoyes = statsEnvois.find((s) => s.statut === 'envoyé')?.dataValues?.count || 0;
-    const envoisOuverts = statsEnvois.find((s) => s.statut === 'ouvert')?.dataValues?.count || 0;
-    const envoisClics = statsEnvois.find((s) => s.statut === 'clic')?.dataValues?.count || 0;
-
-    const tauxOuverture =
-      envoisEnvoyes > 0 ? ((envoisOuverts / envoisEnvoyes) * 100).toFixed(2) : 0;
-    const tauxClic = envoisEnvoyes > 0 ? ((envoisClics / envoisEnvoyes) * 100).toFixed(2) : 0;
-
-    // Métriques globales de l'Audience
-    const audience_total = await Contact.count();
-    const audience_actif = await Contact.count({ where: { actif: true } });
-
-    // Growth sur 30 jours
-    const thirtyDaysAgoGrowth = new Date(maintenant.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const growthDataRaw = await Contact.findAll({
-      where: { date_creation: { [Op.gte]: thirtyDaysAgoGrowth } },
-      attributes: [
-        [sequelize.fn('DATE', sequelize.col('date_creation')), 'date'],
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
-      ],
-      group: [sequelize.fn('DATE', sequelize.col('date_creation'))],
-      order: [[sequelize.fn('DATE', sequelize.col('date_creation')), 'ASC']],
-      raw: true,
-    });
-
-    const growthMap = new Map();
-    for (let i = 30; i >= 0; i--) {
-      const d = new Date(maintenant.getTime() - i * 24 * 60 * 60 * 1000);
-      growthMap.set(d.toISOString().split('T')[0], 0);
-    }
-    growthDataRaw.forEach((row) => {
-      const dStr = row.date;
-      const dateStr =
-        dStr instanceof Date
-          ? dStr.toISOString().split('T')[0]
-          : typeof dStr === 'string' && dStr.length >= 10
-            ? dStr.substring(0, 10)
-            : dStr;
-      if (growthMap.has(dateStr)) {
-        growthMap.set(dateStr, parseInt(row.count));
-      }
-    });
-    const audience_growth = Array.from(growthMap.entries()).map(([date, count]) => ({
-      date: date.substring(5), // MM-DD
-      'Nouveaux contacts': count,
-    }));
-
-    // Top Tags globaux
-    const topTagsRaw = await Tag.findAll({
-      include: [
-        {
-          model: Contact,
-          as: 'contacts',
-          attributes: [],
-          through: { attributes: [] },
-        },
-      ],
-      attributes: ['nom', [sequelize.fn('COUNT', sequelize.col('contacts.id')), 'contactCount']],
-      group: ['Tag.id', 'Tag.nom'],
-      order: [[sequelize.fn('COUNT', sequelize.col('contacts.id')), 'DESC']],
-      limit: 10,
-      subQuery: false,
-      raw: true,
-    });
-    const audience_top_tags = topTagsRaw.map((t) => ({
-      nom: t.nom,
-      count: parseInt(t.contactCount || 0),
-    }));
-
-    // Anniversaires à venir (14 prochains jours) sans automation d'anniversaire active
-    const BIRTHDAY_WINDOW_DAYS = 14;
-    const upcomingBirthdayDays = [];
-    for (let i = 0; i <= BIRTHDAY_WINDOW_DAYS; i++) {
-      const d = new Date(maintenant.getTime() + i * 24 * 60 * 60 * 1000);
-      upcomingBirthdayDays.push(
-        `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      );
-    }
-    const upcomingBirthdaysCount = await Contact.count({
-      where: {
-        date_naissance: { [Op.ne]: null },
-        [Op.and]: sequelize.literal(
-          `DATE_FORMAT(date_naissance, '%m-%d') IN (${upcomingBirthdayDays.map((d) => `'${d}'`).join(',')})`
-        ),
-      },
-    });
-    const activeBirthdayAutomation = await Automation.findOne({
-      where: { type: 'birthday', actif: true },
-    });
-
-    // Renouvellements dans les 30 prochains jours (même fenêtre que le rappel par défaut de automationService)
-    const RENEWAL_WINDOW_DAYS = 30;
-    const renewalWindowEnd = new Date(
-      maintenant.getTime() + RENEWAL_WINDOW_DAYS * 24 * 60 * 60 * 1000
-    );
-    const renewalsDueSoonCount = await Contact.count({
-      where: {
-        statut_abonnement: 'actif',
-        date_expiration_abonnement: { [Op.gte]: maintenant, [Op.lte]: renewalWindowEnd },
-      },
-    });
-
-    res.json({
-      periode,
-      date_debut: dateDebut,
-      date_fin: maintenant,
-      metriques_globales: {
-        total_campagnes: totalCampagnes,
-        total_envois: totalEnvois,
-        total_contacts: totalContacts,
-        total_evenements: totalEvenements,
-      },
-      audience_metrics: {
-        total: audience_total,
-        actif: audience_actif,
-        growth: audience_growth,
-        top_tags: audience_top_tags,
-      },
-      performance_email: {
-        taux_ouverture: parseFloat(tauxOuverture),
-        taux_clic: parseFloat(tauxClic),
-        envois_envoyes: envoisEnvoyes,
-        envois_ouverts: envoisOuverts,
-        envois_clics: envoisClics,
-      },
-      membership_alerts: {
-        upcoming_birthdays_without_automation: activeBirthdayAutomation
-          ? 0
-          : upcomingBirthdaysCount,
-        renewals_due_soon: renewalsDueSoonCount,
-      },
-      repartition_campagnes: statsCampagnes.map((stat) => ({
-        statut: stat.statut,
-        type: stat.type_campagne,
-        count: parseInt(stat.dataValues.count),
-        total_envoyes: parseInt(stat.dataValues.total_envoyes || 0),
-        total_erreurs: parseInt(stat.dataValues.total_erreurs || 0),
-      })),
-      repartition_contacts: statsContacts.map((stat) => ({
-        type_client: stat.type_client,
-        count: parseInt(stat.dataValues.count),
-      })),
-      repartition_rsvp: statsRsvp.map((stat) => ({
-        statut: stat.statut,
-        count: parseInt(stat.dataValues.count),
-      })),
-    });
+    const data = await computeDashboardData(periode);
+    res.json(data);
   } catch (err) {
     logger.error('Erreur getDashboard:', err);
     res.status(500).json({
       message: 'Erreur lors de la récupération du tableau de bord',
       error: err.message,
     });
+  }
+};
+
+const PERIODE_LABELS = { '7j': '7 jours', '30j': '30 jours', '90j': '90 jours', '1an': '1 an' };
+
+// GET /api/campagnes/stats/dashboard/pdf — même données que getDashboard,
+// mises en forme en PDF téléchargeable (pdfkit : pas de dépendance
+// Chromium/native, contrairement à puppeteer, donc rien à ajouter au Dockerfile).
+exports.exportDashboardPdf = async (req, res) => {
+  try {
+    const { periode = '30j' } = req.query;
+    const data = await computeDashboardData(periode);
+    const PDFDocument = require('pdfkit');
+
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="statistiques-${periode}-${new Date().toISOString().slice(0, 10)}.pdf"`
+    );
+    doc.pipe(res);
+
+    const fmtDate = (d) => new Date(d).toLocaleDateString('fr-FR');
+    const sectionTitle = (text) => {
+      doc.moveDown(1).fontSize(14).fillColor('#0f172a').text(text, { underline: false });
+      doc.moveDown(0.3);
+    };
+    // Helvetica (pdfkit's default font) only supports WinAnsi/Latin-1, so
+    // accented French characters render fine but symbols like → don't - keep
+    // separators to plain ASCII rather than embedding a Unicode font for this.
+    const kv = (label, value) => {
+      doc
+        .fontSize(10)
+        .fillColor('#475569')
+        .text(label, { continued: true })
+        .fillColor('#0f172a')
+        .text(`  ${value}`);
+    };
+
+    doc.fontSize(20).fillColor('#0f172a').text('Rapport statistiques — Pylon Pyx');
+    doc
+      .fontSize(10)
+      .fillColor('#64748b')
+      .text(
+        `Période : ${PERIODE_LABELS[periode] || periode} (${fmtDate(data.date_debut)} - ${fmtDate(data.date_fin)})`
+      );
+    doc.text(`Généré le ${fmtDate(new Date())}`);
+
+    sectionTitle('Vue d’ensemble');
+    kv('Campagnes envoyées :', data.metriques_globales.total_campagnes);
+    kv('Emails envoyés :', data.metriques_globales.total_envois);
+    kv('Nouveaux contacts :', data.metriques_globales.total_contacts);
+    kv('Événements :', data.metriques_globales.total_evenements);
+
+    sectionTitle('Audience');
+    kv('Total contacts :', data.audience_metrics.total);
+    kv('Contacts actifs :', data.audience_metrics.actif);
+
+    sectionTitle('Performance email');
+    kv('Taux d’ouverture :', `${data.performance_email.taux_ouverture}%`);
+    kv('Taux de clic :', `${data.performance_email.taux_clic}%`);
+    kv(
+      'Envoyés / ouverts / cliqués :',
+      `${data.performance_email.envois_envoyes} / ${data.performance_email.envois_ouverts} / ${data.performance_email.envois_clics}`
+    );
+
+    sectionTitle('Alertes abonnements');
+    kv(
+      'Anniversaires sans automation active :',
+      data.membership_alerts.upcoming_birthdays_without_automation
+    );
+    kv('Renouvellements sous 30 jours :', data.membership_alerts.renewals_due_soon);
+
+    if (data.audience_metrics.top_tags.length > 0) {
+      sectionTitle('Top étiquettes');
+      data.audience_metrics.top_tags.forEach((t) => kv(`${t.nom} :`, `${t.count} contact(s)`));
+    }
+
+    if (data.repartition_campagnes.length > 0) {
+      sectionTitle('Répartition des campagnes');
+      data.repartition_campagnes.forEach((c) =>
+        kv(
+          `${c.type || 'N/A'} (${c.statut}) :`,
+          `${c.count} campagne(s), ${c.total_envoyes} envoyés, ${c.total_erreurs} erreurs`
+        )
+      );
+    }
+
+    doc.end();
+  } catch (err) {
+    logger.error('Erreur exportDashboardPdf:', err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        message: 'Erreur lors de la génération du PDF',
+        error: err.message,
+      });
+    }
   }
 };
 

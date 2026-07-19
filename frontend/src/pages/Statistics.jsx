@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from '../api/axios';
 import { useToast } from '../context/ToastContext';
@@ -27,8 +27,14 @@ import {
   Visibility as VisibilityIcon,
   Cancel as CancelIcon,
   CheckCircle as CheckCircleIcon,
-  Schedule as ScheduleIcon
+  Schedule as ScheduleIcon,
+  WarningAmber as WarningAmberIcon,
+  ArrowUpward as ArrowUpwardIcon,
+  ArrowDownward as ArrowDownwardIcon,
+  Replay as ReplayIcon,
+  PictureAsPdf as PictureAsPdfIcon,
 } from '@mui/icons-material';
+import { TableSortLabel } from '@mui/material';
 
 const Statistics = () => {
   const toast = useToast();
@@ -46,6 +52,29 @@ const Statistics = () => {
   const [selectedSegment, setSelectedSegment] = useState('');
   const [periode, setPeriode] = useState('30j');
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const res = await axios.get('/campagnes/stats/dashboard/pdf', {
+        params: { periode },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `statistiques-${periode}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error("Échec de l'export PDF.");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
   
   // États pour le filtrage de la liste des contacts
   const [activitySearch, setActivitySearch] = useState('');
@@ -63,6 +92,7 @@ const Statistics = () => {
   const [contactTab, setContactTab] = useState(0);
   const [page, setPage] = useState(1);
   const rowsPerPage = 20;
+  const [signalSort, setSignalSort] = useState({ field: 'taux_ouverture', dir: 'desc' });
 
   useEffect(() => {
     dispatch(fetchCampaigns());
@@ -93,7 +123,7 @@ const Statistics = () => {
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
-    if (newValue === 1) {
+    if (newValue === 1 && !comparison) {
       dispatch(fetchComparison({ periode1: '30j', periode2: '60j' }));
     }
   };
@@ -150,6 +180,32 @@ const Statistics = () => {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
+  // Sent campaigns with computed rates for the Signal ranking table
+  const { sentCampaignsRanked, avgOpenRate } = useMemo(() => {
+    const sent = campaigns.filter((c) => c.statut === 'envoyée' && c.statistiques?.nb_envoyes > 0);
+    const withRates = sent.map((c) => ({
+      ...c,
+      taux_ouverture: Math.round((c.statistiques.nb_ouverts / c.statistiques.nb_envoyes) * 100),
+      taux_clic: Math.round((c.statistiques.nb_clics / c.statistiques.nb_envoyes) * 100),
+    }));
+    const avg = withRates.length > 0
+      ? Math.round(withRates.reduce((s, c) => s + c.taux_ouverture, 0) / withRates.length)
+      : 20;
+    const sorted = [...withRates].sort((a, b) => {
+      const diff = (a[signalSort.field] ?? 0) - (b[signalSort.field] ?? 0);
+      return signalSort.dir === 'desc' ? -diff : diff;
+    });
+    return { sentCampaignsRanked: sorted, avgOpenRate: avg };
+  }, [campaigns, signalSort]);
+
+  const handleSignalSort = (field) => {
+    setSignalSort((prev) =>
+      prev.field === field
+        ? { field, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
+        : { field, dir: 'desc' }
+    );
+  };
+
   // On ne bloque l'affichage total que lors du TOUT PREMIER chargement d'une campagne
   if (loading && !data) {
     return (
@@ -171,24 +227,35 @@ const Statistics = () => {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" component="h1">
-          📊 Tableau de Bord & Statistiques
+          Tableau de bord &amp; Statistiques
         </Typography>
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>Période</InputLabel>
-          <Select
-            value={periode}
-            label="Période"
-            onChange={(e) => {
-              setPeriode(e.target.value);
-              dispatch(fetchDashboard(e.target.value));
-            }}
+        <Box display="flex" alignItems="center" gap={1.5}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={exportingPdf ? <CircularProgress size={16} /> : <PictureAsPdfIcon />}
+            onClick={handleExportPdf}
+            disabled={exportingPdf}
           >
-            <MenuItem value="7j">7 jours</MenuItem>
-            <MenuItem value="30j">30 jours</MenuItem>
-            <MenuItem value="90j">90 jours</MenuItem>
-            <MenuItem value="1an">1 an</MenuItem>
-          </Select>
-        </FormControl>
+            Exporter en PDF
+          </Button>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Période</InputLabel>
+            <Select
+              value={periode}
+              label="Période"
+              onChange={(e) => {
+                setPeriode(e.target.value);
+                dispatch(fetchDashboard(e.target.value));
+              }}
+            >
+              <MenuItem value="7j">7 jours</MenuItem>
+              <MenuItem value="30j">30 jours</MenuItem>
+              <MenuItem value="90j">90 jours</MenuItem>
+              <MenuItem value="1an">1 an</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
       </Box>
 
       <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 3 }}>
@@ -200,6 +267,9 @@ const Statistics = () => {
       </Tabs>
 
       {/* Vue d'ensemble */}
+      {activeTab === 0 && !dashboard && !loading && (
+        <Alert severity="info">Aucune donnée disponible pour cette période.</Alert>
+      )}
       {activeTab === 0 && dashboard && (
         <Box>
           {/* Métriques principales */}
@@ -255,7 +325,25 @@ const Statistics = () => {
                 </CardContent>
               </Card>
             </Grid>
-            
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center">
+                    <VisibilityIcon color="warning" sx={{ mr: 1 }} />
+                    <Box>
+                      <Typography color="textSecondary" gutterBottom>
+                        Taux d&apos;ouverture
+                      </Typography>
+                      <Typography variant="h4">
+                        {dashboard.performance_email?.taux_ouverture != null
+                          ? `${dashboard.performance_email.taux_ouverture}%`
+                          : '—'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
 
           {/* Performance email */}
@@ -315,13 +403,132 @@ const Statistics = () => {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <RechartsTooltip />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             </Grid>
           </Grid>
+
+          {/* Signal — Campaign performance ranking */}
+          {sentCampaignsRanked.length > 0 && (
+            <Box mb={4}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6" fontWeight={700}>
+                  Performances par campagne
+                </Typography>
+                <Box sx={{ px: 1.5, py: 0.5, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 1.5 }}>
+                  <Typography variant="caption" sx={{ color: '#15803d', fontWeight: 600 }}>
+                    Moyenne ouverture : {avgOpenRate}%
+                  </Typography>
+                </Box>
+              </Box>
+              <TableContainer component={Paper}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                      <TableCell sx={{ fontWeight: 700, fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>
+                        Campagne
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>
+                        Date
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>
+                        <TableSortLabel
+                          active={signalSort.field === 'nb_envoyes'}
+                          direction={signalSort.field === 'nb_envoyes' ? signalSort.dir : 'desc'}
+                          onClick={() => handleSignalSort('nb_envoyes')}
+                        >
+                          Envois
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>
+                        <TableSortLabel
+                          active={signalSort.field === 'taux_ouverture'}
+                          direction={signalSort.field === 'taux_ouverture' ? signalSort.dir : 'desc'}
+                          onClick={() => handleSignalSort('taux_ouverture')}
+                        >
+                          Ouverture
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>
+                        <TableSortLabel
+                          active={signalSort.field === 'taux_clic'}
+                          direction={signalSort.field === 'taux_clic' ? signalSort.dir : 'desc'}
+                          onClick={() => handleSignalSort('taux_clic')}
+                        >
+                          Clic
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: 12, color: '#64748b', textTransform: 'uppercase' }}>
+                        Actions
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {sentCampaignsRanked.map((c) => {
+                      const belowAvg = c.taux_ouverture < avgOpenRate - 10;
+                      return (
+                        <TableRow key={c.id} hover>
+                          <TableCell>
+                            <Box display="flex" alignItems="center" gap={0.75}>
+                              {belowAvg && (
+                                <Tooltip title={`Sous la moyenne (${avgOpenRate}%)`}>
+                                  <WarningAmberIcon sx={{ fontSize: 16, color: '#d97706' }} />
+                                </Tooltip>
+                              )}
+                              <Typography fontSize={13} fontWeight={600}>
+                                {c.titre}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Typography fontSize={12} color="text.secondary">
+                              {c.date_envoi
+                                ? new Date(c.date_envoi).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                                : '—'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Typography fontSize={13}>{(c.statistiques.nb_envoyes || 0).toLocaleString()}</Typography>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                              <Typography
+                                fontSize={13}
+                                fontWeight={700}
+                                sx={{ color: belowAvg ? '#d97706' : '#16a34a' }}
+                              >
+                                {c.taux_ouverture}%
+                              </Typography>
+                              {belowAvg ? (
+                                <ArrowDownwardIcon sx={{ fontSize: 13, color: '#d97706' }} />
+                              ) : (
+                                <ArrowUpwardIcon sx={{ fontSize: 13, color: '#16a34a' }} />
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Typography fontSize={13} color={c.taux_clic < 2 ? 'warning.main' : 'text.primary'}>
+                              {c.taux_clic}%
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Tooltip title="Voir le détail">
+                              <IconButton size="small" onClick={() => { setSelectedCampaign(c.id); setActiveTab(2); }} sx={{ color: '#2563eb' }}>
+                                <VisibilityIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
 
           {/* Graphiques de performance */}
           <Grid container spacing={3}>
@@ -333,11 +540,12 @@ const Statistics = () => {
                     <BarChart data={dashboard.repartition_campagnes || []}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="statut" />
-                      <YAxis />
+                      <YAxis yAxisId="left" allowDecimals={false} />
+                      <YAxis yAxisId="right" orientation="right" />
                       <RechartsTooltip />
                       <Legend />
-                      <Bar dataKey="count" fill="#8884d8" name="Nombre de campagnes" />
-                      <Bar dataKey="total_envoyes" fill="#82ca9d" name="Total envoyés" />
+                      <Bar yAxisId="left" dataKey="count" fill="#8884d8" name="Nombre de campagnes" />
+                      <Bar yAxisId="right" dataKey="total_envoyes" fill="#82ca9d" name="Total envoyés" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -376,6 +584,12 @@ const Statistics = () => {
       )}
 
       {/* Comparaisons */}
+      {activeTab === 1 && loading && (
+        <Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box>
+      )}
+      {activeTab === 1 && !comparison && !loading && (
+        <Alert severity="info">Aucune donnée de comparaison disponible.</Alert>
+      )}
       {activeTab === 1 && comparison && (
         <Box>
           <Typography variant="h5" mb={3}>Comparaison des performances</Typography>
@@ -386,7 +600,7 @@ const Statistics = () => {
                 <CardHeader title="Période récente" />
                 <CardContent>
                   <Typography variant="body2" color="textSecondary" mb={2}>
-                    {new Date(comparison.periode1.date_debut).toLocaleDateString()} - {new Date(comparison.periode1.date_fin).toLocaleDateString()}
+                    {comparison.periode1.date_debut ? new Date(comparison.periode1.date_debut).toLocaleDateString('fr-FR') : '—'} – {comparison.periode1.date_fin ? new Date(comparison.periode1.date_fin).toLocaleDateString('fr-FR') : '—'}
                   </Typography>
                   <Box>
                     <Typography>Campagnes: {comparison.periode1.stats.campagnes}</Typography>
@@ -402,7 +616,7 @@ const Statistics = () => {
                 <CardHeader title="Période précédente" />
                 <CardContent>
                   <Typography variant="body2" color="textSecondary" mb={2}>
-                    {new Date(comparison.periode2.date_debut).toLocaleDateString()} - {new Date(comparison.periode2.date_fin).toLocaleDateString()}
+                    {comparison.periode2.date_debut ? new Date(comparison.periode2.date_debut).toLocaleDateString('fr-FR') : '—'} – {comparison.periode2.date_fin ? new Date(comparison.periode2.date_fin).toLocaleDateString('fr-FR') : '—'}
                   </Typography>
                   <Box>
                     <Typography>Campagnes: {comparison.periode2.stats.campagnes}</Typography>
@@ -480,44 +694,50 @@ const Statistics = () => {
             </CardContent>
           </Card>
 
+          {selectedCampaign && !data && !loading && (
+            <Alert severity="info" sx={{ mt: 2 }}>Aucune donnée disponible pour cette campagne.</Alert>
+          )}
           {selectedCampaign && data && (
             <Box>
               {/* Quick Stats Grid */}
               <Grid container spacing={3} sx={{ mb: 4 }}>
                 {[
-                  { 
-                    label: 'Ouverts', 
-                    value: data.stats_en_temps_reel?.ouverts || 0, 
-                    total: data.stats_en_temps_reel?.total || 0, 
-                    color: '#22c55e', 
-                    sub: 'sur envois' 
+                  {
+                    label: 'Ouverts',
+                    value: data.stats_en_temps_reel?.ouverts || 0,
+                    total: data.stats_en_temps_reel?.total || 0,
+                    showTotal: true,
+                    color: '#22c55e',
+                    sub: 'sur envois',
                   },
-                  { 
-                    label: 'Clics', 
-                    value: data.stats_en_temps_reel?.clics || 0, 
-                    total: 'Interactions', 
-                    color: '#f59e0b', 
-                    sub: 'enregistrées' 
+                  {
+                    label: 'Clics',
+                    value: data.stats_en_temps_reel?.clics || 0,
+                    showTotal: false,
+                    color: '#f59e0b',
+                    sub: 'interactions enregistrées',
                   },
-                  { 
-                    label: "Taux d'ouverture", 
-                    value: (data.stats_en_temps_reel?.total > 0) 
-                      ? `${(((data.stats_en_temps_reel?.ouverts || 0) / data.stats_en_temps_reel.total) * 100).toFixed(2)}%` 
-                      : '0.00%', 
-                    color: '#3b82f6', 
-                    sub: 'Engagement' 
+                  {
+                    label: "Taux d'ouverture",
+                    value: (data.stats_en_temps_reel?.total > 0)
+                      ? `${(((data.stats_en_temps_reel?.ouverts || 0) / data.stats_en_temps_reel.total) * 100).toFixed(1)}%`
+                      : '—',
+                    showTotal: false,
+                    color: '#3b82f6',
+                    sub: 'Engagement',
                   },
-                  { 
-                    label: 'Taux de clic', 
-                    value: (data.stats_en_temps_reel?.total > 0) 
-                      ? `${(((data.stats_en_temps_reel?.clics || 0) / data.stats_en_temps_reel.total) * 100).toFixed(2)}%` 
-                      : '0.00%', 
-                    color: '#6366f1', 
-                    sub: 'Conversion' 
-                  }
+                  {
+                    label: 'Taux de clic',
+                    value: (data.stats_en_temps_reel?.total > 0)
+                      ? `${(((data.stats_en_temps_reel?.clics || 0) / data.stats_en_temps_reel.total) * 100).toFixed(1)}%`
+                      : '—',
+                    showTotal: false,
+                    color: '#6366f1',
+                    sub: 'Conversion',
+                  },
                 ].map((stat, i) => (
                   <Grid item xs={12} sm={6} md={3} key={i}>
-                    <Card sx={{ height: '100%', borderRadius: 3, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+                    <Card sx={{ height: '100%', borderRadius: 3 }}>
                       <CardContent sx={{ p: 3 }}>
                         <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, letterSpacing: '0.1em' }}>
                           {stat.label}
@@ -526,13 +746,12 @@ const Statistics = () => {
                           <Typography variant="h4" sx={{ fontWeight: 800, color: stat.color }}>
                             {stat.value}
                           </Typography>
-                          {stat.total && stat.total !== 'Interactions' && (
+                          {stat.showTotal && stat.total > 0 && (
                             <Typography variant="body2" color="text.secondary">
                               / {stat.total}
                             </Typography>
                           )}
                         </Box>
-
                         <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
                           {stat.sub}
                         </Typography>
@@ -594,7 +813,7 @@ const Statistics = () => {
                               <Typography variant="caption" color="text.secondary">{contact.email}</Typography>
                             </Box>
                             <Box sx={{ textAlign: 'right' }}>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#3b82f6' }}>{contact.nombre_ouvertures} pts</Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#3b82f6' }}>{contact.nombre_ouvertures} ouvertures</Typography>
                               <Typography variant="caption" color="text.secondary">Engagement</Typography>
                             </Box>
                           </Box>
@@ -668,22 +887,23 @@ const Statistics = () => {
                                 alignItems: 'center'
                               }}>
                                 <Typography variant="body2" sx={{ color: '#475569', fontWeight: 500 }}>
-                                  💡 Vous pouvez relancer ces <strong>{tabs[contactTab].count}</strong> contacts avec une nouvelle campagne ciblée.
+                                  Vous pouvez relancer ces <strong>{tabs[contactTab].count}</strong> contacts avec une nouvelle campagne ciblée.
                                 </Typography>
-                                <Button 
-                                  variant="contained" 
-                                  size="small" 
+                                <Button
+                                  variant="contained"
+                                  size="small"
+                                  startIcon={<ReplayIcon />}
                                   onClick={() => handleFollowUp(tabs[contactTab].key)}
-                                  sx={{ 
-                                    textTransform: 'none', 
+                                  sx={{
+                                    textTransform: 'none',
                                     borderRadius: 2,
                                     boxShadow: 'none',
                                     fontWeight: 700,
                                     bgcolor: '#1e293b',
-                                    '&:hover': { bgcolor: '#334155' }
+                                    '&:hover': { bgcolor: '#334155' },
                                   }}
                                 >
-                                  🔁 Créer une campagne de suivi
+                                  Créer une campagne de suivi
                                 </Button>
                               </Box>
                             )}
@@ -731,7 +951,7 @@ const Statistics = () => {
 
                     <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#f8fafc' }}>
                       <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                        Affichage de <strong>{rowsPerPage}</strong> sur <strong>{data.pagination?.total || 0}</strong> contacts
+                        Affichage de <strong>{data.contact_activity?.length || 0}</strong> sur <strong>{data.pagination?.total || 0}</strong> contacts
                       </Typography>
                       <Pagination 
                         count={data.pagination?.totalPages || 1} 
@@ -768,6 +988,12 @@ const Statistics = () => {
             </Select>
           </FormControl>
 
+          {!selectedSegment && (
+            <Alert severity="info">Sélectionnez un segment ci-dessus pour voir ses statistiques.</Alert>
+          )}
+          {selectedSegment && !segmentStats && !loading && (
+            <Alert severity="info">Aucune donnée disponible pour ce segment.</Alert>
+          )}
           {segmentStats && (
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
@@ -777,38 +1003,30 @@ const Statistics = () => {
                     <Box>
                       <Box display="flex" justifyContent="space-between" mb={2}>
                         <Typography>Campagnes</Typography>
-                        <Typography variant="h6" color="primary">
-                          {segmentStats.statistiques.total_campagnes}
-                        </Typography>
+                        <Typography variant="h6" color="primary">{segmentStats.statistiques?.total_campagnes ?? '—'}</Typography>
                       </Box>
                       <Box display="flex" justifyContent="space-between" mb={2}>
                         <Typography>Emails envoyés</Typography>
-                        <Typography variant="h6" color="success">
-                          {segmentStats.statistiques.total_envois}
-                        </Typography>
+                        <Typography variant="h6" color="success">{segmentStats.statistiques?.total_envois ?? '—'}</Typography>
                       </Box>
                       <Box display="flex" justifyContent="space-between" mb={2}>
                         <Typography>Ouverts</Typography>
-                        <Typography variant="h6" color="info">
-                          {segmentStats.statistiques.total_ouverts}
-                        </Typography>
+                        <Typography variant="h6" color="info">{segmentStats.statistiques?.total_ouverts ?? '—'}</Typography>
                       </Box>
                       <Box display="flex" justifyContent="space-between" mb={2}>
                         <Typography>Clics</Typography>
-                        <Typography variant="h6" color="warning">
-                          {segmentStats.statistiques.total_clics}
-                        </Typography>
+                        <Typography variant="h6" color="warning">{segmentStats.statistiques?.total_clics ?? '—'}</Typography>
                       </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography>Taux d'ouverture</Typography>
+                      <Box display="flex" justifyContent="space-between" mb={2}>
+                        <Typography>Taux d&apos;ouverture</Typography>
                         <Typography variant="h6" color="primary">
-                          {segmentStats.statistiques.taux_ouverture}%
+                          {segmentStats.statistiques?.taux_ouverture != null ? `${segmentStats.statistiques.taux_ouverture}%` : '—'}
                         </Typography>
                       </Box>
                       <Box display="flex" justifyContent="space-between">
                         <Typography>Taux de clic</Typography>
                         <Typography variant="h6" color="success">
-                          {segmentStats.statistiques.taux_clic}%
+                          {segmentStats.statistiques?.taux_clic != null ? `${segmentStats.statistiques.taux_clic}%` : '—'}
                         </Typography>
                       </Box>
                     </Box>
