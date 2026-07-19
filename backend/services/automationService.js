@@ -113,7 +113,7 @@ class AutomationService {
       if (expiredCount[0] > 0)
         logger.debug(`[AUTOMATION] ${expiredCount[0]} memberships marked as EXPIRED.`);
 
-      // 2. Reminders: Find automations with trigger 'membership_expiring'
+      // 2. Reminders: Find automations with trigger 'membership_expiring' or 'payment_pending'
       const expiringAutomations = await Automation.findAll({
         where: { actif: true, type: 'custom' },
       });
@@ -125,17 +125,41 @@ class AutomationService {
             config = JSON.parse(config);
           } catch (e) {}
         }
-        if (!config || config.trigger !== 'membership_expiring') continue;
+        if (!config) continue;
+
+        // 2b. Payment pending: target contacts awaiting payment confirmation
+        if (config.trigger === 'payment_pending') {
+          const contacts = await Contact.findAll({
+            where: { statut_abonnement: 'en_attente_paiement' },
+          });
+
+          if (contacts.length > 0) {
+            logger.debug(
+              `[AUTOMATION] Triggering "${auto.nom}" for ${contacts.length} contacts (paiement en attente).`
+            );
+            for (const contact of contacts) {
+              await this.executeAction(auto, contact, config, true);
+            }
+          }
+          continue;
+        }
+
+        if (config.trigger !== 'membership_expiring') continue;
 
         const daysBefore = parseInt(config.days_before) || 30;
+        const isPostExpiry = daysBefore < 0;
+        const daysOffset = Math.abs(daysBefore);
+
         const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + daysBefore);
+        // Positive = days before expiry; negative = days after expiry
+        targetDate.setDate(targetDate.getDate() + (isPostExpiry ? -daysOffset : daysOffset));
         const targetDayStr = targetDate.toISOString().slice(0, 10);
 
-        // Find contacts expiring on that specific day
+        // Positive days_before → target active members expiring on targetDate
+        // Negative days_before → target expired members whose expiry was on targetDate
         const contacts = await Contact.findAll({
           where: {
-            statut_abonnement: 'actif',
+            statut_abonnement: isPostExpiry ? 'expiré' : 'actif',
             date_expiration_abonnement: {
               [Op.and]: [
                 { [Op.gte]: new Date(targetDayStr + ' 00:00:00') },
@@ -146,11 +170,13 @@ class AutomationService {
         });
 
         if (contacts.length > 0) {
+          const label = isPostExpiry
+            ? `${daysOffset} j. après expiration`
+            : `${daysBefore} j. avant expiration`;
           logger.debug(
-            `[AUTOMATION] Triggering "${auto.nom}" for ${contacts.length} contacts expiring in ${daysBefore} days.`
+            `[AUTOMATION] Triggering "${auto.nom}" for ${contacts.length} contacts (${label}).`
           );
           for (const contact of contacts) {
-            // isRecurring=true for reminders so they can be sent even if they had other automations
             await this.executeAction(auto, contact, config, true);
           }
         }

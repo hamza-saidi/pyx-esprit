@@ -7,6 +7,7 @@
   Evenement,
   Rsvp,
   EnvoiEmail,
+  Automation,
   sequelize,
 } = require('../models');
 const { Op } = require('sequelize');
@@ -402,6 +403,39 @@ exports.getDashboard = async (req, res) => {
       count: parseInt(t.contactCount || 0),
     }));
 
+    // Anniversaires à venir (14 prochains jours) sans automation d'anniversaire active
+    const BIRTHDAY_WINDOW_DAYS = 14;
+    const upcomingBirthdayDays = [];
+    for (let i = 0; i <= BIRTHDAY_WINDOW_DAYS; i++) {
+      const d = new Date(maintenant.getTime() + i * 24 * 60 * 60 * 1000);
+      upcomingBirthdayDays.push(
+        `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      );
+    }
+    const upcomingBirthdaysCount = await Contact.count({
+      where: {
+        date_naissance: { [Op.ne]: null },
+        [Op.and]: sequelize.literal(
+          `DATE_FORMAT(date_naissance, '%m-%d') IN (${upcomingBirthdayDays.map((d) => `'${d}'`).join(',')})`
+        ),
+      },
+    });
+    const activeBirthdayAutomation = await Automation.findOne({
+      where: { type: 'birthday', actif: true },
+    });
+
+    // Renouvellements dans les 30 prochains jours (même fenêtre que le rappel par défaut de automationService)
+    const RENEWAL_WINDOW_DAYS = 30;
+    const renewalWindowEnd = new Date(
+      maintenant.getTime() + RENEWAL_WINDOW_DAYS * 24 * 60 * 60 * 1000
+    );
+    const renewalsDueSoonCount = await Contact.count({
+      where: {
+        statut_abonnement: 'actif',
+        date_expiration_abonnement: { [Op.gte]: maintenant, [Op.lte]: renewalWindowEnd },
+      },
+    });
+
     res.json({
       periode,
       date_debut: dateDebut,
@@ -424,6 +458,12 @@ exports.getDashboard = async (req, res) => {
         envois_envoyes: envoisEnvoyes,
         envois_ouverts: envoisOuverts,
         envois_clics: envoisClics,
+      },
+      membership_alerts: {
+        upcoming_birthdays_without_automation: activeBirthdayAutomation
+          ? 0
+          : upcomingBirthdaysCount,
+        renewals_due_soon: renewalsDueSoonCount,
       },
       repartition_campagnes: statsCampagnes.map((stat) => ({
         statut: stat.statut,
