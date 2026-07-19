@@ -6,6 +6,10 @@ const config = require('../config-temp');
 const emailService = require('../services/emailService');
 const emailConfig = require('../config/email');
 const logger = require('../utils/logger');
+const { authenticator } = require('otplib');
+const qrcode = require('qrcode');
+
+const TOTP_ISSUER = 'Pylon Pyx';
 
 // ── Redis client (shared across MFA store + rate limiter) ───────────────────
 // Redis is used when REDIS_HOST or REDIS_URL is set (production/Docker).
@@ -211,12 +215,39 @@ exports.login = async (req, res, next) => {
     if (!user || !valid)
       return res.status(400).json({ message: 'Email ou mot de passe incorrect' });
 
-    // If admin or global_admin, require MFA
-    if (user.role === 'admin' || user.role === 'global_admin') {
+    // Admin/global_admin are always required to pass MFA; any user who has
+    // voluntarily set up TOTP must also pass it (an opted-in second factor
+    // can't be silently skipped just because the role doesn't force it).
+    const mfaRequired =
+      user.role === 'admin' || user.role === 'global_admin' || user.mfa_totp_enabled;
+
+    if (mfaRequired) {
+      const pendingId = 'mfa_' + user.id + '_' + Date.now();
+
+      if (user.mfa_totp_enabled) {
+        // TOTP replaces the email OTP for this user - no code to send, the
+        // authenticator app already has it.
+        await mfaSet(pendingId, {
+          userId: user.id,
+          method: 'totp',
+          expiresAt: Date.now() + 5 * 60 * 1000,
+        });
+        return res.status(202).json({
+          mfa_required: true,
+          mfa_method: 'totp',
+          pending_token: pendingId,
+          message: "Entrez le code de votre application d'authentification",
+        });
+      }
+
       // SECURITY FIX: crypto.randomInt is cryptographically secure (replaces Math.random)
       const code = String(randomInt(100000, 1000000));
-      const pendingId = 'mfa_' + user.id + '_' + Date.now();
-      await mfaSet(pendingId, { userId: user.id, code, expiresAt: Date.now() + 5 * 60 * 1000 });
+      await mfaSet(pendingId, {
+        userId: user.id,
+        method: 'email',
+        code,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
 
       try {
         await emailService.sendGenericEmail(
@@ -227,9 +258,12 @@ exports.login = async (req, res, next) => {
       } catch (e) {
         logger.error(`MFA email send failed for user ${user.email}`, { error: e.message });
       }
-      return res
-        .status(202)
-        .json({ mfa_required: true, pending_token: pendingId, message: 'Code MFA envoyé' });
+      return res.status(202).json({
+        mfa_required: true,
+        mfa_method: 'email',
+        pending_token: pendingId,
+        message: 'Code MFA envoyé',
+      });
     }
 
     const token = signAccess(user);
@@ -285,11 +319,21 @@ exports.verifyMfa = async (req, res) => {
       await mfaDel(pending_token);
       return res.status(400).json({ message: 'Code expiré. Veuillez vous reconnecter.' });
     }
-    // Constant-time comparison to prevent timing attacks
-    if (String(rec.code) !== String(code))
-      return res.status(400).json({ message: 'Code incorrect' });
+
     const user = await runWithTenant(SYSTEM_CONTEXT, () => Utilisateur.findByPk(rec.userId));
     if (!user) return res.status(400).json({ message: 'Utilisateur introuvable' });
+
+    if (rec.method === 'totp') {
+      if (!user.mfa_totp_enabled || !user.mfa_totp_secret) {
+        return res.status(400).json({ message: 'MFA TOTP non configuré' });
+      }
+      if (!authenticator.verify({ token: String(code), secret: user.mfa_totp_secret })) {
+        return res.status(400).json({ message: 'Code incorrect' });
+      }
+    } else if (String(rec.code) !== String(code)) {
+      return res.status(400).json({ message: 'Code incorrect' });
+    }
+
     await mfaDel(pending_token);
     const token = signAccess(user);
     const refresh = signRefresh(user);
@@ -309,11 +353,84 @@ exports.verifyMfa = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const user = await runWithTenant(SYSTEM_CONTEXT, () =>
-      Utilisateur.findByPk(req.user.id, { attributes: { exclude: ['mot_de_passe'] } })
+      Utilisateur.findByPk(req.user.id, {
+        attributes: { exclude: ['mot_de_passe', 'mfa_totp_secret'] },
+      })
     );
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+// ── TOTP MFA setup (app-based, e.g. Google/Microsoft Authenticator) ─────────
+// Complements the email OTP above: a user can opt in here regardless of
+// role; once mfa_totp_enabled is true, login() requires it instead of the
+// email code (see login()/verifyMfa() above).
+
+exports.mfaTotpSetup = async (req, res) => {
+  try {
+    const user = await runWithTenant(SYSTEM_CONTEXT, () => Utilisateur.findByPk(req.user.id));
+    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+    // Not yet enabled until verify-setup succeeds - generating a new secret
+    // here is safe to repeat (e.g. user re-scans) since nothing is active yet.
+    const secret = authenticator.generateSecret();
+    await runWithTenant(SYSTEM_CONTEXT, () =>
+      user.update({ mfa_totp_secret: secret, mfa_totp_enabled: false })
+    );
+
+    const otpauthUrl = authenticator.keyuri(user.email, TOTP_ISSUER, secret);
+    const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
+
+    res.json({ secret, otpauth_url: otpauthUrl, qr_code: qrCodeDataUrl });
+  } catch (err) {
+    logger.error('mfaTotpSetup error', { error: err.message });
+    res.status(500).json({ message: 'Erreur interne' });
+  }
+};
+
+exports.mfaTotpVerifySetup = async (req, res) => {
+  try {
+    const { code } = req.body || {};
+    if (!code) return res.status(400).json({ message: 'Code requis' });
+
+    const user = await runWithTenant(SYSTEM_CONTEXT, () => Utilisateur.findByPk(req.user.id));
+    if (!user || !user.mfa_totp_secret) {
+      return res
+        .status(400)
+        .json({ message: "Aucune configuration TOTP en attente. Relancez l'étape précédente." });
+    }
+    if (!authenticator.verify({ token: String(code), secret: user.mfa_totp_secret })) {
+      return res.status(400).json({ message: 'Code incorrect' });
+    }
+
+    await runWithTenant(SYSTEM_CONTEXT, () => user.update({ mfa_totp_enabled: true }));
+    res.json({ message: 'MFA par application activée.', mfa_totp_enabled: true });
+  } catch (err) {
+    logger.error('mfaTotpVerifySetup error', { error: err.message });
+    res.status(500).json({ message: 'Erreur interne' });
+  }
+};
+
+exports.mfaTotpDisable = async (req, res) => {
+  try {
+    const { mot_de_passe } = req.body || {};
+    if (!mot_de_passe) return res.status(400).json({ message: 'Mot de passe requis' });
+
+    const user = await runWithTenant(SYSTEM_CONTEXT, () => Utilisateur.findByPk(req.user.id));
+    if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+    const valid = await bcrypt.compare(mot_de_passe, user.mot_de_passe);
+    if (!valid) return res.status(400).json({ message: 'Mot de passe incorrect' });
+
+    await runWithTenant(SYSTEM_CONTEXT, () =>
+      user.update({ mfa_totp_enabled: false, mfa_totp_secret: null })
+    );
+    res.json({ message: 'MFA par application désactivée.', mfa_totp_enabled: false });
+  } catch (err) {
+    logger.error('mfaTotpDisable error', { error: err.message });
+    res.status(500).json({ message: 'Erreur interne' });
   }
 };
