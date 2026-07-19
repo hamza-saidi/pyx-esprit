@@ -7,14 +7,42 @@
   Rsvp,
   ContactTag,
   Abonnement,
+  Club,
 } = require('../models');
-const { parseFile, generateCsv, generateExcel } = require('../utils/csv');
+const { parseFile, previewFile, generateCsv, generateExcel } = require('../utils/csv');
+const fs = require('fs');
 const BatchProcessor = require('../utils/batchProcessor');
 const { Op } = require('sequelize');
 const automationService = require('../services/automationService');
 const { pick } = require('../utils/pick');
 const { runWithTenant } = require('../utils/tenantContext');
 const logger = require('../utils/logger');
+
+// ENUM fields — empty string is not a valid value; coerce to null so MySQL doesn't reject the row
+const ENUM_FIELDS = {
+  sexe: new Set(['Homme', 'Femme', 'Autre']),
+  type_client: new Set(['membre', 'entreprise']),
+  statut: new Set(['prospect', 'client', 'archivé']),
+  statut_abonnement: new Set(['actif', 'expiré', 'en_attente_paiement', 'aucun']),
+};
+// Numeric/decimal fields — empty string crashes MySQL DECIMAL/INTEGER columns
+const NUMERIC_FIELDS = ['handicap', 'abonnement_id'];
+// Date fields — empty string crashes MySQL DATE columns
+const DATE_FIELDS = ['date_naissance', 'date_inscription', 'date_debut_abonnement', 'date_expiration_abonnement'];
+
+function sanitizeEnums(body) {
+  const out = { ...body };
+  for (const [field, allowed] of Object.entries(ENUM_FIELDS)) {
+    if (field in out && !allowed.has(out[field])) out[field] = null;
+  }
+  for (const field of NUMERIC_FIELDS) {
+    if (field in out && (out[field] === '' || out[field] === undefined)) out[field] = null;
+  }
+  for (const field of DATE_FIELDS) {
+    if (field in out && (out[field] === '' || out[field] === undefined)) out[field] = null;
+  }
+  return out;
+}
 
 // Excludes id/club_id (tenant isolation) and date_creation (server-managed)
 const CONTACT_FIELDS = [
@@ -59,6 +87,27 @@ async function ensureTag(contact, tagName) {
   return [tagName];
 }
 
+/**
+ * GET /api/contacts/public/branding
+ * Public, unauthenticated — lets the public registration form render with the
+ * club's own logo/color. Pinned to the default club, same limitation as the
+ * public create() route below until a club-aware signup URL scheme exists.
+ */
+exports.getPublicBranding = async (req, res) => {
+  try {
+    const club = await Club.findByPk(1, {
+      attributes: ['nom', 'logo_url', 'couleur_principale'],
+    });
+    res.json({
+      nom: club?.nom || null,
+      logo_url: club?.logo_url || null,
+      couleur_principale: club?.couleur_principale || null,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // CRUD Contact
 exports.create = async (req, res) => {
   // The authenticated route (POST /contacts) already runs inside the tenant
@@ -83,7 +132,7 @@ exports.create = async (req, res) => {
         return res.status(400).json({ message: 'Un contact avec cet email existe déjà' });
       }
 
-      const contact = await Contact.create(pick(req.body, CONTACT_FIELDS));
+      const contact = await Contact.create(pick(sanitizeEnums(req.body), CONTACT_FIELDS));
 
       // Trigger: Contact created
       automationService.triggerAutomation('contact_added', { contact });
@@ -480,7 +529,7 @@ exports.update = async (req, res) => {
         return res.status(400).json({ message: 'Un contact avec cet email existe déjà' });
       }
     }
-    await contact.update(pick(req.body, CONTACT_FIELDS));
+    await contact.update(pick(sanitizeEnums(req.body), CONTACT_FIELDS));
     try {
       // Update explicit tags if provided
       if (Array.isArray(req.body.tags_id)) {
@@ -605,6 +654,18 @@ exports.deleteNote = async (req, res) => {
 };
 
 // Import Excel/CSV with duplicate elimination
+exports.previewImport = async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'Fichier manquant' });
+  try {
+    const preview = await previewFile(req.file.path);
+    try { fs.unlinkSync(req.file.path); } catch {}
+    res.json(preview);
+  } catch (err) {
+    try { fs.unlinkSync(req.file.path); } catch {}
+    res.status(400).json({ message: err.message });
+  }
+};
+
 exports.importFile = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Fichier manquant' });
@@ -613,9 +674,14 @@ exports.importFile = async (req, res) => {
     logger.debug(`File size: ${req.file.size} bytes`);
     logger.debug(`File mimetype: ${req.file.mimetype}`);
 
+    let customMapping = null;
+    if (req.body.columnMapping) {
+      try { customMapping = JSON.parse(req.body.columnMapping); } catch {}
+    }
+
     let contacts;
     try {
-      contacts = await parseFile(req.file.path);
+      contacts = await parseFile(req.file.path, customMapping);
 
       if (contacts.length === 0) {
         return res.status(400).json({ message: 'Aucun contact valide trouvé dans le fichier' });
@@ -677,9 +743,22 @@ exports.importFile = async (req, res) => {
       batchTagIds = String(req.body.batchTagIds).split(',').map(Number).filter(Boolean);
     }
 
+    // Si un tag batch s'appelle "membre" → les contacts importés sont des membres actifs
+    const MEMBER_TAG_PATTERN = /\bmembre(s)?\b/i;
+    let isMemberImport = false;
+    if (batchTagIds.length > 0) {
+      const batchTagObjects = await Tag.findAll({ where: { id: batchTagIds }, attributes: ['nom'] });
+      isMemberImport = batchTagObjects.some((t) => MEMBER_TAG_PATTERN.test(t.nom));
+    }
+
     // Map contacts to prepare tags/segments
     const processedContacts = newContacts.map((contact) => {
       const processed = { ...contact };
+
+      if (isMemberImport) {
+        processed.statut_abonnement = 'actif';
+        processed.type_client = 'membre';
+      }
 
       // Store tag and segment IDs for later association
       processed._tagIds = [
@@ -735,6 +814,10 @@ exports.importFile = async (req, res) => {
         if (raw.ville) updates.ville = raw.ville;
         if (raw.entreprise) updates.entreprise = raw.entreprise;
         if (raw.statut) updates.statut = raw.statut;
+        if (raw.type_adhesion) updates.type_adhesion = raw.type_adhesion;
+        if (raw.numero_licence) updates.numero_licence = raw.numero_licence;
+        if (raw.remarques) updates.remarques = raw.remarques;
+        if (isMemberImport) { updates.statut_abonnement = 'actif'; updates.type_client = 'membre'; }
         await contact.update(updates);
 
         // Handle tags for updated contacts too
@@ -973,20 +1056,24 @@ exports.exportTemplate = async (req, res) => {
 exports.getHealthStats = async (req, res) => {
   try {
     const sequelize = Contact.sequelize;
+    const clubId = Number(req.clubId);
 
-    // 1. Invalid Emails (basic syntax check)
-    // We'll use a standard regex for MySQL
+    // 1. Invalid Emails (basic syntax check) — scoped to club
     const invalidCount = await Contact.count({
-      where: sequelize.literal(
-        "email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'"
-      ),
+      where: {
+        club_id: clubId,
+        [Op.and]: sequelize.literal(
+          "email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'"
+        ),
+      },
     });
 
-    // 2. Bounced Emails (unique contacts with bounce/error status)
+    // 2. Bounced Emails (unique contacts with bounce/error status) — scoped to club
     const bouncedCount = await EnvoiEmail.count({
       distinct: true,
       col: 'contact_id',
       where: {
+        club_id: clubId,
         statut: { [Op.in]: ['bounce', 'erreur', 'spam'] },
       },
     });
@@ -1010,10 +1097,13 @@ exports.getHealthStats = async (req, res) => {
       },
     });
 
+    const totalCount = await Contact.count({ where: { club_id: clubId } });
+
     res.json({
-      invalid: invalidCount,
-      bounced: bouncedCount,
+      invalid:  invalidCount,
+      bounced:  bouncedCount,
       inactive: inactiveCount,
+      total:    totalCount,
     });
   } catch (err) {
     logger.error('[HealthStats] Error:', err);
@@ -1032,19 +1122,27 @@ exports.bulkHealthAction = async (req, res) => {
     const sequelize = Contact.sequelize;
     let contactIds = [];
 
+    const clubId = Number(req.clubId);
+
     if (category === 'invalid') {
       const contacts = await Contact.findAll({
         attributes: ['id'],
-        where: sequelize.literal(
-          "email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'"
-        ),
+        where: {
+          club_id: clubId,
+          [Op.and]: sequelize.literal(
+            "email NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\\.[A-Za-z]{2,}$'"
+          ),
+        },
         raw: true,
       });
       contactIds = contacts.map((c) => c.id);
     } else if (category === 'bounced') {
       const envois = await EnvoiEmail.findAll({
         attributes: [[sequelize.fn('DISTINCT', sequelize.col('contact_id')), 'contact_id']],
-        where: { statut: { [Op.in]: ['bounce', 'erreur', 'spam'] } },
+        where: {
+          club_id: clubId,
+          statut: { [Op.in]: ['bounce', 'erreur', 'spam'] },
+        },
         raw: true,
       });
       contactIds = envois.map((e) => e.contact_id);
@@ -1102,13 +1200,11 @@ exports.bulkHealthAction = async (req, res) => {
     } else if (action === 'tag' && tagId) {
       const tag = await Tag.findByPk(tagId);
       if (tag) {
-        for (const id of contactIds) {
-          const c = await Contact.findByPk(id);
-          if (c) {
-            await c.addTag(tag);
-            processed++;
-          }
-        }
+        await ContactTag.bulkCreate(
+          contactIds.map((id) => ({ contact_id: id, tag_id: Number(tagId) })),
+          { ignoreDuplicates: true }
+        );
+        processed = contactIds.length;
       }
     }
 

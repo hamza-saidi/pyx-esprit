@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Box, 
   Container, 
@@ -53,11 +53,36 @@ const translations = {
   }
 };
 
+const DEFAULT_BRAND_COLOR = '#1976d2';
+
+function hexToRgba(hex, alpha) {
+  const h = (hex || '').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const bigint = parseInt(full, 16);
+  if (Number.isNaN(bigint)) return hexToRgba(DEFAULT_BRAND_COLOR, alpha);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function darken(hex, amount = 0.15) {
+  const h = (hex || '').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const bigint = parseInt(full, 16);
+  if (Number.isNaN(bigint)) return darken(DEFAULT_BRAND_COLOR, amount);
+  const r = Math.round(((bigint >> 16) & 255) * (1 - amount));
+  const g = Math.round(((bigint >> 8) & 255) * (1 - amount));
+  const b = Math.round((bigint & 255) * (1 - amount));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 export default function PublicRegister() {
   const [language, setLanguage] = useState('de'); // Default to German
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [brand, setBrand] = useState({ nom: null, logo_url: null, couleur_principale: null });
   const [form, setForm] = useState({
     prenom: '',
     nom: '',
@@ -67,6 +92,14 @@ export default function PublicRegister() {
   });
 
   const t = translations[language];
+  const brandColor = brand.couleur_principale || DEFAULT_BRAND_COLOR;
+  const brandColorDark = darken(brandColor);
+
+  useEffect(() => {
+    api.get('/contacts/public/branding')
+      .then(r => setBrand(r.data || {}))
+      .catch(() => {});
+  }, []);
 
   const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -109,7 +142,7 @@ export default function PublicRegister() {
     <Box
       sx={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+        background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColorDark} 100%)`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -118,21 +151,21 @@ export default function PublicRegister() {
       }}
     >
       <Container maxWidth="sm">
-        <Paper 
-          elevation={8} 
-          sx={{ 
-            p: 4, 
+        <Paper
+          elevation={8}
+          sx={{
+            p: 4,
             borderRadius: 3,
             position: 'relative'
           }}
         >
           {/* Language Selector */}
           <Box sx={{ position: 'absolute', top: 16, right: 16 }}>
-            <IconButton 
+            <IconButton
               onClick={toggleLanguage}
-              sx={{ 
-                color: '#1976d2',
-                '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.08)' }
+              sx={{
+                color: brandColor,
+                '&:hover': { bgcolor: hexToRgba(brandColor, 0.08) }
               }}
               aria-label="Change language"
             >
@@ -140,11 +173,20 @@ export default function PublicRegister() {
             </IconButton>
           </Box>
 
-          <Typography 
-            variant="h4" 
-            gutterBottom 
-            sx={{ 
-              color: '#1976d2',
+          {brand.logo_url && (
+            <Box
+              component="img"
+              src={brand.logo_url}
+              alt={brand.nom || ''}
+              sx={{ maxHeight: 64, maxWidth: '60%', display: 'block', mb: 2 }}
+            />
+          )}
+
+          <Typography
+            variant="h4"
+            gutterBottom
+            sx={{
+              color: brandColor,
               fontWeight: 600,
               mb: 1
             }}
@@ -214,17 +256,19 @@ export default function PublicRegister() {
               </Select>
             </FormControl>
 
-            <Button 
+            <Button
               type="submit"
-              variant="contained" 
+              variant="contained"
               fullWidth
               size="large"
               disabled={loading || !form.prenom.trim() || !form.nom.trim() || !form.email.trim()}
-              sx={{ 
+              sx={{
                 mt: 3,
                 py: 1.5,
                 fontSize: '1.1rem',
-                fontWeight: 600
+                fontWeight: 600,
+                bgcolor: brandColor,
+                '&:hover': { bgcolor: brandColorDark }
               }}
             >
               {loading ? '...' : t.submit}

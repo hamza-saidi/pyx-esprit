@@ -25,6 +25,9 @@ module.exports = (sequelize, DataTypes) => {
       smtp_pass: { type: DataTypes.TEXT, allowNull: true, defaultValue: null },
       email_from_address: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
       email_from_name: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
+      // Public registration form branding
+      logo_url: { type: DataTypes.STRING(500), allowNull: true, defaultValue: null },
+      couleur_principale: { type: DataTypes.STRING(7), allowNull: true, defaultValue: null },
     },
     {
       tableName: 'club',
