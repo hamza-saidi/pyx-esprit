@@ -1,6 +1,10 @@
 ﻿const { Segment, Contact, Tag, CampagneEmail } = require('../models');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
+const {
+  buildEngagementCondition,
+  buildAbonnementJoursCondition,
+} = require('../utils/queryBuilder');
 const createSegment = require('../use-cases/segment/createSegment');
 const updateSegment = require('../use-cases/segment/updateSegment');
 const getSegment = require('../use-cases/segment/getSegment');
@@ -202,6 +206,24 @@ function buildContactQueryFromCriteria(rawCriteres, helpers = {}) {
 
   if (Object.keys(legacyWhere).length > 0) {
     whereConditions.push(legacyWhere);
+  }
+
+  // 2b. Behavioral criteria (email engagement) — skip if already in filterRules
+  if (!criteres.filterRules || !criteres.filterRules.some((r) => r.field === 'engagement')) {
+    const engagementCondition = buildEngagementCondition(criteres.engagement);
+    if (engagementCondition) {
+      whereConditions.push({ id: engagementCondition });
+    }
+  }
+
+  // 2c. Subscription status at J-N (same delay logic as automationService's
+  // membership_expiring reminder)
+  if (
+    criteres.abonnement_jours_avant_expiration !== '' &&
+    criteres.abonnement_jours_avant_expiration !== undefined &&
+    criteres.abonnement_jours_avant_expiration !== null
+  ) {
+    whereConditions.push(buildAbonnementJoursCondition(criteres.abonnement_jours_avant_expiration));
   }
 
   // 3. Tags (legacy/direct) - Only if not in filterRules

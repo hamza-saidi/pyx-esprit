@@ -15,6 +15,7 @@ const fs = require('fs');
 const { getPublicBaseUrl } = require('../utils/url');
 const { pick } = require('../utils/pick');
 const logger = require('../utils/logger');
+const { buildContactQueryFromCriteria } = require('../utils/queryBuilder');
 
 const ATTACHMENTS_DIR = path.join(__dirname, '..', 'uploads', 'campaign-attachments');
 
@@ -106,94 +107,6 @@ function normalizeUrls(html, req) {
     logger.error('Error normalizing URLs:', error);
     return html;
   }
-}
-
-// Helper: build contact query from criteria (aligned with segments)
-function buildContactQueryFromCriteria(rawCriteres) {
-  let criteres = rawCriteres;
-  if (typeof criteres === 'string') {
-    try {
-      criteres = JSON.parse(criteres);
-    } catch {
-      criteres = {};
-    }
-  }
-  const where = { actif: true };
-  const include = [];
-  if (!criteres || typeof criteres !== 'object') return { where, include };
-
-  // Normalize sexe
-  if (criteres.sexe) {
-    const v = String(criteres.sexe).trim().toLowerCase();
-    const males = new Set([
-      'h',
-      'homme',
-      'male',
-      'm',
-      'masculin',
-      'man',
-      'men',
-      'garçon',
-      'garcon',
-      'monsieur',
-    ]);
-    const females = new Set([
-      'f',
-      'femme',
-      'female',
-      'feminin',
-      'féminin',
-      'feminine',
-      'woman',
-      'women',
-      'w',
-      'lady',
-      'girl',
-      'madame',
-      'mme',
-      'femmes',
-    ]);
-    if (males.has(v)) where.sexe = { [Op.in]: ['Homme', 'H', 'M', 'Male', 'Masculin'] };
-    else if (females.has(v))
-      where.sexe = { [Op.in]: ['Femme', 'F', 'Female', 'Feminin', 'Féminin'] };
-    else if (v === 'autre' || v === 'other') where.sexe = 'Autre';
-    else where.sexe = criteres.sexe;
-  }
-
-  const equalityKeys = ['type_client', 'ville', 'nationalite', 'statut', 'source', 'actif'];
-  equalityKeys.forEach((key) => {
-    if (key === 'actif') return; // already defaulted to true unless explicitly provided
-    const value = criteres[key];
-    if (Array.isArray(value) && value.length > 0) where[key] = { [Op.in]: value };
-    else if (value !== '' && value !== null && value !== undefined)
-      where[key] = typeof value === 'string' ? value.trim() : value;
-  });
-
-  if (
-    criteres.handicap_min !== '' &&
-    criteres.handicap_min !== undefined &&
-    criteres.handicap_min !== null
-  ) {
-    where.handicap = { ...(where.handicap || {}), [Op.gte]: Number(criteres.handicap_min) };
-  }
-  if (
-    criteres.handicap_max !== '' &&
-    criteres.handicap_max !== undefined &&
-    criteres.handicap_max !== null
-  ) {
-    where.handicap = { ...(where.handicap || {}), [Op.lte]: Number(criteres.handicap_max) };
-  }
-
-  if (Array.isArray(criteres.tag_ids) && criteres.tag_ids.length > 0) {
-    include.push({
-      model: Tag,
-      as: 'tags',
-      where: { id: criteres.tag_ids },
-      through: { attributes: [] },
-      required: true,
-    });
-  }
-  return { where, include };
 }
 
 // Validation helper
@@ -1505,6 +1418,96 @@ const getFollowupGroups = async (req, res) => {
   }
 };
 
+// Envoyer un email de test sans ID de campagne (depuis le wizard avant sauvegarde)
+const testSendDirect = async (req, res) => {
+  try {
+    const { email_test, sujet, contenu_html } = req.body;
+    if (!email_test || !sujet || !contenu_html) {
+      return res.status(400).json({ message: 'email_test, sujet et contenu_html sont requis' });
+    }
+    const fakeCampagne = { sujet, contenu_html, contenu_texte: null };
+    await emailService.envoyerTest(email_test, fakeCampagne);
+    res.json({ message: 'Email de test envoyé avec succès' });
+  } catch (error) {
+    logger.error('Erreur envoi test direct:', error);
+    res.status(500).json({ message: "Erreur lors de l'envoi du test", error: error.message });
+  }
+};
+
+const checkLinks = async (req, res) => {
+  try {
+    const { urls } = req.body;
+    if (!Array.isArray(urls) || urls.length === 0) {
+      return res.status(400).json({ message: 'urls array required' });
+    }
+    const https = require('https');
+    const http = require('http');
+    const MAX = 20;
+    const toCheck = urls.slice(0, MAX).filter(u => /^https?:\/\//i.test(u));
+
+    const checkOne = (url) => new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve({ url, status: 'timeout', ok: false }), 5000);
+      const lib = url.startsWith('https') ? https : http;
+      try {
+        const req = lib.request(url, { method: 'HEAD', timeout: 5000 }, (r) => {
+          clearTimeout(timeout);
+          resolve({ url, status: r.statusCode, ok: r.statusCode >= 200 && r.statusCode < 400 });
+        });
+        req.on('error', () => { clearTimeout(timeout); resolve({ url, status: 'error', ok: false }); });
+        req.end();
+      } catch { clearTimeout(timeout); resolve({ url, status: 'error', ok: false }); }
+    });
+
+    const results = await Promise.all(toCheck.map(checkOne));
+    res.json({ results });
+  } catch (error) {
+    logger.error('Erreur check-links:', error);
+    res.status(500).json({ message: 'Erreur vérification liens', error: error.message });
+  }
+};
+
+const getOptimalSendTime = async (req, res) => {
+  try {
+    const envois = await EnvoiEmail.findAll({
+      where: { club_id: req.clubId, date_ouverture: { [Op.not]: null } },
+      attributes: ['date_ouverture'],
+    });
+
+    if (envois.length < 10) {
+      return res.json({ suggestion: null, totalOpens: envois.length, reason: 'insufficient_data' });
+    }
+
+    const slots = {};
+    envois.forEach(e => {
+      const d = new Date(e.date_ouverture);
+      const key = `${d.getDay()}_${d.getHours()}`;
+      slots[key] = (slots[key] || 0) + 1;
+    });
+
+    const DAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+    const sorted = Object.entries(slots)
+      .map(([key, count]) => {
+        const [day, hour] = key.split('_').map(Number);
+        return { day, hour, count, label: `${DAYS[day]} ${String(hour).padStart(2, '0')}h00` };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+
+    const top = sorted[0];
+    const avg = envois.length / Object.keys(slots).length;
+    const boostPct = avg > 0 ? Math.max(0, Math.round(((top.count - avg) / avg) * 100)) : 0;
+
+    res.json({
+      suggestion: { label: top.label, day: top.day, hour: top.hour, count: top.count, boostPct },
+      slots: sorted,
+      totalOpens: envois.length,
+    });
+  } catch (err) {
+    logger.error('getOptimalSendTime error:', err);
+    res.status(500).json({ message: 'Erreur lors du calcul du créneau optimal' });
+  }
+};
+
 module.exports = {
   getAll,
   getOne,
@@ -1515,6 +1518,7 @@ module.exports = {
   annuler,
   envoyer,
   envoyerTest,
+  testSendDirect,
   calculerDestinataires,
   getStatistiques,
   dupliquer,
@@ -1523,4 +1527,6 @@ module.exports = {
   downloadAttachment,
   buildContactQueryFromCriteria,
   getFollowupGroups,
+  checkLinks,
+  getOptimalSendTime,
 };
