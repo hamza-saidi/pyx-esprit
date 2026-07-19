@@ -1,7 +1,6 @@
 /**
  * smoke-test.js — Vérifie que toutes les fonctionnalités clés de Pylon Pyx répondent correctement.
- * Usage :  docker exec golf_huub_backend node smoke-test.js
- *          node backend/smoke-test.js              (local, si .env configuré)
+ * Usage :  docker compose exec backend node smoke-test.js
  */
 
 'use strict';
@@ -17,67 +16,110 @@ const OWNER_PASS = process.env.SMOKE_OWNER_PASSWORD || 'Owner2026!';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-let PASS = 0;
-let FAIL = 0;
-let SKIP = 0;
+let PASS = 0,
+  FAIL = 0,
+  SKIP = 0;
 
 function log(icon, label, detail = '') {
-  const d = detail ? `  → ${detail}` : '';
-  console.log(`  ${icon} ${label}${d}`);
+  console.log(`  ${icon} ${label}${detail ? `  → ${detail}` : ''}`);
 }
-
-function ok(label, detail) { PASS++; log('✅', label, detail); }
-function fail(label, detail) { FAIL++; log('❌', label, detail); }
-function skip(label, reason) { SKIP++; log('⏭ ', label, reason); }
+function ok(label, detail) {
+  PASS++;
+  log('✅', label, detail);
+}
+function fail(label, detail) {
+  FAIL++;
+  log('❌', label, detail);
+}
+function skip(label, reason) {
+  SKIP++;
+  log('⏭ ', label, reason);
+}
 
 function request(method, path, { body, token, csrfToken, contentType } = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(BASE + path);
-    const isHttps = url.protocol === 'https:';
-    const mod = isHttps ? https : http;
+    const mod = url.protocol === 'https:' ? https : http;
     const bodyStr = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
-
     const headers = {
       'Content-Type': contentType || 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(csrfToken ? { 'x-xsrf-token': csrfToken, Cookie: `xsrf-token=${csrfToken}` } : {}),
       ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
     };
-
-    const req = mod.request({
-      hostname: url.hostname,
-      port: url.port || (isHttps ? 443 : 80),
-      path: url.pathname + url.search,
-      method,
-      headers,
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
-        catch { resolve({ status: res.statusCode, body: data }); }
-      });
-    });
-
+    const req = mod.request(
+      {
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname + url.search,
+        method,
+        headers,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => {
+          data += c;
+        });
+        res.on('end', () => {
+          try {
+            resolve({ status: res.statusCode, body: JSON.parse(data) });
+          } catch {
+            resolve({ status: res.statusCode, body: data });
+          }
+        });
+      }
+    );
     req.on('error', reject);
     if (bodyStr) req.write(bodyStr);
     req.end();
   });
 }
 
-// CSRF + login helper
+// Read MFA code directly from Redis — only works when running inside the container
+async function readMfaCodeFromRedis(pendingId) {
+  try {
+    const Redis = require('ioredis');
+    const redis = new Redis({
+      host: process.env.REDIS_HOST || 'redis',
+      port: parseInt(process.env.REDIS_PORT) || 6379,
+      lazyConnect: true,
+      connectTimeout: 3000,
+    });
+    await redis.connect();
+    const raw = await redis.get(`auth:mfa:${pendingId}`);
+    redis.disconnect();
+    if (!raw) return null;
+    return JSON.parse(raw).code;
+  } catch {
+    return null;
+  }
+}
+
 async function login(email, password) {
   const csrf = await request('GET', '/api/csrf-token');
-  const token = csrf.body?.csrfToken;
-  if (!token) throw new Error('Cannot get CSRF token');
+  const csrfToken = csrf.body?.csrfToken;
+  if (!csrfToken) throw new Error('Cannot get CSRF token');
 
   const res = await request('POST', '/api/auth/login', {
     body: { email, mot_de_passe: password },
-    csrfToken: token,
+    csrfToken,
   });
 
   if (res.status === 200 && res.body?.token) return res.body.token;
-  if (res.status === 202 && res.body?.mfa_required) return '__MFA_REQUIRED__';
+
+  if (res.status === 202 && res.body?.mfa_required) {
+    const pendingId = res.body.pending_token;
+    const code = await readMfaCodeFromRedis(pendingId);
+    if (!code) throw new Error('MFA requis mais code introuvable dans Redis');
+
+    const verify = await request('POST', '/api/auth/verify-mfa', {
+      body: { pending_token: pendingId, code },
+      csrfToken,
+    });
+    if (verify.status === 200 && verify.body?.token) return verify.body.token;
+    throw new Error(`MFA verify échoué: ${verify.status} — ${JSON.stringify(verify.body)}`);
+  }
+
   throw new Error(`Login failed: ${res.status} — ${JSON.stringify(res.body)}`);
 }
 
@@ -99,7 +141,7 @@ async function testInfra() {
 async function testAuth(token) {
   console.log('\n🔐 Auth & Sécurité');
 
-  // CSRF guard
+  // CSRF guard — no cookie/header → 403
   const nocsrf = await request('POST', '/api/auth/login', {
     body: { email: TENANT_EMAIL, mot_de_passe: TENANT_PASS },
   });
@@ -107,12 +149,8 @@ async function testAuth(token) {
     ? ok('POST /login sans CSRF → 403 bloqué')
     : fail('POST /login sans CSRF', `attendu 403, reçu ${nocsrf.status}`);
 
-  // Valid login
-  token
-    ? ok('Login admin@golfhuub.com', 'JWT reçu')
-    : fail('Login admin@golfhuub.com', 'token null');
+  token ? ok(`Login ${TENANT_EMAIL}`, 'JWT reçu') : fail(`Login ${TENANT_EMAIL}`, 'token null');
 
-  // Accès sans token → 401
   const unauth = await request('GET', '/api/contacts');
   unauth.status === 401
     ? ok('GET /contacts sans token → 401')
@@ -123,37 +161,41 @@ async function testContacts(token) {
   console.log('\n👥 Contacts');
 
   const list = await request('GET', '/api/contacts?limit=5', { token });
-  if (list.status !== 200) { fail('GET /contacts', `HTTP ${list.status}`); return null; }
+  if (list.status !== 200) {
+    fail('GET /contacts', `HTTP ${list.status}`);
+    return null;
+  }
   ok('GET /contacts', `${list.body?.total ?? list.body?.length ?? '?'} contacts`);
 
-  // Create
   const csrf = await request('GET', '/api/csrf-token');
   const ct = csrf.body?.csrfToken;
+
   const created = await request('POST', '/api/contacts', {
-    token, csrfToken: ct,
+    token,
+    csrfToken: ct,
     body: { prenom: 'Smoke', nom: 'Test', email: `smoke.${Date.now()}@test.com`, actif: true },
   });
-  if (created.status !== 201) { fail('POST /contacts', `HTTP ${created.status} — ${JSON.stringify(created.body)}`); return null; }
+  if (created.status !== 201) {
+    fail('POST /contacts', `HTTP ${created.status} — ${JSON.stringify(created.body)}`);
+    return null;
+  }
   ok('POST /contacts', `id=${created.body?.id}`);
-
   const id = created.body?.id;
 
-  // GET by id
   const one = await request('GET', `/api/contacts/${id}`, { token });
   one.status === 200
     ? ok(`GET /contacts/${id}`)
     : fail(`GET /contacts/${id}`, `HTTP ${one.status}`);
 
-  // PATCH
-  const patched = await request('PATCH', `/api/contacts/${id}`, {
-    token, csrfToken: ct,
-    body: { prenom: 'SmokeUpdated' },
+  const updated = await request('PUT', `/api/contacts/${id}`, {
+    token,
+    csrfToken: ct,
+    body: { prenom: 'SmokeUpdated', nom: 'Test', email: created.body.email },
   });
-  patched.status === 200
-    ? ok(`PATCH /contacts/${id}`)
-    : fail(`PATCH /contacts/${id}`, `HTTP ${patched.status}`);
+  updated.status === 200
+    ? ok(`PUT /contacts/${id}`)
+    : fail(`PUT /contacts/${id}`, `HTTP ${updated.status} — ${JSON.stringify(updated.body)}`);
 
-  // DELETE
   const deleted = await request('DELETE', `/api/contacts/${id}`, { token, csrfToken: ct });
   deleted.status === 200 || deleted.status === 204
     ? ok(`DELETE /contacts/${id}`)
@@ -164,42 +206,51 @@ async function testContacts(token) {
 
 async function testTags(token) {
   console.log('\n🏷  Tags');
-  const list = await request('GET', '/api/tags', { token });
+  const list = await request('GET', '/api/contacts/tags', { token });
   list.status === 200
-    ? ok('GET /tags', `${Array.isArray(list.body) ? list.body.length : '?'} tags`)
-    : fail('GET /tags', `HTTP ${list.status}`);
+    ? ok('GET /contacts/tags', `${Array.isArray(list.body) ? list.body.length : '?'} tags`)
+    : fail('GET /contacts/tags', `HTTP ${list.status}`);
 }
 
 async function testSegments(token) {
   console.log('\n📊 Segments');
-  const list = await request('GET', '/api/segments', { token });
+  const list = await request('GET', '/api/contacts/segments', { token });
   list.status === 200
-    ? ok('GET /segments', `${Array.isArray(list.body) ? list.body.length : '?'} segments`)
-    : fail('GET /segments', `HTTP ${list.status}`);
+    ? ok('GET /contacts/segments', `${Array.isArray(list.body) ? list.body.length : '?'} segments`)
+    : fail('GET /contacts/segments', `HTTP ${list.status}`);
 }
 
 async function testCampaigns(token) {
   console.log('\n📧 Campagnes');
   const list = await request('GET', '/api/campagnes?limit=5', { token });
-  if (list.status !== 200) { fail('GET /campagnes', `HTTP ${list.status}`); return; }
+  if (list.status !== 200) {
+    fail('GET /campagnes', `HTTP ${list.status}`);
+    return;
+  }
   ok('GET /campagnes', `${list.body?.total ?? list.body?.length ?? '?'} campagnes`);
 
   const csrf = await request('GET', '/api/csrf-token');
   const ct = csrf.body?.csrfToken;
+
   const created = await request('POST', '/api/campagnes', {
-    token, csrfToken: ct,
+    token,
+    csrfToken: ct,
     body: {
       titre: `Smoke Test ${Date.now()}`,
       sujet: 'Smoke test sujet',
-      contenu_html: '<p>Test</p>',
+      contenu_html: '<p>Smoke test content</p>',
       type_campagne: 'newsletter',
       statut: 'brouillon',
       priorite: 'normale',
     },
   });
-  created.status === 201
-    ? ok('POST /campagnes', `id=${created.body?.id}`)
-    : fail('POST /campagnes', `HTTP ${created.status} — ${JSON.stringify(created.body)}`);
+  if (created.status === 201) {
+    ok('POST /campagnes', `id=${created.body?.id}`);
+    // Cleanup
+    await request('DELETE', `/api/campagnes/${created.body.id}`, { token, csrfToken: ct });
+  } else {
+    fail('POST /campagnes', `HTTP ${created.status} — ${JSON.stringify(created.body)}`);
+  }
 }
 
 async function testAutomations(token) {
@@ -212,18 +263,15 @@ async function testAutomations(token) {
 
 async function testStatistics(token) {
   console.log('\n📈 Statistiques');
-  const stats = await request('GET', '/api/statistics/overview', { token });
-  stats.status === 200
-    ? ok('GET /statistics/overview')
-    : fail('GET /statistics/overview', `HTTP ${stats.status}`);
-}
+  const dashboard = await request('GET', '/api/campagnes/stats/dashboard', { token });
+  dashboard.status === 200
+    ? ok('GET /campagnes/stats/dashboard')
+    : fail('GET /campagnes/stats/dashboard', `HTTP ${dashboard.status}`);
 
-async function testMembers(token) {
-  console.log('\n👤 Membres');
-  const list = await request('GET', '/api/members', { token });
-  list.status === 200 || list.status === 404
-    ? ok('GET /members', list.status === 404 ? 'route absente (normal)' : `HTTP ${list.status}`)
-    : fail('GET /members', `HTTP ${list.status}`);
+  const events = await request('GET', '/api/campagnes/stats/events', { token });
+  events.status === 200
+    ? ok('GET /campagnes/stats/events')
+    : fail('GET /campagnes/stats/events', `HTTP ${events.status}`);
 }
 
 async function testTemplates(token) {
@@ -236,26 +284,36 @@ async function testTemplates(token) {
 
 async function testSettings(token) {
   console.log('\n⚙️  Paramètres');
-  const s = await request('GET', '/api/settings', { token });
-  s.status === 200
-    ? ok('GET /settings')
-    : fail('GET /settings', `HTTP ${s.status}`);
+  const s = await request('GET', '/api/settings/email', { token });
+  s.status === 200 ? ok('GET /settings/email') : fail('GET /settings/email', `HTTP ${s.status}`);
 }
 
 async function testUsers(token) {
   console.log('\n👨‍💼 Équipe');
-  const list = await request('GET', '/api/users', { token });
+  const list = await request('GET', '/api/auth/users', { token });
   list.status === 200
-    ? ok('GET /users', `${Array.isArray(list.body) ? list.body.length : '?'} utilisateurs`)
-    : fail('GET /users', `HTTP ${list.status}`);
+    ? ok('GET /auth/users', `${Array.isArray(list.body) ? list.body.length : '?'} utilisateurs`)
+    : fail('GET /auth/users', `HTTP ${list.status}`);
+}
+
+async function testEvents(token) {
+  console.log('\n📅 Événements');
+  const list = await request('GET', '/api/contacts/events', { token });
+  list.status === 200
+    ? ok(
+        'GET /contacts/events',
+        `${list.body?.total ?? (Array.isArray(list.body) ? list.body.length : '?')} événements`
+      )
+    : fail('GET /contacts/events', `HTTP ${list.status}`);
 }
 
 async function testSuperAdmin(ownerToken) {
   console.log('\n🏢 Owner Platform (superadmin)');
-  if (!ownerToken || ownerToken === '__MFA_REQUIRED__') {
-    skip('Superadmin tests', ownerToken === '__MFA_REQUIRED__' ? 'MFA requis pour ce compte' : 'Pas de token owner');
+  if (!ownerToken) {
+    skip('Superadmin tests', 'Pas de token owner');
     return;
   }
+
   const clubs = await request('GET', '/api/superadmin/clubs', { token: ownerToken });
   clubs.status === 200
     ? ok('GET /superadmin/clubs', `${Array.isArray(clubs.body) ? clubs.body.length : '?'} tenants`)
@@ -275,17 +333,13 @@ async function main() {
   console.log(`  Base URL : ${BASE}`);
   console.log('═══════════════════════════════════════════════════════');
 
-  // Infra (no auth needed)
   await testInfra();
 
-  // Tenant admin login
+  // Tenant admin login (handles MFA via Redis)
   let tenantToken = null;
   try {
     tenantToken = await login(TENANT_EMAIL, TENANT_PASS);
-    if (tenantToken === '__MFA_REQUIRED__') {
-      console.log('\n⚠️  MFA activé pour admin@golfhuub.com — tests tenant ignorés');
-      tenantToken = null;
-    }
+    console.log(`\n  🔑 Connecté en tant que ${TENANT_EMAIL}`);
   } catch (e) {
     console.log(`\n⚠️  Login tenant échoué : ${e.message}`);
   }
@@ -302,20 +356,21 @@ async function main() {
     await testTemplates(tenantToken);
     await testSettings(tenantToken);
     await testUsers(tenantToken);
-    await testMembers(tenantToken);
+    await testEvents(tenantToken);
   }
 
-  // Owner login
+  // Owner login (handles MFA via Redis)
   let ownerToken = null;
   try {
     ownerToken = await login(OWNER_EMAIL, OWNER_PASS);
+    console.log(`\n  🔑 Connecté en tant que ${OWNER_EMAIL}`);
   } catch (e) {
     console.log(`\n⚠️  Login owner échoué : ${e.message}`);
   }
 
   await testSuperAdmin(ownerToken);
 
-  // ── Résumé ──────────────────────────────────────────────────────────────────
+  // ── Summary ───────────────────────────────────────────────────────────────
   const total = PASS + FAIL + SKIP;
   console.log('\n═══════════════════════════════════════════════════════');
   console.log(`  Résultats : ${PASS}/${total} passés  |  ${FAIL} échoués  |  ${SKIP} ignorés`);
@@ -325,7 +380,6 @@ async function main() {
     console.log(`  ⚠️  ${FAIL} fonctionnalité(s) à corriger`);
   }
   console.log('═══════════════════════════════════════════════════════\n');
-
   process.exit(FAIL > 0 ? 1 : 0);
 }
 
