@@ -28,7 +28,12 @@ const ENUM_FIELDS = {
 // Numeric/decimal fields — empty string crashes MySQL DECIMAL/INTEGER columns
 const NUMERIC_FIELDS = ['handicap', 'abonnement_id'];
 // Date fields — empty string crashes MySQL DATE columns
-const DATE_FIELDS = ['date_naissance', 'date_inscription', 'date_debut_abonnement', 'date_expiration_abonnement'];
+const DATE_FIELDS = [
+  'date_naissance',
+  'date_inscription',
+  'date_debut_abonnement',
+  'date_expiration_abonnement',
+];
 
 function sanitizeEnums(body) {
   const out = { ...body };
@@ -658,10 +663,14 @@ exports.previewImport = async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'Fichier manquant' });
   try {
     const preview = await previewFile(req.file.path);
-    try { fs.unlinkSync(req.file.path); } catch {}
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {}
     res.json(preview);
   } catch (err) {
-    try { fs.unlinkSync(req.file.path); } catch {}
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch {}
     res.status(400).json({ message: err.message });
   }
 };
@@ -676,7 +685,9 @@ exports.importFile = async (req, res) => {
 
     let customMapping = null;
     if (req.body.columnMapping) {
-      try { customMapping = JSON.parse(req.body.columnMapping); } catch {}
+      try {
+        customMapping = JSON.parse(req.body.columnMapping);
+      } catch {}
     }
 
     let contacts;
@@ -747,7 +758,10 @@ exports.importFile = async (req, res) => {
     const MEMBER_TAG_PATTERN = /\bmembre(s)?\b/i;
     let isMemberImport = false;
     if (batchTagIds.length > 0) {
-      const batchTagObjects = await Tag.findAll({ where: { id: batchTagIds }, attributes: ['nom'] });
+      const batchTagObjects = await Tag.findAll({
+        where: { id: batchTagIds },
+        attributes: ['nom'],
+      });
       isMemberImport = batchTagObjects.some((t) => MEMBER_TAG_PATTERN.test(t.nom));
     }
 
@@ -817,7 +831,10 @@ exports.importFile = async (req, res) => {
         if (raw.type_adhesion) updates.type_adhesion = raw.type_adhesion;
         if (raw.numero_licence) updates.numero_licence = raw.numero_licence;
         if (raw.remarques) updates.remarques = raw.remarques;
-        if (isMemberImport) { updates.statut_abonnement = 'actif'; updates.type_client = 'membre'; }
+        if (isMemberImport) {
+          updates.statut_abonnement = 'actif';
+          updates.type_client = 'membre';
+        }
         await contact.update(updates);
 
         // Handle tags for updated contacts too
@@ -1100,10 +1117,10 @@ exports.getHealthStats = async (req, res) => {
     const totalCount = await Contact.count({ where: { club_id: clubId } });
 
     res.json({
-      invalid:  invalidCount,
-      bounced:  bouncedCount,
+      invalid: invalidCount,
+      bounced: bouncedCount,
       inactive: inactiveCount,
-      total:    totalCount,
+      total: totalCount,
     });
   } catch (err) {
     logger.error('[HealthStats] Error:', err);

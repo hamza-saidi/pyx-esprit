@@ -163,7 +163,9 @@ describe('queryBuilder - buildContactQueryFromCriteria', () => {
   test('should filter expired subscriptions N days after expiry (negative)', () => {
     runWithTenant({ clubId: 1, isSystem: false }, () => {
       const today = buildContactQueryFromCriteria({ abonnement_jours_avant_expiration: 0 });
-      const after5DaysPast = buildContactQueryFromCriteria({ abonnement_jours_avant_expiration: -5 });
+      const after5DaysPast = buildContactQueryFromCriteria({
+        abonnement_jours_avant_expiration: -5,
+      });
 
       expect(after5DaysPast.where.statut_abonnement).toBe('expiré');
       // -5 days lands on an earlier day than today (0).

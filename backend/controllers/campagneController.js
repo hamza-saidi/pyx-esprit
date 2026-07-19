@@ -1443,20 +1443,27 @@ const checkLinks = async (req, res) => {
     const https = require('https');
     const http = require('http');
     const MAX = 20;
-    const toCheck = urls.slice(0, MAX).filter(u => /^https?:\/\//i.test(u));
+    const toCheck = urls.slice(0, MAX).filter((u) => /^https?:\/\//i.test(u));
 
-    const checkOne = (url) => new Promise((resolve) => {
-      const timeout = setTimeout(() => resolve({ url, status: 'timeout', ok: false }), 5000);
-      const lib = url.startsWith('https') ? https : http;
-      try {
-        const req = lib.request(url, { method: 'HEAD', timeout: 5000 }, (r) => {
+    const checkOne = (url) =>
+      new Promise((resolve) => {
+        const timeout = setTimeout(() => resolve({ url, status: 'timeout', ok: false }), 5000);
+        const lib = url.startsWith('https') ? https : http;
+        try {
+          const req = lib.request(url, { method: 'HEAD', timeout: 5000 }, (r) => {
+            clearTimeout(timeout);
+            resolve({ url, status: r.statusCode, ok: r.statusCode >= 200 && r.statusCode < 400 });
+          });
+          req.on('error', () => {
+            clearTimeout(timeout);
+            resolve({ url, status: 'error', ok: false });
+          });
+          req.end();
+        } catch {
           clearTimeout(timeout);
-          resolve({ url, status: r.statusCode, ok: r.statusCode >= 200 && r.statusCode < 400 });
-        });
-        req.on('error', () => { clearTimeout(timeout); resolve({ url, status: 'error', ok: false }); });
-        req.end();
-      } catch { clearTimeout(timeout); resolve({ url, status: 'error', ok: false }); }
-    });
+          resolve({ url, status: 'error', ok: false });
+        }
+      });
 
     const results = await Promise.all(toCheck.map(checkOne));
     res.json({ results });
@@ -1478,7 +1485,7 @@ const getOptimalSendTime = async (req, res) => {
     }
 
     const slots = {};
-    envois.forEach(e => {
+    envois.forEach((e) => {
       const d = new Date(e.date_ouverture);
       const key = `${d.getDay()}_${d.getHours()}`;
       slots[key] = (slots[key] || 0) + 1;

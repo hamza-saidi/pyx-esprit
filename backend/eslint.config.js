@@ -36,6 +36,7 @@ module.exports = [
         beforeEach: 'readonly',
         afterEach: 'readonly',
         jest: 'readonly',
+        fetch: 'readonly',
       },
     },
     plugins: {

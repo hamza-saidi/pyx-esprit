@@ -11,12 +11,14 @@ exports.campaignSuggest = async (req, res) => {
       return res.status(400).json({ message: 'Le champ event_type est requis.' });
     }
 
+    const { style } = req.body;
     const result = await suggestCampaign({
       eventType: event_type,
       audience: audience || 'membres du club',
       recipientCount: recipient_count ? Number(recipient_count) : null,
       tone: tone || 'amical',
       context: context || '',
+      style: ['full', 'minimal'].includes(style) ? style : 'full',
     });
 
     logger.info(`[AI] Suggestion générée pour le club ${req.user?.club_id}`);

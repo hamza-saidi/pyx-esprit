@@ -75,7 +75,12 @@ router.post('/:id/tags', requireAuthAndTenant, contactController.addTag);
 router.delete('/:id/tags', requireAuthAndTenant, contactController.removeTag);
 
 // Import/export files
-router.post('/import/preview', requireAuthAndTenant, upload.single('file'), contactController.previewImport);
+router.post(
+  '/import/preview',
+  requireAuthAndTenant,
+  upload.single('file'),
+  contactController.previewImport
+);
 router.post('/import', requireAuthAndTenant, upload.single('file'), contactController.importFile);
 router.get('/export/csv', requireAuthAndTenant, contactController.exportCsv);
 router.get('/export/excel', requireAuthAndTenant, contactController.exportExcel);
