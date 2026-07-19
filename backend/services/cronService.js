@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { Automation, CampagneEmail, Club } = require('../models');
 const automationController = require('../controllers/automationController');
+const contactController = require('../controllers/contactController');
 const automationService = require('./automationService');
 const emailService = require('./emailService');
 const logger = require('../utils/logger');
@@ -83,7 +84,24 @@ exports.initAutomations = async () => {
     });
   });
 
-  // 3. Campaign Scheduler Loop: Run every 30 seconds to fetch & send due campaigns
+  // 3. Weekly Audience Health Scan: Every Monday at 06:00 AM
+  cron.schedule('0 6 * * 1', async () => {
+    logger.info('⏰ CRON: Running weekly audience health scan...');
+    await forEachActiveClub(async (club) => {
+      const req = { clubId: club.id };
+      const res = {
+        json: (data) =>
+          logger.info(`🩺 CRON: Health scan for club ${club.id} (${club.nom}):`, data),
+        status: (code) => ({
+          json: (error) =>
+            logger.error(`❌ CRON: Health scan error for club ${club.id} [${code}]:`, error),
+        }),
+      };
+      await contactController.getHealthStats(req, res);
+    });
+  });
+
+  // 4. Campaign Scheduler Loop: Run every 30 seconds to fetch & send due campaigns
   startCampaignScheduler();
 
   logger.info('✅ SCHEDULER: All background tasks and intervals scheduled.');
