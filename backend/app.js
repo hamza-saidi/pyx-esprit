@@ -134,6 +134,7 @@ app.use('/api/mailer', require('./routes/mailer'));
 app.use('/api/tracking', require('./routes/tracking'));
 app.use('/api/superadmin', require('./routes/superadmin'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/membres', require('./routes/membres'));
 
 // Error handling middleware
 app.use(errorHandler);
