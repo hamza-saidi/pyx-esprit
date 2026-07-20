@@ -15,7 +15,35 @@
 const logger = require('../utils/logger');
 const { runWithTenant } = require('../utils/tenantContext');
 
-function tenantScope(req, res, next) {
+// Club itself is never tenant-scoped (it's the tenant root) - same system
+// bypass used in authController.js/cronService.js for the one model that
+// legitimately needs cross-tenant reads.
+const SYSTEM_CONTEXT = { clubId: null, isSystem: true };
+
+// Checked on every tenant-scoped request (see checkClubActive below) so a
+// suspension/archival takes effect immediately, not just at next login -
+// closes the gap where a club's users kept full access with their existing
+// JWT until it naturally expired (up to 24h).
+async function checkClubActive(clubId) {
+  const { Club } = require('../models');
+  const club = await runWithTenant(SYSTEM_CONTEXT, () =>
+    Club.findByPk(clubId, { attributes: ['id', 'statut'] })
+  );
+  if (!club) return { ok: false, code: 'CLUB_NOT_FOUND', message: 'Club introuvable.' };
+  if (club.statut === 'suspendu') {
+    return {
+      ok: false,
+      code: 'CLUB_SUSPENDED',
+      message: 'Ce club est suspendu. Contactez le support Pylon Pyx.',
+    };
+  }
+  if (club.statut === 'archive') {
+    return { ok: false, code: 'CLUB_ARCHIVED', message: 'Ce club a été archivé.' };
+  }
+  return { ok: true };
+}
+
+async function tenantScope(req, res, next) {
   if (!req.user) {
     // Public routes mounted without authenticateToken have no tenant
     // context to extract; they must set one up explicitly if they touch
@@ -31,6 +59,12 @@ function tenantScope(req, res, next) {
       });
     }
     const clubId = Number(impersonateClubId);
+
+    const statusCheck = await checkClubActive(clubId);
+    if (!statusCheck.ok) {
+      return res.status(403).json({ message: statusCheck.message, code: statusCheck.code });
+    }
+
     logger.warn(`[AUDIT] global_admin impersonation`, {
       userId: req.user.id,
       clubId,
@@ -50,6 +84,11 @@ function tenantScope(req, res, next) {
     return res.status(400).json({
       message: 'Contexte de club manquant. Veuillez vous reconnecter.',
     });
+  }
+
+  const statusCheck = await checkClubActive(Number(clubId));
+  if (!statusCheck.ok) {
+    return res.status(403).json({ message: statusCheck.message, code: statusCheck.code });
   }
 
   req.clubId = Number(clubId);

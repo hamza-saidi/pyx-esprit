@@ -1,4 +1,4 @@
-const { Utilisateur } = require('../models');
+const { Utilisateur, Club } = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { randomInt } = require('crypto'); // SECURITY: cryptographically secure RNG
@@ -214,6 +214,25 @@ exports.login = async (req, res, next) => {
     await recordAttempt(ip, !!(user && valid));
     if (!user || !valid)
       return res.status(400).json({ message: 'Email ou mot de passe incorrect' });
+
+    // global_admin has no club_id (cross-tenant by design - see
+    // tenantScopeHooks.js) so there's no club status to check for them.
+    // Regular users: block issuing a *new* token for a suspended/archived
+    // club. This complements tenantScope.js, which blocks *already-issued*
+    // tokens on every subsequent request - login blocks new sessions,
+    // tenantScope blocks existing ones.
+    if (user.club_id) {
+      const club = await runWithTenant(SYSTEM_CONTEXT, () => Club.findByPk(user.club_id));
+      if (!club || club.statut !== 'actif') {
+        return res.status(403).json({
+          message:
+            club?.statut === 'suspendu'
+              ? 'Ce club est suspendu. Contactez le support Pylon Pyx.'
+              : 'Ce club a été archivé.',
+          code: club?.statut === 'suspendu' ? 'CLUB_SUSPENDED' : 'CLUB_ARCHIVED',
+        });
+      }
+    }
 
     // Admin/global_admin are always required to pass MFA; any user who has
     // voluntarily set up TOTP must also pass it (an opted-in second factor

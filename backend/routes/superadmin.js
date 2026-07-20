@@ -3,6 +3,9 @@ const { authenticateToken } = require('../middleware/auth');
 const db = require('../models');
 const { runWithTenant } = require('../utils/tenantContext');
 const bcrypt = require('bcryptjs');
+const emailService = require('../services/emailService');
+const { getClubStatusEmail } = require('../utils/clubStatusEmailTemplates');
+const logger = require('../utils/logger');
 
 // Middleware : global_admin uniquement
 function requireGlobalAdmin(req, res, next) {
@@ -82,12 +85,30 @@ router.patch('/clubs/:id', async (req, res, next) => {
   try {
     const club = await db.Club.findByPk(req.params.id);
     if (!club) return res.status(404).json({ message: 'Club introuvable.' });
+    const ancienStatut = club.statut;
     const { statut, nom, email_contact } = req.body;
     const allowed = {};
     if (statut) allowed.statut = statut;
     if (nom) allowed.nom = nom;
     if (email_contact) allowed.email_contact = email_contact;
     await club.update(allowed);
+
+    // Notify the tenant on an actual status transition. Best-effort: a
+    // failed send is logged, not fatal to the status change itself (same
+    // pattern as the MFA email failure handling in authController.js).
+    if (statut && statut !== ancienStatut && club.email_contact) {
+      const email = getClubStatusEmail(statut, club);
+      if (email) {
+        try {
+          await emailService.sendGenericEmail(club.email_contact, email.subject, email.html);
+        } catch (e) {
+          logger.error(`[SUPERADMIN] Failed to send status-change email for club ${club.id}:`, {
+            error: e.message,
+          });
+        }
+      }
+    }
+
     res.json(club);
   } catch (err) {
     next(err);
