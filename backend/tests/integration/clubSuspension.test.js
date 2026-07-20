@@ -112,9 +112,10 @@ describe('Club suspension enforcement (requires a live database)', () => {
   );
 
   itIfDb('a suspended club also cannot obtain a brand-new token via login', async () => {
-    const res = await request(app)
-      .post('/api/auth/login')
-      .send({ email: user.email, mot_de_passe: PASSWORD });
+    const res = await withCsrf(request(app).post('/api/auth/login')).send({
+      email: user.email,
+      mot_de_passe: PASSWORD,
+    });
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('CLUB_SUSPENDED');
   });

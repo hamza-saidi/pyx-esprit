@@ -1,46 +1,120 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box, Typography, Card, Table, TableBody, TableCell, TableHead, TableRow,
-  Chip, Avatar, Divider, TextField, InputAdornment,
+  Chip, Avatar, TextField, InputAdornment, Button, Dialog, DialogTitle,
+  DialogContent, DialogActions, Select, MenuItem, FormControl, InputLabel,
+  CircularProgress, Alert,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
-
-const TICKETS = [
-  { id: 'T-041', tenant: 'Demo Corp', avatar: 'D', sujet: "Problème d'import CSV — encodage UTF-8", priorite: 'haute', statut: 'ouvert', date: '2026-07-04', categorie: 'Import' },
-  { id: 'T-040', tenant: 'Demo Corp', avatar: 'D', sujet: 'Email de campagne non reçu par certains contacts', priorite: 'haute', statut: 'en_cours', date: '2026-07-03', categorie: 'Email' },
-  { id: 'T-039', tenant: 'Demo Corp', avatar: 'D', sujet: 'Comment configurer le sender domain ?', priorite: 'normale', statut: 'resolu', date: '2026-07-02', categorie: 'Config' },
-  { id: 'T-038', tenant: 'Demo Corp', avatar: 'D', sujet: "Taux d'ouverture ne s'actualise plus", priorite: 'normale', statut: 'resolu', date: '2026-06-29', categorie: 'Stats' },
-  { id: 'T-037', tenant: 'Demo Corp', avatar: 'D', sujet: 'Demande ajout utilisateur supplémentaire', priorite: 'basse', statut: 'resolu', date: '2026-06-27', categorie: 'Compte' },
-];
+import AddIcon from '@mui/icons-material/Add';
+import axios from '../api/axios';
+import { useToast } from '../context/ToastContext';
 
 const PRIORITE_COLORS = { haute: '#ef4444', normale: '#f59e0b', basse: '#10b981' };
 const STATUT_COLORS = { ouvert: '#ef4444', en_cours: '#f59e0b', resolu: '#10b981' };
 const STATUT_LABELS = { ouvert: 'Ouvert', en_cours: 'En cours', resolu: 'Résolu' };
 const PRIORITE_LABELS = { haute: 'Haute', normale: 'Normale', basse: 'Basse' };
 
+const emptyForm = { club_id: '', sujet: '', description: '', categorie: '', priorite: 'normale' };
+
 export default function OwnerSupport() {
+  const toast = useToast();
+  const [tickets, setTickets] = useState([]);
+  const [clubs, setClubs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
-  const filtered = TICKETS.filter((t) =>
-    !search || t.sujet.toLowerCase().includes(search.toLowerCase()) || t.tenant.toLowerCase().includes(search.toLowerCase())
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [ticketsRes, clubsRes] = await Promise.all([
+        axios.get('/superadmin/tickets'),
+        axios.get('/superadmin/clubs'),
+      ]);
+      setTickets(ticketsRes.data);
+      setClubs(clubsRes.data);
+    } catch (e) {
+      setError('Impossible de charger les tickets.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const filtered = tickets.filter((t) =>
+    !search ||
+    t.sujet.toLowerCase().includes(search.toLowerCase()) ||
+    (t.club?.nom || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const open = TICKETS.filter((t) => t.statut === 'ouvert').length;
-  const inProgress = TICKETS.filter((t) => t.statut === 'en_cours').length;
+  const handleOpen = () => {
+    setForm(emptyForm);
+    setOpen(true);
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await axios.post('/superadmin/tickets', {
+        club_id: form.club_id || undefined,
+        sujet: form.sujet,
+        description: form.description || undefined,
+        categorie: form.categorie || undefined,
+        priorite: form.priorite,
+      });
+      toast.success('Ticket créé.');
+      setOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la création.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStatutChange = async (ticket, statut) => {
+    try {
+      await axios.patch(`/superadmin/tickets/${ticket.id}`, { statut });
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la mise à jour.');
+    }
+  };
+
+  if (loading) {
+    return <Box display="flex" justifyContent="center" py={6}><CircularProgress size={28} /></Box>;
+  }
+  if (error) return <Alert severity="error">{error}</Alert>;
+
+  const openCount = tickets.filter((t) => t.statut === 'ouvert').length;
+  const inProgress = tickets.filter((t) => t.statut === 'en_cours').length;
+  const resolved = tickets.filter((t) => t.statut === 'resolu').length;
 
   return (
     <Box>
-      {/* Summary chips */}
-      <Box display="flex" gap={1.5} mb={3} flexWrap="wrap">
-        {[
-          { label: `${open} ouvert${open !== 1 ? 's' : ''}`, color: '#ef4444' },
-          { label: `${inProgress} en cours`, color: '#f59e0b' },
-          { label: `${TICKETS.filter((t) => t.statut === 'resolu').length} résolus`, color: '#10b981' },
-        ].map((s) => (
-          <Chip key={s.label} label={s.label} size="small"
-            sx={{ bgcolor: `${s.color}15`, color: s.color, fontWeight: 700, fontSize: 12, height: 26 }} />
-        ))}
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2} flexWrap="wrap" gap={2}>
+        {/* Summary chips */}
+        <Box display="flex" gap={1.5} flexWrap="wrap">
+          {[
+            { label: `${openCount} ouvert${openCount !== 1 ? 's' : ''}`, color: '#ef4444' },
+            { label: `${inProgress} en cours`, color: '#f59e0b' },
+            { label: `${resolved} résolus`, color: '#10b981' },
+          ].map((s) => (
+            <Chip key={s.label} label={s.label} size="small"
+              sx={{ bgcolor: `${s.color}15`, color: s.color, fontWeight: 700, fontSize: 12, height: 26 }} />
+          ))}
+        </Box>
+        <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={handleOpen}>
+          Nouveau ticket
+        </Button>
       </Box>
 
       <Card sx={{ border: '1px solid #e2e8f0', boxShadow: 'none', borderRadius: 2 }}>
@@ -84,12 +158,14 @@ export default function OwnerSupport() {
               {filtered.map((t) => (
                 <TableRow key={t.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
                   <TableCell>
-                    <Box component="code" sx={{ fontFamily: 'monospace', fontSize: 11, color: '#64748b' }}>{t.id}</Box>
+                    <Box component="code" sx={{ fontFamily: 'monospace', fontSize: 11, color: '#64748b' }}>T-{t.id}</Box>
                   </TableCell>
                   <TableCell>
                     <Box display="flex" alignItems="center" gap={1}>
-                      <Avatar sx={{ bgcolor: '#0ea5e9', width: 26, height: 26, fontSize: 11, fontWeight: 700 }}>{t.avatar}</Avatar>
-                      <Typography variant="body2" fontWeight={500}>{t.tenant}</Typography>
+                      <Avatar sx={{ bgcolor: '#0ea5e9', width: 26, height: 26, fontSize: 11, fontWeight: 700 }}>
+                        {(t.club?.nom || 'Plateforme').charAt(0).toUpperCase()}
+                      </Avatar>
+                      <Typography variant="body2" fontWeight={500}>{t.club?.nom || 'Plateforme'}</Typography>
                     </Box>
                   </TableCell>
                   <TableCell sx={{ maxWidth: 300 }}>
@@ -98,7 +174,9 @@ export default function OwnerSupport() {
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={t.categorie} size="small" sx={{ bgcolor: '#f1f5f9', color: '#475569', fontWeight: 600, height: 20, fontSize: 11 }} />
+                    {t.categorie ? (
+                      <Chip label={t.categorie} size="small" sx={{ bgcolor: '#f1f5f9', color: '#475569', fontWeight: 600, height: 20, fontSize: 11 }} />
+                    ) : '—'}
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -108,14 +186,24 @@ export default function OwnerSupport() {
                     />
                   </TableCell>
                   <TableCell>
-                    <Chip
-                      label={STATUT_LABELS[t.statut]}
+                    <Select
+                      value={t.statut}
+                      onChange={(e) => handleStatutChange(t, e.target.value)}
                       size="small"
-                      sx={{ bgcolor: `${STATUT_COLORS[t.statut]}18`, color: STATUT_COLORS[t.statut], fontWeight: 700, height: 22, fontSize: 11 }}
-                    />
+                      variant="standard"
+                      disableUnderline
+                      sx={{
+                        fontSize: 11, fontWeight: 700, color: STATUT_COLORS[t.statut],
+                        '& .MuiSelect-select': { py: 0.25, bgcolor: `${STATUT_COLORS[t.statut]}18`, borderRadius: 1, px: 1 },
+                      }}
+                    >
+                      {Object.entries(STATUT_LABELS).map(([val, label]) => (
+                        <MenuItem key={val} value={val} sx={{ fontSize: 12 }}>{label}</MenuItem>
+                      ))}
+                    </Select>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="caption" color="text.secondary">{t.date}</Typography>
+                    <Typography variant="caption" color="text.secondary">{t.date_creation?.slice(0, 10)}</Typography>
                   </TableCell>
                 </TableRow>
               ))}
@@ -123,6 +211,70 @@ export default function OwnerSupport() {
           </Table>
         </Box>
       </Card>
+
+      {/* New ticket dialog */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Nouveau ticket</DialogTitle>
+        <form onSubmit={handleCreate}>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel>Tenant (optionnel)</InputLabel>
+              <Select
+                value={form.club_id}
+                label="Tenant (optionnel)"
+                onChange={(e) => setForm({ ...form, club_id: e.target.value })}
+              >
+                <MenuItem value=""><em>— Concerne la plateforme —</em></MenuItem>
+                {clubs.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>{c.nom}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Sujet"
+              value={form.sujet}
+              onChange={(e) => setForm({ ...form, sujet: e.target.value })}
+              required
+              fullWidth
+            />
+            <TextField
+              label="Description"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              multiline
+              rows={3}
+              fullWidth
+            />
+            <Box display="flex" gap={2}>
+              <TextField
+                label="Catégorie"
+                value={form.categorie}
+                onChange={(e) => setForm({ ...form, categorie: e.target.value })}
+                placeholder="Import, Email, Config…"
+                fullWidth
+              />
+              <FormControl fullWidth>
+                <InputLabel>Priorité</InputLabel>
+                <Select
+                  value={form.priorite}
+                  label="Priorité"
+                  onChange={(e) => setForm({ ...form, priorite: e.target.value })}
+                >
+                  <MenuItem value="haute">Haute</MenuItem>
+                  <MenuItem value="normale">Normale</MenuItem>
+                  <MenuItem value="basse">Basse</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 3 }}>
+            <Button onClick={() => setOpen(false)} disabled={saving}>Annuler</Button>
+            <Button type="submit" variant="contained" color="secondary" disabled={saving || !form.sujet.trim()}>
+              {saving ? <CircularProgress size={20} color="inherit" /> : 'Créer'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </Box>
   );
 }

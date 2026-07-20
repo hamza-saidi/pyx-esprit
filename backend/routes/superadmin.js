@@ -247,6 +247,82 @@ router.get('/billing/summary', async (req, res, next) => {
   }
 });
 
+// ── Support (tickets logged by the SaaS admin on a tenant's behalf) ─────────
+
+// GET /api/superadmin/tickets — liste avec club joint
+router.get('/tickets', async (req, res, next) => {
+  try {
+    const tickets = await db.Ticket.findAll({
+      include: [{ model: db.Club, as: 'club', attributes: ['id', 'nom'] }],
+      order: [['date_creation', 'DESC']],
+    });
+    res.json(tickets);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/superadmin/tickets — créer un ticket
+router.post('/tickets', async (req, res, next) => {
+  try {
+    const { club_id, sujet, description, categorie, priorite } = req.body;
+    if (!sujet) return res.status(400).json({ message: 'sujet requis.' });
+
+    if (club_id) {
+      const club = await db.Club.findByPk(club_id);
+      if (!club) return res.status(404).json({ message: 'Club introuvable.' });
+    }
+
+    const ticket = await db.Ticket.create({
+      club_id: club_id || null,
+      sujet,
+      description: description || null,
+      categorie: categorie || null,
+      priorite: priorite || 'normale',
+      statut: 'ouvert',
+    });
+
+    const withClub = await db.Ticket.findByPk(ticket.id, {
+      include: [{ model: db.Club, as: 'club', attributes: ['id', 'nom'] }],
+    });
+    res.status(201).json({ message: 'Ticket créé.', ticket: withClub });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/superadmin/tickets/:id — changer le statut / la priorité
+router.patch('/tickets/:id', async (req, res, next) => {
+  try {
+    const ticket = await db.Ticket.findByPk(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket introuvable.' });
+
+    const { statut, priorite } = req.body;
+    const allowedStatuts = ['ouvert', 'en_cours', 'resolu'];
+    const allowedPriorites = ['haute', 'normale', 'basse'];
+
+    const updates = { date_maj: new Date() };
+    if (statut) {
+      if (!allowedStatuts.includes(statut)) {
+        return res.status(400).json({ message: 'Statut invalide.' });
+      }
+      updates.statut = statut;
+      updates.date_resolution = statut === 'resolu' ? new Date() : null;
+    }
+    if (priorite) {
+      if (!allowedPriorites.includes(priorite)) {
+        return res.status(400).json({ message: 'Priorité invalide.' });
+      }
+      updates.priorite = priorite;
+    }
+
+    await ticket.update(updates);
+    res.json(ticket);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/superadmin/clubs — créer un nouveau club/tenant
 router.post('/clubs', async (req, res, next) => {
   try {
