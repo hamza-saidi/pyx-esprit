@@ -32,9 +32,29 @@ module.exports = (sequelize, DataTypes) => {
       date_debut_abonnement: { type: DataTypes.DATE },
       date_expiration_abonnement: { type: DataTypes.DATE },
       statut_abonnement: {
-        type: DataTypes.ENUM('actif', 'expiré', 'en_attente_paiement', 'aucun'),
+        type: DataTypes.ENUM(
+          'actif',
+          'expiré',
+          'en_attente_paiement',
+          'aucun',
+          'a_renouveler',
+          'archive'
+        ),
         defaultValue: 'aucun',
       },
+      type_adhesion: {
+        type: DataTypes.ENUM(
+          'Individuel',
+          'Famille',
+          'Entreprise',
+          'Junior',
+          'Senior',
+          'Corporate',
+          'Invité'
+        ),
+        allowNull: true,
+      },
+      numero_licence: { type: DataTypes.STRING(50), allowNull: true },
       dernier_paiement_info: { type: DataTypes.STRING(255) },
       club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },

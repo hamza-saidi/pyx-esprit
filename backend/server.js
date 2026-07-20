@@ -78,8 +78,10 @@ sequelize
   })
   .then(async () => {
     logger.info('DATABASE: Tables synchronized.');
-    await seedTemplates();
-    logger.info('DATABASE: Seeding completed.');
+    if (process.env.RUN_SEED === 'true') {
+      await seedTemplates();
+      logger.info('DATABASE: Seeding completed.');
+    }
     // Start automations and scheduler after database is fully ready
     await cronService.initAutomations();
   })

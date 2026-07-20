@@ -444,6 +444,22 @@ class EmailService {
       // Créer les enregistrements d'envoi
       const envois = await this.creerEnvois(campagne, destinataires);
 
+      // A/B Test : split 50/50 et assigner la variante à chaque envoi
+      const isTestAB = parametres?.test_ab === true;
+      const sujetB = parametres?.sujet_b;
+      if (isTestAB && sujetB) {
+        const mid = Math.ceil(envois.length / 2);
+        envois.forEach((envoi, idx) => {
+          envoi._variante = idx < mid ? 'A' : 'B';
+        });
+        const idsA = envois.slice(0, mid).map((e) => e.id);
+        const idsB = envois.slice(mid).map((e) => e.id);
+        await Promise.all([
+          EnvoiEmail.update({ variante: 'A' }, { where: { id: idsA } }),
+          EnvoiEmail.update({ variante: 'B' }, { where: { id: idsB } }),
+        ]);
+      }
+
       // Envoyer les emails avec limitation de débit
       let nbEnvoyes = 0;
       let nbErreurs = 0;
@@ -454,7 +470,15 @@ class EmailService {
         const batch = envois.slice(i, i + batchSize);
 
         // Envoyer le lot d'emails en parallèle
-        const promises = batch.map((envoi) => this.envoyerEmailAvecRetry(campagne, envoi, 0, club));
+        const promises = batch.map((envoi) => {
+          // Pour l'A/B Test variante B, créer une copie de la campagne avec le sujet B
+          if (isTestAB && sujetB && envoi._variante === 'B') {
+            const campagneB = Object.create(campagne);
+            campagneB.sujet = sujetB;
+            return this.envoyerEmailAvecRetry(campagneB, envoi, 0, club);
+          }
+          return this.envoyerEmailAvecRetry(campagne, envoi, 0, club);
+        });
         const results = await Promise.allSettled(promises);
 
         // Compter les résultats
@@ -746,6 +770,8 @@ class EmailService {
     const processed = this._processImagesAndInlining(htmlContent);
     htmlContent = processed.html;
 
+    const unsubscribeUrl = `${emailConfig.templates.unsubscribeUrl}?token=${envoi.token_tracking}`;
+
     const mailOptions = {
       from,
       to: envoi.email_destinataire,
@@ -757,6 +783,9 @@ class EmailService {
         'X-Campaign-ID': campagne.id,
         'X-Contact-ID': envoi.contact_id,
         'X-Tracking-Token': envoi.token_tracking,
+        // RFC 8058: enables native one-click unsubscribe in Gmail/Outlook/etc.
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       },
       attachments: [
         ...persistentAttachments.map((att) => ({
@@ -916,6 +945,14 @@ class EmailService {
           { name: 'X-Campaign-ID', value: String(campagne.id) },
           { name: 'X-Contact-ID', value: String(envoi.contact_id) },
           { name: 'X-Tracking-Token', value: envoi.token_tracking },
+          // Note RFC 8058 : Microsoft Graph n'honore de façon fiable que les en-têtes
+          // préfixés "x-" via internetMessageHeaders ; List-Unsubscribe reste donc
+          // pleinement effectif seulement sur le fournisseur SMTP (cf. envoyerEmail).
+          {
+            name: 'List-Unsubscribe',
+            value: `<${emailConfig.templates.unsubscribeUrl}?token=${envoi.token_tracking}>`,
+          },
+          { name: 'List-Unsubscribe-Post', value: 'List-Unsubscribe=One-Click' },
           ...Object.entries(emailConfig.headers || {}).map(([name, value]) => ({ name, value })),
         ],
         attachments: [...(inline.attachments || []), ...graphAttachments],
@@ -998,6 +1035,11 @@ class EmailService {
           { name: 'X-Campaign-ID', value: String(campagne.id) },
           { name: 'X-Contact-ID', value: String(envoi.contact_id) },
           { name: 'X-Tracking-Token', value: envoi.token_tracking },
+          {
+            name: 'List-Unsubscribe',
+            value: `<${emailConfig.templates.unsubscribeUrl}?token=${envoi.token_tracking}>`,
+          },
+          { name: 'List-Unsubscribe-Post', value: 'List-Unsubscribe=One-Click' },
           ...Object.entries(emailConfig.headers || {}).map(([name, value]) => ({ name, value })),
         ],
         attachments: [...(inline.attachments || []), ...graphAttachments],
@@ -1149,33 +1191,41 @@ class EmailService {
       const preferencesLink = `${baseUrl}/preferences?email=${encodeURIComponent(envoi.email_destinataire)}`;
       const trackingOpenUrl = `${getPublicBaseUrl()}/api/tracking/open/${encodeURIComponent(envoi.token_tracking)}`;
 
-      html = html
-        .replace(/\{\{prenom\}\}/g, prenom)
-        .replace(/\{\{nom\}\}/g, nom)
-        .replace(/\{\{fullname\}\}/g, fullname)
-        .replace(/\{\{email\}\}/g, envoi.email_destinataire)
-        .replace(/\{\{ville\}\}/g, ville)
-        .replace(/\{\{nationalite\}\}/g, nationalite)
-        .replace(/\{\{sexe\}\}/g, sexe)
-        .replace(/\{\{handicap\}\}/g, handicap)
-        .replace(/\{\{type_client\}\}/g, type_client)
-        .replace(/\{\{tracking_token\}\}/g, envoi.token_tracking)
-        .replace(
-          /\{\{unsubscribe_link\}\}/g,
-          `${emailConfig.templates.unsubscribeUrl}?token=${envoi.token_tracking}`
-        )
-        .replace(
-          /\{\{tracking_pixel\}\}/g,
-          `<img src="${trackingOpenUrl}" width="1" height="1" style="display:none;" />`
-        )
-        .replace(/\{\{view_in_browser_link\}\}/g, viewInBrowser)
-        .replace(/\{\{preferences_link\}\}/g, preferencesLink);
+      const mergeValues = {
+        prenom,
+        nom,
+        fullname,
+        email: envoi.email_destinataire,
+        ville,
+        nationalite,
+        sexe,
+        handicap,
+        type_client,
+        tracking_token: envoi.token_tracking,
+        unsubscribe_link: `${emailConfig.templates.unsubscribeUrl}?token=${envoi.token_tracking}`,
+        tracking_pixel: `<img src="${trackingOpenUrl}" width="1" height="1" style="display:none;" />`,
+        view_in_browser_link: viewInBrowser,
+        preferences_link: preferencesLink,
+      };
+      // Supports {{field}} and {{field|fallback}} syntax
+      html = html.replace(/\{\{(\w+)(?:\|([^}]*))?\}\}/g, (_, key, fallback) => {
+        const val = mergeValues[key];
+        if (val !== undefined && val !== '') return val;
+        return fallback !== undefined ? fallback : '';
+      });
 
       // NEW: Automatic Optimization for Base64 (Prevents 10MB+ emails that Gmail marks as spam)
       html = await this._convertBase64ImagesToFiles(html);
 
       // Ensure all internal URLs are absolute
       html = this._ensureAbsoluteUrls(html);
+
+      // Inject preheader hidden div (must come before visible content)
+      const preheader = campagne?.parametres?.preheader || campagne?.preheader || '';
+      if (preheader) {
+        const preheaderHtml = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;color:#ffffff;line-height:1px;">${preheader.replace(/</g, '&lt;').replace(/>/g, '&gt;')}&nbsp;‌‍‌‍‌‍‌‍‌‍‌‍</div>`;
+        html = preheaderHtml + html;
+      }
 
       // SAFE: Check if HTML is already a complete document structure
       // This prevents wrapping emails that already have full HTML structure
@@ -1302,17 +1352,23 @@ class EmailService {
       ) {
         return match;
       }
-      // UTM params
+      // UTM params (custom values from campagne.parametres.utm, fallback to defaults)
       try {
         const original = new URL(url, 'https://dummy.base');
         const isHttp = original.protocol === 'http:' || original.protocol === 'https:';
         if (isHttp) {
+          const utm = campagne?.parametres?.utm || {};
           if (!original.searchParams.has('utm_source'))
-            original.searchParams.set('utm_source', 'newsletter');
+            original.searchParams.set('utm_source', utm.source || 'newsletter');
           if (!original.searchParams.has('utm_medium'))
-            original.searchParams.set('utm_medium', 'email');
-          if (!original.searchParams.has('utm_campaign') && campagne?.id)
-            original.searchParams.set('utm_campaign', String(campagne.id));
+            original.searchParams.set('utm_medium', utm.medium || 'email');
+          if (!original.searchParams.has('utm_campaign'))
+            original.searchParams.set(
+              'utm_campaign',
+              utm.campaign || (campagne?.id ? String(campagne.id) : 'email')
+            );
+          if (!original.searchParams.has('utm_content') && utm.content)
+            original.searchParams.set('utm_content', utm.content);
           url = original.href.replace('https://dummy.base', '');
         }
       } catch {}

@@ -7,9 +7,12 @@ import {
   addTag,
   updateTag,
   deleteTag,
+  mergeTags,
 } from '../features/tags/tagsSlice';
 import {
-  Box, Typography, Button, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Tooltip, Chip, Grid, Checkbox, List, ListItem
+  Box, Typography, Button, Paper, IconButton, Dialog, DialogTitle, DialogContent,
+  DialogActions, TextField, CircularProgress, Tooltip, Chip, Grid, Checkbox,
+  List, ListItem, Alert, FormControlLabel, Switch, Collapse, Divider, Radio, RadioGroup,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -18,46 +21,41 @@ import MergeTypeIcon from '@mui/icons-material/MergeType';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EnhancedPagination from '../components/EnhancedPagination';
-import { mergeTags } from '../features/tags/tagsSlice';
-import { addSegment, fetchSegments } from '../features/segments/segmentsSlice';
-import Alert from '@mui/material/Alert';
-import Snackbar from '@mui/material/Snackbar';
-import { FormControlLabel, Switch, Collapse, Divider, Radio, RadioGroup } from '@mui/material';
+import { addSegment, updateSegment, fetchSegments } from '../features/segments/segmentsSlice';
 import FolderIcon from '@mui/icons-material/Folder';
 import GroupsIcon from '@mui/icons-material/Groups';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import { alpha } from '@mui/material/styles';
+import { useToast } from '../context/ToastContext';
 
 const emptyTag = { nom: '' };
-const renderVal = (v) => {
-  const s = (v === null || v === undefined) ? '' : String(v).trim();
-  return s ? s : (<span style={{ color: '#9aa0a6', fontStyle: 'italic' }}>—</span>);
-};
 
 const Tags = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
+  const toast     = useToast();
+  const dispatch  = useDispatch();
+  const navigate  = useNavigate();
   const { items, loading, error, tagsWithCounts, countsLoading } = useSelector((state) => state.tags);
   const { items: segments } = useSelector((state) => state.segments || { items: [] });
-  const [open, setOpen] = useState(false);
-  const [edit, setEdit] = useState(null);
-  const [form, setForm] = useState(emptyTag);
-  const [targetSegmentId, setTargetSegmentId] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+
+  const [open, setOpen]                           = useState(false);
+  const [edit, setEdit]                           = useState(null);
+  const [form, setForm]                           = useState(emptyTag);
+  const [targetSegmentId, setTargetSegmentId]     = useState('');
+  const [search, setSearch]                       = useState('');
+  const [page, setPage]                           = useState(1);
+  const [pageSize, setPageSize]                   = useState(25);
+  const [mergeDialogOpen, setMergeDialogOpen]     = useState(false);
   const [createSegmentDialogOpen, setCreateSegmentDialogOpen] = useState(false);
-  const [newSegmentName, setNewSegmentName] = useState('');
-  const [targetId, setTargetId] = useState('');
-  const [duplicateGroups, setDuplicateGroups] = useState([]);
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [groupByPrefix, setGroupByPrefix] = useState(true);
-  const [expandedFamilies, setExpandedFamilies] = useState({});
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [newSegmentName, setNewSegmentName]       = useState('');
+  const [targetId, setTargetId]                   = useState('');
+  const [duplicateGroups, setDuplicateGroups]     = useState([]);
+  const [wizardOpen, setWizardOpen]               = useState(false);
+  const [groupByPrefix, setGroupByPrefix]         = useState(true);
+  const [expandedFamilies, setExpandedFamilies]   = useState({});
+  const [selectedIds, setSelectedIds]             = useState([]);
+  const [deleteDialog, setDeleteDialog]           = useState({ open: false, ids: [], label: '' });
 
   useEffect(() => {
     dispatch(fetchTags());
@@ -85,14 +83,32 @@ const Tags = () => {
       await dispatch(addTag(payload));
     }
     setOpen(false);
-    // Recharger les compteurs après ajout/modification
     dispatch(fetchTagsWithCounts());
   };
 
   const handleDelete = (id) => {
-    dispatch(deleteTag(id));
-    // Recharger les compteurs après suppression
-    setTimeout(() => dispatch(fetchTagsWithCounts()), 500);
+    setDeleteDialog({ open: true, ids: [id], label: '1 étiquette' });
+  };
+
+  const handleBulkDelete = () => {
+    setDeleteDialog({ open: true, ids: selectedIds, label: `${selectedIds.length} étiquette(s)` });
+  };
+
+  const confirmDelete = async () => {
+    for (const id of deleteDialog.ids) {
+      try {
+        await dispatch(deleteTag(id)).unwrap();
+      } catch (err) {
+        toast.error(err?.message || 'Suppression impossible');
+        setDeleteDialog({ open: false, ids: [], label: '' });
+        dispatch(fetchTagsWithCounts());
+        return;
+      }
+    }
+    if (deleteDialog.ids.length > 1) setSelectedIds([]);
+    toast.success(`${deleteDialog.ids.length} étiquette(s) supprimée(s).`);
+    setDeleteDialog({ open: false, ids: [], label: '' });
+    dispatch(fetchTagsWithCounts());
   };
 
   const contactCountMap = useMemo(() => {
@@ -111,53 +127,32 @@ const Tags = () => {
 
   const paginatedItems = useMemo(() => {
     const start = (page - 1) * pageSize;
-    const end = start + pageSize;
-    return filtered.slice(start, end);
+    return filtered.slice(start, start + pageSize);
   }, [filtered, page, pageSize]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
 
   const families = useMemo(() => {
     if (!groupByPrefix) return [];
-    
-    // First pass: identify potential prefixes
-    const groups = {};
     const firstWordCounts = {};
-
     filtered.forEach(tag => {
       const name = (tag.nom || '').trim();
-      // Try explicit separator first
       const match = name.match(/^([^:/-]+)[:/-]/);
-      let candidate = '';
-      
-      if (match) {
-        candidate = match[1].trim();
-      } else {
-        // Otherwise try the first word
-        candidate = name.split(/\s+/)[0];
-      }
-
-      if (candidate) {
-        firstWordCounts[candidate] = (firstWordCounts[candidate] || 0) + 1;
-      }
+      const candidate = match ? match[1].trim() : name.split(/\s+/)[0];
+      if (candidate) firstWordCounts[candidate] = (firstWordCounts[candidate] || 0) + 1;
     });
 
-    // Second pass: assign to groups
+    const groups = {};
     filtered.forEach(tag => {
       const name = (tag.nom || '').trim();
       const match = name.match(/^([^:/-]+)[:/-]/);
       let familyName = 'Ungrouped';
-
       if (match) {
         familyName = match[1].trim();
       } else {
         const firstWord = name.split(/\s+/)[0];
-        // Only group if it's a shared prefix (at least 2 tags)
-        if (firstWord && firstWordCounts[firstWord] > 1) {
-          familyName = firstWord;
-        }
+        if (firstWord && firstWordCounts[firstWord] > 1) familyName = firstWord;
       }
-
       if (!groups[familyName]) groups[familyName] = { name: familyName, tags: [], totalContacts: 0 };
       groups[familyName].tags.push(tag);
       groups[familyName].totalContacts += (contactCountMap.get(tag.id) || 0);
@@ -170,24 +165,13 @@ const Tags = () => {
     });
   }, [filtered, groupByPrefix, contactCountMap]);
 
-  const toggleFamily = (name) => {
-    setExpandedFamilies(prev => ({ ...prev, [name]: !prev[name] }));
-  };
-
-  const expandAll = () => {
-    const all = {};
-    families.forEach(f => { all[f.name] = true; });
-    setExpandedFamilies(all);
-  };
-
-  const collapseAll = () => {
-    setExpandedFamilies({});
-  };
+  const toggleFamily   = (name) => setExpandedFamilies(prev => ({ ...prev, [name]: !prev[name] }));
+  const expandAll      = () => { const all = {}; families.forEach(f => { all[f.name] = true; }); setExpandedFamilies(all); };
+  const collapseAll    = () => setExpandedFamilies({});
+  const toggleSelect   = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
 
   useEffect(() => {
-    if (page > totalPages && totalPages > 0) {
-      setPage(1);
-    }
+    if (page > totalPages && totalPages > 0) setPage(1);
   }, [totalPages, page]);
 
   const suggestions = [
@@ -198,35 +182,17 @@ const Tags = () => {
     'Intérêts: Compétition, Formation, Offres',
   ];
 
-  const [selectedIds, setSelectedIds] = useState([]);
-
-  const toggleSelect = (id) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
-  };
-
-  const handleBulkDelete = async () => {
-    if (!window.confirm(`Supprimer ${selectedIds.length} étiquette(s) ? Cette action est irréversible.`)) return;
-    for (const id of selectedIds) {
-      await dispatch(deleteTag(id));
-    }
-    setSelectedIds([]);
-    setTimeout(() => dispatch(fetchTagsWithCounts()), 500);
-  };
-
   const handleMerge = async () => {
     if (!targetId) return;
     const sourceIds = selectedIds.filter(id => id !== targetId);
     if (sourceIds.length === 0) return;
-    
     const res = await dispatch(mergeTags({ sourceIds, targetId }));
     if (!res.error) {
-      setSnackbar({ open: true, message: 'Étiquettes fusionnées avec succès', severity: 'success' });
+      toast.success('Étiquettes fusionnées avec succès');
       setSelectedIds([]);
       setMergeDialogOpen(false);
     } else {
-      setSnackbar({ open: true, message: res.payload || 'Fusion échouée', severity: 'error' });
+      toast.error(res.payload || 'Fusion échouée');
     }
   };
 
@@ -237,9 +203,7 @@ const Tags = () => {
       if (!groups[normalized]) groups[normalized] = [];
       groups[normalized].push(tag);
     });
-
-    const dupGroups = Object.values(groups).filter(g => g.length > 1);
-    setDuplicateGroups(dupGroups);
+    setDuplicateGroups(Object.values(groups).filter(g => g.length > 1));
     setWizardOpen(true);
   };
 
@@ -249,18 +213,18 @@ const Tags = () => {
     const res = await dispatch(mergeTags({ sourceIds, targetId: master.id }));
     if (!res.error) {
       setDuplicateGroups(prev => prev.filter(g => g !== group));
-      setSnackbar({ open: true, message: `Fusionné dans "${master.nom}"`, severity: 'success' });
+      toast.success(`Fusionné dans "${master.nom}"`);
     }
   };
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-      <Box 
-        display="flex" 
-        flexDirection={{ xs: 'column', sm: 'row' }} 
-        justifyContent="space-between" 
-        alignItems={{ xs: 'flex-start', sm: 'center' }} 
-        mb={6} 
+      <Box
+        display="flex"
+        flexDirection={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        mb={6}
         gap={3}
       >
         <Box>
@@ -274,33 +238,29 @@ const Tags = () => {
         <Box display="flex" gap={2}>
           {selectedIds.length > 0 && (
             <>
-              <Button 
-                variant="outlined" 
-                color="primary" 
-                onClick={() => {
-                  const tagIds = selectedIds.join(',');
-                  navigate(`/contacts?tagIds=${tagIds}`);
-                }}
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => navigate(`/contacts?tagIds=${selectedIds.join(',')}`)}
                 startIcon={<VisibilityIcon />}
               >
                 Voir les contacts ({selectedIds.length})
               </Button>
-              <Button 
-                variant="outlined" 
-                color="secondary" 
-                onClick={() => {
-                  setTargetId(selectedIds[0]);
-                  setMergeDialogOpen(true);
-                }}
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => { setTargetId(selectedIds[0]); setMergeDialogOpen(true); }}
                 startIcon={<MergeTypeIcon />}
               >
                 Fusionner ({selectedIds.length})
               </Button>
-              <Button 
-                variant="outlined" 
-                color="primary" 
+              <Button
+                variant="outlined"
+                color="primary"
                 onClick={() => {
-                  const defaultName = selectedIds.length > 1 ? `Segment ${new Date().toLocaleDateString()}` : (items.find(t=>t.id===selectedIds[0])?.nom || '');
+                  const defaultName = selectedIds.length > 1
+                    ? `Segment ${new Date().toLocaleDateString()}`
+                    : (items.find(t => t.id === selectedIds[0])?.nom || '');
                   setNewSegmentName(defaultName);
                   setCreateSegmentDialogOpen(true);
                 }}
@@ -324,22 +284,11 @@ const Tags = () => {
               label={<Typography variant="body2" sx={{ fontWeight: 700 }}>Grouper par familles</Typography>}
               sx={{ ml: 1 }}
             />
-            <Button 
-              variant="outlined" 
-              color="primary" 
-              onClick={findDuplicates}
-              startIcon={<AutoFixHighIcon />}
-            >
+            <Button variant="outlined" color="primary" onClick={findDuplicates} startIcon={<AutoFixHighIcon />}>
               Doublons
             </Button>
           </Box>
-          <Button 
-            variant="contained" 
-            color="secondary" 
-            startIcon={<AddIcon />} 
-            onClick={() => handleOpen()} 
-            sx={{ px: 4 }}
-          >
+          <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={() => handleOpen()} sx={{ px: 4 }}>
             Créer une étiquette
           </Button>
         </Box>
@@ -347,11 +296,11 @@ const Tags = () => {
 
       <Paper sx={{ mb: 6, p: 4, borderRadius: 0, border: '1px solid #bfc9cf', bgcolor: '#F5F7F9' }}>
         <Box display="flex" gap={3} alignItems="center" flexWrap="wrap">
-          <TextField 
+          <TextField
             label="Rechercher"
             placeholder="Rechercher par nom..."
-            value={search} 
-            onChange={(e)=>setSearch(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             variant="outlined"
             size="small"
           />
@@ -373,27 +322,10 @@ const Tags = () => {
       ) : groupByPrefix ? (
         <Box display="flex" flexDirection="column" gap={4}>
           {families.map(family => (
-            <Paper 
-              key={family.name}
-              sx={{ 
-                p: 0, 
-                borderRadius: 0, 
-                border: '1px solid #bfc9cf', 
-                overflow: 'hidden',
-                bgcolor: 'white'
-              }}
-            >
-              <Box 
+            <Paper key={family.name} sx={{ p: 0, borderRadius: 0, border: '1px solid #bfc9cf', overflow: 'hidden', bgcolor: 'white' }}>
+              <Box
                 onClick={() => toggleFamily(family.name)}
-                sx={{ 
-                  p: 2, 
-                  bgcolor: '#F5F7F9', 
-                  cursor: 'pointer', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between',
-                  '&:hover': { bgcolor: '#eceff2' }
-                }}
+                sx={{ p: 2, bgcolor: '#F5F7F9', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', '&:hover': { bgcolor: '#eceff2' } }}
               >
                 <Box display="flex" alignItems="center" gap={2}>
                   {expandedFamilies[family.name] ? <ExpandMoreIcon /> : <ChevronRightIcon />}
@@ -404,14 +336,14 @@ const Tags = () => {
                   <Chip label={`${family.tags.length} étiquette${family.tags.length > 1 ? 's' : ''}`} size="small" sx={{ borderRadius: 0, fontWeight: 700 }} />
                 </Box>
                 <Box display="flex" alignItems="center" gap={4}>
-                   <Box textAlign="right">
-                      <Typography variant="caption" color="text.secondary" display="block">PORTÉE</Typography>
-                      <Typography variant="subtitle2" fontWeight={700}>{family.totalContacts} Contacts</Typography>
-                   </Box>
-                   <Button 
-                    size="small" 
-                    variant="outlined" 
-                    color="secondary" 
+                  <Box textAlign="right">
+                    <Typography variant="caption" color="text.secondary" display="block">PORTÉE</Typography>
+                    <Typography variant="subtitle2" fontWeight={700}>{family.totalContacts} Contacts</Typography>
+                  </Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="secondary"
                     startIcon={<GroupsIcon />}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -419,48 +351,43 @@ const Tags = () => {
                       setSelectedIds(family.tags.map(t => t.id));
                       setCreateSegmentDialogOpen(true);
                     }}
-                   >
-                     Créer un segment
-                   </Button>
+                  >
+                    Créer un segment
+                  </Button>
                 </Box>
               </Box>
-              
+
               <Collapse in={expandedFamilies[family.name]}>
                 <Divider />
                 <Grid container spacing={0} sx={{ bgcolor: 'white' }}>
-                   {family.tags.map(t => {
-                      const count = contactCountMap.get(t.id) ?? 0;
-                      const isSelected = selectedIds.includes(t.id);
-                      return (
-                        <Grid item xs={12} sm={6} md={4} key={t.id} sx={{ borderRight: '1px solid #f0f0f0', borderBottom: '1px solid #f0f0f0' }}>
-                           <Box p={2} display="flex" justifyContent="space-between" alignItems="center" sx={{ bgcolor: isSelected ? alpha('#0a84d6', 0.05) : 'transparent' }}>
-                              <Box display="flex" alignItems="center" gap={1.5}>
-                                <Checkbox 
-                                  size="small" 
-                                  checked={isSelected} 
-                                  onChange={() => toggleSelect(t.id)} 
-                                  sx={{ p: 0.5 }}
-                                />
-                                <Box>
-                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{t.nom}</Typography>
-                                  <Typography 
-                                    variant="caption" 
-                                    color="primary" 
-                                    sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                    onClick={() => navigate(`/contacts?tagId=${t.id}`)}
-                                  >
-                                    {count} Contacts
-                                  </Typography>
-                                </Box>
-                              </Box>
-                              <Box display="flex">
-                                <IconButton size="small" onClick={() => handleOpen(t)}><EditIcon fontSize="small" /></IconButton>
-                                <IconButton size="small" onClick={() => handleDelete(t.id)} color="error"><DeleteIcon fontSize="small" /></IconButton>
-                              </Box>
-                           </Box>
-                        </Grid>
-                      );
-                   })}
+                  {family.tags.map(t => {
+                    const count      = contactCountMap.get(t.id) ?? 0;
+                    const isSelected = selectedIds.includes(t.id);
+                    return (
+                      <Grid item xs={12} sm={6} md={4} key={t.id} sx={{ borderRight: '1px solid #f0f0f0', borderBottom: '1px solid #f0f0f0' }}>
+                        <Box p={2} display="flex" justifyContent="space-between" alignItems="center" sx={{ bgcolor: isSelected ? alpha('#0a84d6', 0.05) : 'transparent' }}>
+                          <Box display="flex" alignItems="center" gap={1.5}>
+                            <Checkbox size="small" checked={isSelected} onChange={() => toggleSelect(t.id)} sx={{ p: 0.5 }} />
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 700 }}>{t.nom}</Typography>
+                              <Typography
+                                variant="caption"
+                                color="primary"
+                                sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                onClick={() => navigate(`/contacts?tagId=${t.id}`)}
+                              >
+                                {count} Contacts
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Box display="flex">
+                            <IconButton size="small" onClick={() => handleOpen(t)}><EditIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={() => handleDelete(t.id)} color="error"><DeleteIcon fontSize="small" /></IconButton>
+                          </Box>
+                        </Box>
+                      </Grid>
+                    );
+                  })}
                 </Grid>
               </Collapse>
             </Paper>
@@ -470,54 +397,33 @@ const Tags = () => {
         <Grid container spacing={3}>
           {paginatedItems.length === 0 ? (
             <Grid item xs={12}>
-              <Box 
-                p={8} 
-                textAlign="center" 
-                sx={{ border: '1px dashed #D9D9D9', bgcolor: '#FAFAFA' }}
-              >
-                 <Typography variant="h6" color="text.secondary">
+              <Box p={8} textAlign="center" sx={{ border: '1px dashed #D9D9D9', bgcolor: '#FAFAFA' }}>
+                <Typography variant="h6" color="text.secondary">
                   {search ? 'Aucune étiquette ne correspond à votre recherche.' : "Vous n'avez encore créé aucune étiquette."}
                 </Typography>
               </Box>
             </Grid>
           ) : (
             paginatedItems.map((t) => {
-              const count = contactCountMap.get(t.id) ?? 0;
+              const count      = contactCountMap.get(t.id) ?? 0;
               const isSelected = selectedIds.includes(t.id);
               return (
                 <Grid item xs={12} sm={6} md={4} key={t.id}>
-                  <Paper 
-                    sx={{ 
-                      p: 3, 
-                      borderRadius: 0, 
+                  <Paper
+                    sx={{
+                      p: 3,
+                      borderRadius: 0,
                       border: '1px solid',
                       borderColor: isSelected ? '#0a84d6' : '#bfc9cf',
                       bgcolor: isSelected ? '#F0F7FF' : 'white',
                       transition: 'all 0.2s',
-                      position: 'relative',
-                      '&:hover': {
-                        borderColor: '#0a84d6',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                      }
+                      '&:hover': { borderColor: '#0a84d6', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' },
                     }}
                   >
                     <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
                       <Box display="flex" alignItems="center" gap={1}>
-                        <Checkbox 
-                          size="small" 
-                          checked={isSelected} 
-                          onChange={() => toggleSelect(t.id)}
-                          sx={{ p: 0 }}
-                        />
-                        <Typography 
-                          variant="h6" 
-                          sx={{ 
-                            fontFamily: 'Georgia, serif', 
-                            fontWeight: 700,
-                            wordBreak: 'break-word',
-                            mr: 2
-                          }}
-                        >
+                        <Checkbox size="small" checked={isSelected} onChange={() => toggleSelect(t.id)} sx={{ p: 0 }} />
+                        <Typography variant="h6" sx={{ fontFamily: 'Georgia, serif', fontWeight: 700, wordBreak: 'break-word', mr: 2 }}>
                           {t.nom}
                         </Typography>
                       </Box>
@@ -536,46 +442,22 @@ const Tags = () => {
                         )}
                       </Box>
                     </Box>
-                    
-                    <Box 
-                      sx={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between',
-                        pt: 2,
-                        borderTop: '1px solid #F0F0F0'
-                      }}
-                    >
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pt: 2, borderTop: '1px solid #F0F0F0' }}>
                       <Box>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                           Contacts
                         </Typography>
-                        <Typography 
-                          variant="h4" 
+                        <Typography
+                          variant="h4"
                           component="button"
                           onClick={() => navigate(`/contacts?tagId=${t.id}`)}
-                          sx={{ 
-                            border: 'none',
-                            background: 'none',
-                            p: 0,
-                            cursor: 'pointer',
-                            fontWeight: 700, 
-                            color: '#241C15',
-                            '&:hover': {
-                              color: '#007C89', // Mailchimp blue for links
-                              textDecoration: 'underline'
-                            }
-                          }}
+                          sx={{ border: 'none', background: 'none', p: 0, cursor: 'pointer', fontWeight: 700, color: '#241C15', '&:hover': { color: '#007C89', textDecoration: 'underline' } }}
                         >
                           {countsLoading ? '---' : count}
                         </Typography>
                       </Box>
-                      <Button 
-                        variant="text" 
-                        size="small" 
-                        onClick={() => navigate(`/composer?campagneMode=1&tagIds=${t.id}`)}
-                        sx={{ fontWeight: 700 }}
-                      >
+                      <Button variant="text" size="small" onClick={() => navigate(`/composer?campagneMode=1&tagIds=${t.id}`)} sx={{ fontWeight: 700 }}>
                         Cibler
                       </Button>
                     </Box>
@@ -595,22 +477,21 @@ const Tags = () => {
             totalItems={filtered.length}
             pageSize={pageSize}
             onPageChange={setPage}
-            onPageSizeChange={(newSize) => {
-              setPageSize(newSize);
-              setPage(1);
-            }}
+            onPageSizeChange={(newSize) => { setPageSize(newSize); setPage(1); }}
             loading={loading}
             itemLabel="tags"
           />
         </Box>
       )}
+
+      {/* DIALOG CRÉER/MODIFIER ÉTIQUETTE */}
       <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>
           {edit ? "Modifier l'étiquette" : 'Créer une étiquette'}
         </DialogTitle>
         <form onSubmit={handleSubmit}>
           <DialogContent>
-            <TextField 
+            <TextField
               label="Nom de l'étiquette"
               name="nom"
               value={form.nom}
@@ -626,12 +507,12 @@ const Tags = () => {
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1.5 }}>
                 {suggestions.map((s, i) => (
-                  <Chip 
-                    key={i} 
-                    label={s.split(':')[0]} 
-                    size="small" 
-                    variant="outlined" 
-                    onClick={() => setForm(prev=>({ ...prev, nom: s.split(':')[1]?.split(',')[0]?.trim() || prev.nom }))} 
+                  <Chip
+                    key={i}
+                    label={s.split(':')[0]}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setForm(prev => ({ ...prev, nom: s.split(':')[0].trim() }))}
                     sx={{ cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' } }}
                   />
                 ))}
@@ -647,7 +528,28 @@ const Tags = () => {
         </form>
       </Dialog>
 
-      {/* MERGE DIALOG */}
+      {/* DIALOG SUPPRESSION (simple + bulk) */}
+      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, ids: [], label: '' })} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 0 } }}>
+        <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>
+          Confirmer la suppression
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mt: 1 }}>
+            Vous allez supprimer définitivement <strong>{deleteDialog.label}</strong>. Cette action est irréversible.
+          </Typography>
+          <Alert severity="warning" sx={{ mt: 2, borderRadius: 0 }}>
+            Les contacts associés ne seront pas supprimés, seulement le lien avec cette étiquette.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, gap: 1 }}>
+          <Button onClick={() => setDeleteDialog({ open: false, ids: [], label: '' })}>Annuler</Button>
+          <Button variant="contained" color="error" onClick={confirmDelete} sx={{ px: 4 }}>
+            Supprimer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* DIALOG FUSION */}
       <Dialog open={mergeDialogOpen} onClose={() => setMergeDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>
           Fusionner les étiquettes sélectionnées
@@ -678,7 +580,7 @@ const Tags = () => {
         </DialogActions>
       </Dialog>
 
-      {/* DUP WIZARD */}
+      {/* DIALOG DOUBLONS */}
       <Dialog open={wizardOpen} onClose={() => setWizardOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           Assistant de nettoyage des doublons
@@ -694,15 +596,15 @@ const Tags = () => {
             <List>
               {duplicateGroups.map((group, idx) => (
                 <ListItem key={idx} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', mb: 2, p: 2, bgcolor: '#F8F9FA', border: '1px solid #E9ecef' }}>
-                   <Box display="flex" justifyContent="space-between" width="100%" mb={1}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Groupe : &ldquo;{group[0].nom.trim()}&rdquo;</Typography>
-                      <Button size="small" variant="contained" onClick={() => mergeGroup(group)} startIcon={<MergeTypeIcon />}>Tout fusionner</Button>
-                   </Box>
-                   <Box display="flex" flexWrap="wrap" gap={0.5}>
-                     {group.map(t => (
-                        <Chip key={t.id} label={`${t.nom} (${contactCountMap.get(t.id) || 0})`} size="small" variant="outlined" />
-                     ))}
-                   </Box>
+                  <Box display="flex" justifyContent="space-between" width="100%" mb={1}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Groupe : &ldquo;{group[0].nom.trim()}&rdquo;</Typography>
+                    <Button size="small" variant="contained" onClick={() => mergeGroup(group)} startIcon={<MergeTypeIcon />}>Tout fusionner</Button>
+                  </Box>
+                  <Box display="flex" flexWrap="wrap" gap={0.5}>
+                    {group.map(t => (
+                      <Chip key={t.id} label={`${t.nom} (${contactCountMap.get(t.id) || 0})`} size="small" variant="outlined" />
+                    ))}
+                  </Box>
                 </ListItem>
               ))}
             </List>
@@ -713,18 +615,7 @@ const Tags = () => {
         </DialogActions>
       </Dialog>
 
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={6000} 
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
-
-      {/* CREATE/UPDATE SEGMENT DIALOG */}
+      {/* DIALOG CRÉER/METTRE À JOUR UN SEGMENT */}
       <Dialog open={createSegmentDialogOpen} onClose={() => setCreateSegmentDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>
           Gérer le segment pour la sélection
@@ -734,16 +625,16 @@ const Tags = () => {
             Enregistrer ces {selectedIds.length} étiquette{selectedIds.length > 1 ? 's' : ''} dans un segment nouveau ou existant.
           </Typography>
 
-          <RadioGroup 
-            value={targetSegmentId ? 'update' : 'create'} 
+          <RadioGroup
+            value={targetSegmentId ? 'update' : 'create'}
             onChange={(e) => {
               if (e.target.value === 'create') setTargetSegmentId('');
               else if (segments.length > 0) setTargetSegmentId(segments[0]?.id || '');
             }}
             sx={{ mb: 2 }}
           >
-            <FormControlLabel value="create" control={<Radio size="small" />} label={<Typography variant="body2" fontWeight={600}>Créer un nouveau segment</Typography>} labelPlacement="end" />
-            <FormControlLabel value="update" control={<Radio size="small" />} label={<Typography variant="body2" fontWeight={600}>Mettre à jour un segment existant</Typography>} labelPlacement="end" />
+            <FormControlLabel value="create" control={<Radio size="small" />} label={<Typography variant="body2" fontWeight={600}>Créer un nouveau segment</Typography>} />
+            <FormControlLabel value="update" control={<Radio size="small" />} label={<Typography variant="body2" fontWeight={600}>Mettre à jour un segment existant</Typography>} />
           </RadioGroup>
 
           {!targetSegmentId ? (
@@ -774,59 +665,44 @@ const Tags = () => {
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
           <Button onClick={() => setCreateSegmentDialogOpen(false)}>Annuler</Button>
-          <Button 
-            variant="contained" 
-            color="primary" 
+          <Button
+            variant="contained"
+            color="primary"
             startIcon={<GroupsIcon />}
             onClick={async () => {
               if (targetSegmentId) {
-                // Update existing
                 const segment = segments.find(s => s.id == targetSegmentId);
                 let criteres = segment.criteres;
                 if (typeof criteres === 'string') try { criteres = JSON.parse(criteres); } catch { criteres = {}; }
-                
-                // Add new tags to existing ones (merge)
                 const currentTags = Array.isArray(criteres.tag_ids) ? criteres.tag_ids : [];
-                const mergedTags = Array.from(new Set([...currentTags, ...selectedIds]));
-                
+                const mergedTags  = Array.from(new Set([...currentTags, ...selectedIds]));
                 const res = await dispatch(updateSegment({
                   id: targetSegmentId,
-                  data: { criteres: { ...criteres, tag_ids: mergedTags } }
-                }));
-                 
-                if (!res.error) {
-                   setSnackbar({ open: true, message: `Segment "${segment.nom}" mis à jour !`, severity: 'success' });
-                   setCreateSegmentDialogOpen(false);
-                   setSelectedIds([]);
-                   dispatch(fetchSegments());
-                }
-              } else {
-                // Create new
-                if (!newSegmentName.trim()) return;
-                const criteres = {
-                  tag_ids: selectedIds,
-                  filterRules: [
-                    {
-                      id: Date.now().toString(),
-                      field: 'tags',
-                      operator: 'includes',
-                      value: selectedIds
-                    }
-                  ],
-                  filterMatch: 'any'
-                };
-                
-                const res = await dispatch(addSegment({
-                  nom: newSegmentName,
-                  criteres
+                  data: { criteres: { ...criteres, tag_ids: mergedTags } },
                 }));
                 if (!res.error) {
-                  setSnackbar({ open: true, message: `Segment "${newSegmentName}" créé !`, severity: 'success' });
+                  toast.success(`Segment "${segment.nom}" mis à jour !`);
                   setCreateSegmentDialogOpen(false);
                   setSelectedIds([]);
                   dispatch(fetchSegments());
                 } else {
-                  setSnackbar({ open: true, message: res.payload || 'Échec de la création du segment', severity: 'error' });
+                  toast.error(res.payload || 'Mise à jour impossible');
+                }
+              } else {
+                if (!newSegmentName.trim()) return;
+                const criteres = {
+                  tag_ids: selectedIds,
+                  filterRules: [{ id: Date.now().toString(), field: 'tags', operator: 'includes', value: selectedIds }],
+                  filterMatch: 'any',
+                };
+                const res = await dispatch(addSegment({ nom: newSegmentName, criteres }));
+                if (!res.error) {
+                  toast.success(`Segment "${newSegmentName}" créé !`);
+                  setCreateSegmentDialogOpen(false);
+                  setSelectedIds([]);
+                  dispatch(fetchSegments());
+                } else {
+                  toast.error(res.payload || 'Échec de la création du segment');
                 }
               }
             }}
@@ -839,4 +715,4 @@ const Tags = () => {
   );
 };
 
-export default Tags; 
+export default Tags;

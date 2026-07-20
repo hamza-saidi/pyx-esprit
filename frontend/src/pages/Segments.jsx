@@ -8,8 +8,6 @@ import {
   deleteSegment,
   previewSegmentCount,
   detachSegmentCampaigns,
-  fetchSegmentContacts,
-  clearContactsPreview,
 } from '../features/segments/segmentsSlice';
 import { fetchTags } from '../features/tags/tagsSlice';
 import {
@@ -45,7 +43,7 @@ const emptySegment = {
 const Segments = () => {
   const toast = useToast();
   const dispatch = useDispatch();
-  const { items, loading, error, previewCount, previewLoading, contactsPreview, contactsPreviewForId, contactsPreviewLoading } = useSelector((state) => state.segments);
+  const { items, loading, error, previewCount, previewLoading } = useSelector((state) => state.segments);
   const { items: tags } = useSelector((state) => state.tags || { items: [] });
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(null);
@@ -133,7 +131,7 @@ const Segments = () => {
       await dispatch(deleteSegment(id)).unwrap();
       await dispatch(fetchSegments());
     } catch (e) {
-      console.error('Suppression segment échouée:', e);
+      // suppression échouée
       const msg = typeof e === 'string' ? e : (e?.message || 'Suppression impossible: le segment est peut-être utilisé par des campagnes.');
       if (e?.campaigns && Array.isArray(e.campaigns)) {
         const sel = {};
@@ -443,29 +441,28 @@ const Segments = () => {
         <>
           <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }} gap={3} mb={4}>
             {paginatedItems.length === 0 ? (
-              <Box gridColumn="1 / -1" textAlign="center" py={6} bgcolor="#F9F9F9" borderRadius={2} border="1px dashed #D9D9D9">
+              <Box gridColumn="1 / -1" textAlign="center" py={6} bgcolor="#F9F9F9" borderRadius={0} border="1px dashed #D9D9D9">
                 <FilterListIcon sx={{ fontSize: 48, color: '#ccc', mb: 2 }} />
                 <Typography variant="h6" color="text.secondary" fontFamily="Georgia, serif">Aucun segment</Typography>
                 <Typography variant="body2" color="text.secondary">Créez votre premier segment pour commencer à regrouper des contacts.</Typography>
               </Box>
             ) : (
               paginatedItems.map((s) => (
-                <Paper 
-                  key={s.id} 
-                  sx={{ 
-                    p: 3, 
-                    borderRadius: 2, 
-                    border: '1px solid #D9D9D9', 
-                    display: 'flex', 
+                <Paper
+                  key={s.id}
+                  sx={{
+                    p: 3,
+                    borderRadius: 0,
+                    border: '1px solid #D9D9D9',
+                    display: 'flex',
                     flexDirection: 'column',
-                    transition: 'all 0.2s',
+                    transition: 'border-color 0.2s, box-shadow 0.2s',
                     position: 'relative',
                     overflow: 'hidden',
                     '&:hover': {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                      borderColor: '#FFE01B',
-                      transform: 'translateY(-2px)'
-                    }
+                      borderColor: '#0a84d6',
+                    },
                   }}
                 >
                   <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
@@ -717,31 +714,6 @@ const Segments = () => {
         </form>
       </Dialog>
 
-      {/* Dialog: preview contacts for a segment */}
-      <Dialog open={!!contactsPreviewForId} onClose={() => dispatch(clearContactsPreview())} maxWidth="sm" fullWidth>
-        <DialogTitle>Contacts du segment</DialogTitle>
-        <DialogContent>
-          {contactsPreviewLoading ? (
-            <Box display="flex" justifyContent="center" my={3}><CircularProgress /></Box>
-          ) : (
-            <Box>
-              {(!contactsPreview || contactsPreview.length === 0) ? (
-                <Typography variant="body2" color="text.secondary">Aucun contact</Typography>
-              ) : (
-                contactsPreview.slice(0, 50).map(c => (
-                  <Box key={c.id} sx={{ py: 1, borderBottom: '1px solid #eee' }}>
-                    <Typography sx={{ fontWeight: 600 }}>{c.prenom} {c.nom} <Typography component="span" color="text.secondary">• {c.email}</Typography></Typography>
-                    <Typography variant="caption" color="text.secondary">{(c.tags || []).map(t => t.nom).join(', ') || '—'}</Typography>
-                  </Box>
-                ))
-              )}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => dispatch(clearContactsPreview())}>Fermer</Button>
-        </DialogActions>
-      </Dialog>
       {/* Dialog: blocking campaigns with detach */}
       <Dialog open={blockDialog.open} onClose={() => setBlockDialog({ open: false, segmentId: null, campaigns: [], selected: {} })} maxWidth="sm" fullWidth>
         <DialogTitle>Segment utilisé par des campagnes</DialogTitle>

@@ -4,6 +4,7 @@ import {
   Box, Typography, Button, Chip, CircularProgress, Alert,
   Grid, Paper, Divider, IconButton, Tooltip, LinearProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  TablePagination,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -14,7 +15,10 @@ import SendIcon from '@mui/icons-material/Send';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import UnsubscribeIcon from '@mui/icons-material/Unsubscribe';
 import ReplyIcon from '@mui/icons-material/Reply';
+import DownloadIcon from '@mui/icons-material/Download';
+import ScienceIcon from '@mui/icons-material/Science';
 import axios from '../api/axios';
+import FollowUpWizard from '../components/FollowUpWizard';
 
 const STATUS_COLORS = {
   envoyée:     { bg: '#dafbe1', color: '#1a7f37', label: 'Envoyée' },
@@ -47,6 +51,26 @@ const KPICard = ({ icon, label, value, sub, color = '#2563eb', bg = '#eff6ff' })
 const fmt = (d) => d ? new Date(d).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const pct = (num, den) => den > 0 ? ((num / den) * 100).toFixed(1) + ' %' : '—';
 
+const exportCSV = (rows, filename) => {
+  const headers = ['Prénom', 'Nom', 'Email', 'Statut', 'Date ouverture', 'Date clic'];
+  const lines = [
+    headers.join(';'),
+    ...rows.map(e => [
+      e.contact?.prenom || '',
+      e.contact?.nom || '',
+      e.contact?.email || '',
+      e.statut || '',
+      e.date_ouverture ? new Date(e.date_ouverture).toLocaleString('fr-FR') : '',
+      e.date_clic ? new Date(e.date_clic).toLocaleString('fr-FR') : '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')),
+  ];
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+};
+
 export default function CampaignDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -54,6 +78,9 @@ export default function CampaignDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [duplicating, setDuplicating] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   useEffect(() => {
     axios.get(`/campagnes/${id}`)
@@ -86,7 +113,9 @@ export default function CampaignDetail() {
   const nb_desab = stats.nb_desabonnements || 0;
   const st = STATUS_COLORS[campaign.statut] || STATUS_COLORS.brouillon;
   const envois = campaign.envois || [];
-  const opened = envois.filter(e => e.date_ouverture).slice(0, 20);
+  const opened = envois.filter(e => e.date_ouverture);
+  const pagedOpened = opened.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const isABTest = campaign.parametres?.test_ab === true;
 
   return (
     <Box>
@@ -102,7 +131,7 @@ export default function CampaignDetail() {
 
         {campaign.statut === 'envoyée' && (
           <Button size="small" variant="outlined" startIcon={<ReplyIcon />}
-            onClick={() => navigate(`/campagnes?followup=${id}`)}
+            onClick={() => setFollowUpOpen(true)}
             sx={{ fontSize: 12, textTransform: 'none', borderColor: '#0969da', color: '#0969da' }}>
             Relancer
           </Button>
@@ -181,13 +210,99 @@ export default function CampaignDetail() {
         </Alert>
       )}
 
+      {/* A/B Test results */}
+      {isABTest && (() => {
+        const varA = envois.filter(e => e.variante === 'A');
+        const varB = envois.filter(e => e.variante === 'B');
+        const hasData = varA.length > 0 || varB.length > 0;
+        if (!hasData) {
+          return (
+            <Alert icon={<ScienceIcon fontSize="small" />} severity="info" sx={{ mb: 3, fontSize: 13 }}>
+              <strong>Campagne A/B Test</strong> — Les résultats comparatifs seront disponibles après l'envoi.
+            </Alert>
+          );
+        }
+        const calc = (v) => ({
+          total: v.length,
+          ouverts: v.filter(e => e.date_ouverture).length,
+          clics: v.filter(e => e.date_clic).length,
+        });
+        const sA = calc(varA), sB = calc(varB);
+        const rateA = sA.total > 0 ? sA.ouverts / sA.total : 0;
+        const rateB = sB.total > 0 ? sB.ouverts / sB.total : 0;
+        const winner = rateA >= rateB ? 'A' : 'B';
+        const winnerColor = winner === 'A' ? '#2563eb' : '#7c3aed';
+        return (
+          <Paper elevation={0} sx={{ border: '1px solid #bfdbfe', borderRadius: 2, p: 2.5, mb: 3, bgcolor: '#f0f7ff' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <ScienceIcon sx={{ color: '#2563eb', fontSize: 18 }} />
+              <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#1e40af' }}>Résultats A/B Test</Typography>
+            </Box>
+            <Grid container spacing={2}>
+              {[
+                { label: 'Variante A', sujet: campaign.sujet, stats: sA, color: '#2563eb', bg: '#eff6ff' },
+                { label: 'Variante B', sujet: campaign.parametres?.sujet_b || '—', stats: sB, color: '#7c3aed', bg: '#f5f3ff' },
+              ].map(({ label, sujet, stats, color, bg }) => (
+                <Grid item xs={12} sm={6} key={label}>
+                  <Paper elevation={0} sx={{ border: `2px solid ${label === `Variante ${winner}` ? color : '#e2e8f0'}`, borderRadius: 2, p: 2, bgcolor: bg, position: 'relative' }}>
+                    {label === `Variante ${winner}` && sA.total > 0 && sB.total > 0 && (
+                      <Chip label="Gagnant" size="small" sx={{ position: 'absolute', top: 8, right: 8, bgcolor: color, color: '#fff', fontWeight: 700, fontSize: 10 }} />
+                    )}
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color, mb: 0.5 }}>{label}</Typography>
+                    <Typography sx={{ fontSize: 11, color: '#57606a', mb: 1.5, fontStyle: 'italic' }} noWrap title={sujet}>{sujet}</Typography>
+                    <Box sx={{ display: 'flex', gap: 3 }}>
+                      <Box>
+                        <Typography sx={{ fontSize: 10, color: '#57606a', textTransform: 'uppercase', fontWeight: 700 }}>Envois</Typography>
+                        <Typography sx={{ fontSize: 22, fontWeight: 800, color: '#0d1117', fontVariantNumeric: 'tabular-nums' }}>{stats.total.toLocaleString('fr-FR')}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: 10, color: '#57606a', textTransform: 'uppercase', fontWeight: 700 }}>Ouvertures</Typography>
+                        <Typography sx={{ fontSize: 22, fontWeight: 800, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>
+                          {stats.total > 0 ? ((stats.ouverts / stats.total) * 100).toFixed(1) + ' %' : '—'}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontSize: 10, color: '#57606a', textTransform: 'uppercase', fontWeight: 700 }}>Clics</Typography>
+                        <Typography sx={{ fontSize: 22, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>
+                          {stats.total > 0 ? ((stats.clics / stats.total) * 100).toFixed(1) + ' %' : '—'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    {stats.total > 0 && (
+                      <LinearProgress variant="determinate" value={Math.min((stats.ouverts / stats.total) * 100, 100)}
+                        sx={{ mt: 1.5, height: 4, borderRadius: 2, bgcolor: '#e2e8f0', '& .MuiLinearProgress-bar': { bgcolor: '#16a34a', borderRadius: 2 } }} />
+                    )}
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+            {sA.total > 0 && sB.total > 0 && (
+              <Box sx={{ mt: 2, p: 1.5, borderRadius: 1, bgcolor: `${winnerColor}10`, border: `1px solid ${winnerColor}30` }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: winnerColor }}>
+                  Gagnant : Variante {winner} — Taux d'ouverture {winner === 'A' ? (rateA * 100).toFixed(1) : (rateB * 100).toFixed(1)} % vs {winner === 'A' ? (rateB * 100).toFixed(1) : (rateA * 100).toFixed(1)} %
+                </Typography>
+              </Box>
+            )}
+          </Paper>
+        );
+      })()}
+
       {/* Recipients who opened */}
       {opened.length > 0 && (
         <Paper elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: 2, overflow: 'hidden', mb: 3 }}>
-          <Box sx={{ p: 2, borderBottom: '1px solid #e2e8f0' }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
             <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0d1117' }}>
-              Destinataires ayant ouvert ({opened.length}{envois.filter(e => e.date_ouverture).length > 20 ? '+' : ''})
+              Destinataires ayant ouvert ({opened.length.toLocaleString('fr-FR')})
             </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<DownloadIcon fontSize="small" />}
+              onClick={() => exportCSV(envois, `campagne-${id}-destinataires.csv`)}
+              sx={{ fontSize: 11, textTransform: 'none', borderColor: '#e2e8f0', color: '#57606a', '&:hover': { borderColor: '#2563eb', color: '#2563eb' } }}
+            >
+              Exporter CSV
+            </Button>
           </Box>
           <TableContainer>
             <Table size="small">
@@ -199,7 +314,7 @@ export default function CampaignDetail() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {opened.map((e, i) => (
+                {pagedOpened.map((e, i) => (
                   <TableRow key={i} hover>
                     <TableCell sx={{ fontSize: 12 }}>{e.contact ? `${e.contact.prenom} ${e.contact.nom}` : '—'}</TableCell>
                     <TableCell sx={{ fontSize: 12, color: '#57606a' }}>{e.contact?.email || '—'}</TableCell>
@@ -212,8 +327,27 @@ export default function CampaignDetail() {
               </TableBody>
             </Table>
           </TableContainer>
+          <TablePagination
+            component="div"
+            count={opened.length}
+            page={page}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+            rowsPerPageOptions={[10, 25, 50, 100]}
+            labelRowsPerPage="Lignes :"
+            labelDisplayedRows={({ from, to, count }) => `${from}–${to} sur ${count}`}
+            sx={{ borderTop: '1px solid #e2e8f0', fontSize: 12 }}
+          />
         </Paper>
       )}
+
+      <FollowUpWizard
+        open={followUpOpen}
+        campaign={campaign}
+        onClose={() => setFollowUpOpen(false)}
+        onSuccess={() => setFollowUpOpen(false)}
+      />
 
       {/* Email preview */}
       {campaign.contenu_html && (

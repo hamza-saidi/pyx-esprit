@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchContacts,
@@ -12,12 +12,12 @@ import {
   removeTagFromContact,
 } from '../features/contacts/contactsSlice';
 import {
-  Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Tooltip, alpha, Checkbox, InputAdornment, Tabs, Tab, Slide, Popover, List, ListItemIcon as MuiListItemIcon, ListItemText as MuiListItemText, Accordion, AccordionSummary, AccordionDetails, Collapse, Grid, Divider
+  Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Tooltip, alpha, Checkbox, InputAdornment, Tabs, Tab, Slide, Popover, List, Accordion, AccordionSummary, AccordionDetails, Collapse, Grid,
+  Stepper, Step, StepLabel, FormControl, InputLabel,
 } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import BlockIcon from '@mui/icons-material/Block';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -30,25 +30,35 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import { useTheme } from '@mui/material/styles';
 import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
-import PeopleIcon from '@mui/icons-material/People';
-import TuneIcon from '@mui/icons-material/Tune';
-import LabelIcon from '@mui/icons-material/Label';
-import GroupWorkIcon from '@mui/icons-material/GroupWork';
-// CheckCircleOutlineIcon removed from filters header
-// import BlockIcon from '@mui/icons-material/Block';
 import EnhancedPagination from '../components/EnhancedPagination';
 import LoadingOverlay from '../components/LoadingOverlay';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import DownloadIcon from '@mui/icons-material/Download';
 import ClearIcon from '@mui/icons-material/Clear';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import SellIcon from '@mui/icons-material/Sell';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import axios from '../api/axios';
 import { useToast } from '../context/ToastContext';
+
+// Champs disponibles pour le mapping de colonnes CSV/Excel
+const IMPORT_FIELDS = [
+  { value: '', label: '— Ignorer —' },
+  { value: 'prenom', label: 'Prénom' },
+  { value: 'nom', label: 'Nom' },
+  { value: 'email', label: 'Email *' },
+  { value: 'telephone', label: 'Téléphone' },
+  { value: 'sexe', label: 'Sexe (Homme/Femme/Autre)' },
+  { value: 'ville', label: 'Ville' },
+  { value: 'entreprise', label: 'Entreprise' },
+  { value: 'statut', label: 'Statut' },
+  { value: 'tags', label: 'Tags (séparés par virgule)' },
+  { value: 'type_adhesion', label: "Type d'adhésion" },
+  { value: 'numero_licence', label: 'N° Licence' },
+  { value: 'remarques', label: 'Remarques' },
+  { value: 'date_naissance', label: 'Date de naissance' },
+];
 
 // UI helper to render empty values consistently
 const renderVal = (v) => {
@@ -139,7 +149,7 @@ const Contacts = () => {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterActive, setFilterActive] = useState('');
-  const [filtersExpanded, setFiltersExpanded] = useState(true);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // Advanced Mailchimp-Style Filtering
   const [filterMatch, setFilterMatch] = useState('all'); // 'all' or 'any'
@@ -178,22 +188,16 @@ const Contacts = () => {
   const [tagInput, setTagInput] = useState('');
   const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null, error: '' });
   const navigate = useNavigate();
-  const location = useLocation();
   const [bulkTagAnchor, setBulkTagAnchor] = useState(null);
   const [bulkTagId, setBulkTagId] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importForm, setImportForm] = useState({ file: null, batchTagIds: [], updateExisting: false });
-
-  // URL parameter sync (only for updates, initial state handled in useState)
-  useEffect(() => {
-    // Current state is initialized from URL. This hook could handle dynamically 
-    // changing URL params without full page reloads if needed.
-  }, [location.search]);
+  const [importStep, setImportStep]         = useState(0);
+  const [importPreview, setImportPreview]   = useState(null);
+  const [columnMapping, setColumnMapping]   = useState({});
 
   const tableContainerRef = useRef(null);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [showObsoleteOnly, setShowObsoleteOnly] = useState(false);
-  const [obsoleteItems, setObsoleteItems] = useState([]);
 
   const totalPages = Math.max(1, Math.ceil((total || 0) / pageSize));
 
@@ -215,7 +219,6 @@ const Contacts = () => {
     const segmentIds = (filterSegments || []).join(',');
     const actif = filterActive;
     const rulesJson = JSON.stringify(filterRules);
-    console.log('[DEBUG] Calling fetchContacts with:', { tagIds, segmentIds, filterRules: rulesJson });
     dispatch(fetchContacts({
       page: currentPage,
       limit: pageSize,
@@ -295,7 +298,7 @@ const Contacts = () => {
       nom: form.nom,
       email: form.email,
       telephone: form.telephone,
-      sexe: form.sexe,
+      sexe: form.sexe || null,
       handicap: form.handicap,
       home_club: form.home_club,
       date_naissance: form.date_naissance || null,
@@ -366,41 +369,76 @@ const Contacts = () => {
     dispatch(fetchContacts(getFetchParams()));
   };
   const handleDisable = async (id) => {
-    await dispatch(disableContact(id));
+    try {
+      await dispatch(disableContact(id));
+      toast.success('Contact désactivé.');
+    } catch { toast.error('Impossible de désactiver ce contact.'); }
     dispatch(fetchContacts(getFetchParams()));
   };
   const handleEnable = async (id) => {
-    await dispatch(enableContact(id));
+    try {
+      await dispatch(enableContact(id));
+      toast.success('Contact activé.');
+    } catch { toast.error('Impossible de réactiver ce contact.'); }
     dispatch(fetchContacts(getFetchParams()));
   };
   const handlePageChange = (newPage) => { setCurrentPage(newPage); };
 
   const [importLoading, setImportLoading] = useState(false);
+
+  const handleCloseImport = () => {
+    setImportOpen(false);
+    setImportStep(0);
+    setImportPreview(null);
+    setColumnMapping({});
+    setImportForm({ file: null, batchTagIds: [], updateExisting: false });
+  };
+
+  const handleImportFileChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImportForm(f => ({ ...f, file }));
+    setImportLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await axios.post('/contacts/import/preview', fd);
+      setImportPreview(res.data);
+      setColumnMapping(res.data.suggestedMapping || {});
+      setImportStep(1);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Impossible de lire le fichier.');
+      setImportForm(f => ({ ...f, file: null }));
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const handleImportSubmit = async () => {
     if (!importForm.file) return;
+    const hasEmail = Object.values(columnMapping).includes('email');
+    if (!hasEmail) {
+      toast.error('Veuillez assigner la colonne Email avant de continuer.');
+      return;
+    }
     setImportLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', importForm.file);
       formData.append('batchTagIds', importForm.batchTagIds.join(','));
       formData.append('updateExisting', importForm.updateExisting);
+      formData.append('columnMapping', JSON.stringify(columnMapping));
 
-      await axios.post('/contacts/import', formData);
-      setImportOpen(false);
-      setImportForm({ file: null, batchTagIds: [], updateExisting: false });
+      const res = await axios.post('/contacts/import', formData);
+      toast.success(res.data?.message || 'Import réussi.');
+      handleCloseImport();
       setCurrentPage(1);
       dispatch(fetchContacts({ ...getFetchParams(), page: 1 }));
     } catch (e) {
-      console.error('Import error:', e);
       toast.error(e.response?.data?.message || e.message || "Erreur lors de l'import des contacts");
     } finally {
       setImportLoading(false);
     }
-  };
-
-  const handleImportFileChange = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (file) setImportForm({ ...importForm, file });
   };
 
   const handleExport = async (format) => {
@@ -454,9 +492,7 @@ const Contacts = () => {
     dispatch(fetchContacts(getFetchParams()));
   };
 
-  // Les filtres sont désormais gérés côté serveur
-  const filteredItems = items;
-  const displayedItems = showObsoleteOnly ? obsoleteItems : filteredItems;
+  const displayedItems = items;
 
   const handlePageSizeChange = (newPageSize) => {
     setPageSize(newPageSize);
@@ -506,7 +542,7 @@ const Contacts = () => {
               {filtersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
             </IconButton>
             <Typography variant="h6" sx={{ fontFamily: 'Georgia, serif', fontWeight: 700 }}>Filtres</Typography>
-            <Chip label={`${displayedItems.length} contact(s)`} size="small" sx={{ bgcolor: '#0a84d6', color: '#FFFFFF', fontWeight: 700, borderRadius: 0 }} />
+            <Chip label={`${total || 0} contact(s)`} size="small" sx={{ bgcolor: '#0a84d6', color: '#FFFFFF', fontWeight: 700, borderRadius: 0 }} />
             <Button size="small" variant="text" color="secondary" sx={{ fontWeight: 700 }} onClick={() => { setFilterRules([]); setSearch(''); setDebouncedSearch(''); setCurrentPage(1); }}>
               Effacer
             </Button>
@@ -533,7 +569,9 @@ const Contacts = () => {
               disabled={
                 selectedIds.length === 0 &&
                 (filterTags || []).length === 0 &&
-                (filterSegments || []).length === 0
+                (filterSegments || []).length === 0 &&
+                (filterRules || []).length === 0 &&
+                !debouncedSearch
               }
             >
               Créer une campagne
@@ -720,33 +758,52 @@ const Contacts = () => {
             <TableHead>
               <TableRow>
                 <TableCell padding="checkbox" sx={{ bgcolor: '#F5F7F9' }}>
-                  <Checkbox
-                    size="small"
-                    indeterminate={selectedIds.length > 0 && selectedIds.length < (items || []).length}
-                    checked={(items || []).length > 0 && selectedIds.length === (items || []).length}
-                    onChange={(e) => setSelectedIds(e.target.checked ? (items || []).map(c => c.id) : [])}
-                  />
+                  <Tooltip title={`Sélectionner les ${(items || []).length} contacts de cette page`}>
+                    <Checkbox
+                      size="small"
+                      indeterminate={selectedIds.length > 0 && selectedIds.length < (items || []).length}
+                      checked={(items || []).length > 0 && selectedIds.length === (items || []).length}
+                      onChange={(e) => setSelectedIds(e.target.checked ? (items || []).map(c => c.id) : [])}
+                    />
+                  </Tooltip>
                 </TableCell>
                 {[
-                  { key: 'email', label: 'ADRESSE EMAIL', width: 250 },
-                  { key: 'prenom', label: 'PRÉNOM' },
-                  { key: 'nom', label: 'NOM' },
+                  { key: 'email', label: 'ADRESSE EMAIL', width: 250, sortable: true },
+                  { key: 'prenom', label: 'PRÉNOM', sortable: true },
+                  { key: 'nom', label: 'NOM', sortable: true },
                   { key: 'tags', label: 'ÉTIQUETTES' },
-                  { key: 'date_creation', label: "DATE D'AJOUT" },
+                  { key: 'date_creation', label: "DATE D'AJOUT", sortable: true },
                   { key: 'actions', label: 'ACTIONS' }
                 ].map((col) => (
                   <TableCell
                     key={col.key}
+                    onClick={col.sortable ? () => {
+                      if (sortBy === col.key) {
+                        setSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
+                      } else {
+                        setSortBy(col.key);
+                        setSortOrder('ASC');
+                      }
+                      setCurrentPage(1);
+                    } : undefined}
                     sx={{
                       fontWeight: 700,
                       fontSize: 11,
                       letterSpacing: 1,
-                      color: '#8a9298',
+                      color: sortBy === col.key ? '#0a84d6' : '#8a9298',
                       bgcolor: '#F5F7F9',
-                      width: col.width || 'auto'
+                      width: col.width || 'auto',
+                      cursor: col.sortable ? 'pointer' : 'default',
+                      userSelect: 'none',
+                      '&:hover': col.sortable ? { color: '#0a84d6' } : {},
                     }}
                   >
-                    {col.label}
+                    <Box display="flex" alignItems="center" gap={0.5}>
+                      {col.label}
+                      {col.sortable && sortBy === col.key && (
+                        <span style={{ fontSize: 9, lineHeight: 1 }}>{sortOrder === 'ASC' ? '▲' : '▼'}</span>
+                      )}
+                    </Box>
                   </TableCell>
                 ))}
               </TableRow>
@@ -754,7 +811,7 @@ const Contacts = () => {
 
             <TableBody>
               {(items || []).map((c) => (
-                <TableRow key={c.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                <TableRow key={c.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 }, opacity: c.actif ? 1 : 0.55 }}>
                   <TableCell padding="checkbox">
                     <Checkbox
                       size="small"
@@ -763,7 +820,12 @@ const Contacts = () => {
                     />
                   </TableCell>
                   <TableCell sx={{ fontSize: 13, fontWeight: 700, color: '#0a84d6', cursor: 'pointer' }} onClick={() => handleOpen(c)}>
-                    {c.email}
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {c.email}
+                      {!c.actif && (
+                        <Chip label="INACTIF" size="small" sx={{ height: 16, fontSize: 9, fontWeight: 700, borderRadius: 0, bgcolor: '#f3f4f6', color: '#6b7280', letterSpacing: 0.5 }} />
+                      )}
+                    </Box>
                   </TableCell>
                   <TableCell sx={{ fontSize: 13, color: '#3b3f44' }}>{renderVal(c.prenom)}</TableCell>
                   <TableCell sx={{ fontSize: 13, color: '#3b3f44' }}>{renderVal(c.nom)}</TableCell>
@@ -905,7 +967,7 @@ const Contacts = () => {
               </AccordionDetails>
             </Accordion>
 
-            <Accordion defaultExpanded>
+            <Accordion>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Abonnement & Membership</Typography>
               </AccordionSummary>
@@ -1113,78 +1175,162 @@ const Contacts = () => {
       </Popover>
 
       {/* IMPORT DIALOG */}
-      <Dialog open={importOpen} onClose={() => setImportOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Importer des contacts</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Importez une liste de contacts depuis un fichier Excel ou CSV.
-            <Button
-              size="small"
-              onClick={() => handleDownloadTemplate(true)}
-              sx={{ textTransform: 'none', fontWeight: 700, ml: 0.5 }}
-            >
-              Télécharger le modèle
-            </Button>
-          </Typography>
+      {/* ── Import wizard ──────────────────────────────────────────────── */}
+      <Dialog open={importOpen} onClose={handleCloseImport} maxWidth={importStep === 1 ? 'md' : 'sm'} fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, pb: 0 }}>
+          Importer des contacts
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {/* Stepper */}
+          <Stepper activeStep={importStep} sx={{ mb: 3 }}>
+            {['Fichier', 'Colonnes', 'Options'].map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
 
-          <Box
-            sx={{
-              border: '2px dashed #bfc9cf',
-              p: 3,
-              textAlign: 'center',
-              bgcolor: '#F5F7F9',
-              mb: 3,
-              cursor: 'pointer',
-              '&:hover': { bgcolor: '#eef2f5' }
-            }}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <FileUploadIcon sx={{ fontSize: 40, color: '#8a9298', mb: 1 }} />
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-              {importForm.file ? importForm.file.name : 'Cliquer pour sélectionner un fichier Excel/CSV'}
-            </Typography>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImportFileChange}
-              accept=".csv,.xlsx,.xls"
-              style={{ display: 'none' }}
-            />
-          </Box>
+          {/* ── Step 0 : Sélection du fichier ── */}
+          {importStep === 0 && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Importez une liste de contacts depuis un fichier Excel ou CSV.{' '}
+                <Button size="small" onClick={() => handleDownloadTemplate(true)} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                  Télécharger le modèle
+                </Button>
+              </Typography>
+              <Box
+                sx={{ border: '2px dashed #bfc9cf', p: 4, textAlign: 'center', bgcolor: '#F5F7F9', cursor: 'pointer', '&:hover': { bgcolor: '#eef2f5' } }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {importLoading
+                  ? <CircularProgress size={36} sx={{ mb: 1 }} />
+                  : <FileUploadIcon sx={{ fontSize: 40, color: '#8a9298', mb: 1 }} />
+                }
+                <Typography variant="body2" fontWeight={700}>
+                  {importLoading ? 'Analyse du fichier...' : (importForm.file ? importForm.file.name : 'Cliquer pour sélectionner un fichier Excel/CSV')}
+                </Typography>
+                <input type="file" ref={fileInputRef} onChange={handleImportFileChange} accept=".csv,.xlsx,.xls" style={{ display: 'none' }} />
+              </Box>
+            </Box>
+          )}
 
-          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Appliquer des étiquettes à tous les contacts importés</Typography>
-          <Autocomplete
-            multiple
-            options={tags || []}
-            getOptionLabel={(o) => o?.nom || ''}
-            value={(tags || []).filter(t => (importForm.batchTagIds || []).includes(t.id))}
-            onChange={(_, val) => setImportForm({ ...importForm, batchTagIds: val.map(v => v.id) })}
-            renderInput={(params) => <TextField {...params} variant="outlined" size="small" placeholder="Sélectionner des étiquettes..." />}
-            sx={{ mb: 3 }}
-          />
+          {/* ── Step 1 : Mapping des colonnes ── */}
+          {importStep === 1 && importPreview && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Associez chaque colonne de <strong>{importForm.file?.name}</strong> à un champ contact. Les suggestions sont pré-remplies automatiquement.
+              </Typography>
+              <TableContainer sx={{ border: '1px solid #e2e8f0', maxHeight: 400 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', width: '30%' }}>Colonne du fichier</TableCell>
+                      <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', width: '35%' }}>Exemples</TableCell>
+                      <TableCell sx={{ fontWeight: 700, bgcolor: '#f8fafc', width: '35%' }}>Champ contact</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {importPreview.headers.map((header) => {
+                      const samples = importPreview.samples.map(s => s[header]).filter(Boolean).slice(0, 2).join(', ');
+                      const isEmail = columnMapping[header] === 'email';
+                      return (
+                        <TableRow key={header} sx={{ bgcolor: isEmail ? '#f0f9ff' : 'inherit' }}>
+                          <TableCell sx={{ fontWeight: 600, color: '#334155', fontFamily: 'monospace', fontSize: 12 }}>
+                            {header}
+                          </TableCell>
+                          <TableCell sx={{ color: '#64748b', fontSize: 12, fontStyle: 'italic' }}>
+                            {samples || '—'}
+                          </TableCell>
+                          <TableCell>
+                            <FormControl fullWidth size="small">
+                              <Select
+                                value={columnMapping[header] || ''}
+                                onChange={(e) => setColumnMapping(m => ({ ...m, [header]: e.target.value }))}
+                                sx={{ fontSize: 13, '& .MuiOutlineInput-notchedOutline': { borderColor: isEmail ? '#0a84d6' : undefined } }}
+                              >
+                                {IMPORT_FIELDS.map(f => (
+                                  <MenuItem key={f.value} value={f.value} sx={{ fontSize: 13 }}>
+                                    {f.label}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {!Object.values(columnMapping).includes('email') && (
+                <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block', fontWeight: 600 }}>
+                  ⚠ Assignez au moins la colonne Email pour continuer.
+                </Typography>
+              )}
+            </Box>
+          )}
 
-          <FormControlLabel
-            control={
-              <Checkbox
-                size="small"
-                checked={importForm.updateExisting}
-                onChange={(e) => setImportForm({ ...importForm, updateExisting: e.target.checked })}
+          {/* ── Step 2 : Options ── */}
+          {importStep === 2 && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+                Fichier : <strong>{importForm.file?.name}</strong> · {importPreview?.headers?.length} colonnes mappées.
+              </Typography>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>Appliquer des étiquettes à tous les contacts importés</Typography>
+              <Autocomplete
+                multiple
+                options={tags || []}
+                getOptionLabel={(o) => o?.nom || ''}
+                value={(tags || []).filter(t => (importForm.batchTagIds || []).includes(t.id))}
+                onChange={(_, val) => setImportForm(f => ({ ...f, batchTagIds: val.map(v => v.id) }))}
+                renderInput={(params) => <TextField {...params} variant="outlined" size="small" placeholder="Sélectionner des étiquettes..." />}
+                sx={{ mb: 3 }}
               />
-            }
-            label={<Typography variant="body2">Mettre à jour les contacts existants (correspondance par email)</Typography>}
-          />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={importForm.updateExisting}
+                    onChange={(e) => setImportForm(f => ({ ...f, updateExisting: e.target.checked }))}
+                  />
+                }
+                label={<Typography variant="body2">Mettre à jour les contacts existants (correspondance par email)</Typography>}
+              />
+            </Box>
+          )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setImportOpen(false)} color="inherit">Annuler</Button>
-          <Button
-            onClick={handleImportSubmit}
-            variant="contained"
-            color="secondary"
-            disabled={!importForm.file || importLoading}
-            startIcon={importLoading && <CircularProgress size={16} color="inherit" />}
-          >
-            {importLoading ? 'Importation...' : "Lancer l'importation"}
-          </Button>
+
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={handleCloseImport} color="inherit" sx={{ mr: 'auto' }}>Annuler</Button>
+          {importStep > 0 && (
+            <Button onClick={() => setImportStep(s => s - 1)} color="inherit" disabled={importLoading}>
+              Retour
+            </Button>
+          )}
+          {importStep < 2 ? (
+            <Button
+              variant="contained"
+              onClick={() => setImportStep(s => s + 1)}
+              disabled={
+                importLoading ||
+                (importStep === 0 && !importForm.file) ||
+                (importStep === 1 && !Object.values(columnMapping).includes('email'))
+              }
+            >
+              Suivant
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              color="secondary"
+              onClick={handleImportSubmit}
+              disabled={importLoading}
+              startIcon={importLoading && <CircularProgress size={16} color="inherit" />}
+            >
+              {importLoading ? 'Importation...' : "Lancer l'importation"}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 

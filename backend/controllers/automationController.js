@@ -3,7 +3,7 @@ const toggleAutomation = require('../use-cases/automation/toggleAutomation');
 const createCustomAutomation = require('../use-cases/automation/createCustomAutomation');
 const updateAutomation = require('../use-cases/automation/updateAutomation');
 const deleteAutomation = require('../use-cases/automation/deleteAutomation');
-const { Contact, Tag, EnvoiEmail } = require('../models');
+const { Contact, Tag, EnvoiEmail, Automation } = require('../models');
 const emailService = require('../services/emailService');
 const { Op, fn, col, where: seqWhere } = require('sequelize');
 
@@ -76,11 +76,13 @@ exports.sendBirthdaysToday = async (req, res, next) => {
     const today = new Date();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
+
+    const birthdayAutomation = await Automation.findOne({ where: { type: 'birthday' } });
+    const tagFilter = birthdayAutomation?.config?.tagFilter || 'Membre VIP';
+
     const contacts = await Contact.findAll({
       where: seqWhere(fn('DATE_FORMAT', col('date_naissance'), '%m-%d'), `${mm}-${dd}`),
-      include: [
-        { model: Tag, as: 'tags', through: { attributes: [] }, where: { nom: 'Membre VIP' } },
-      ],
+      include: [{ model: Tag, as: 'tags', through: { attributes: [] }, where: { nom: tagFilter } }],
       attributes: ['id', 'prenom', 'nom', 'email'],
     });
 

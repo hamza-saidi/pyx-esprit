@@ -1,64 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { fetchFollowupGroups, addCampaign, sendCampaign } from '../features/campaigns/campaignsSlice';
+import axios from '../api/axios';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Box, Typography, Button, TextField, CircularProgress,
   Stepper, Step, StepLabel, Alert, Chip, Divider,
-  FormControl, InputLabel, Select, MenuItem, IconButton
+  FormControl, InputLabel, Select, MenuItem, IconButton, Tooltip,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import ReplayIcon from '@mui/icons-material/Replay';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
+import EmailEditor from './EmailEditor';
+import TemplatePicker from './TemplatePicker';
 
 const STEPS = ['Choisir l\'audience', 'Écrire l\'email', 'Envoyer'];
+
+const htmlTemplate = (body) =>
+  `<table width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;font-size:15px;line-height:1.7"><tr><td style="padding:32px 24px">${body}</td></tr></table>`;
 
 const GROUP_SUGGESTIONS = {
   clickers: {
     subjectPrefix: 'Suite à votre intérêt — ',
-    bodyPlaceholder: `Bonjour {{prenom}},
-
-Vous avez récemment cliqué sur notre dernière communication. Nous voulions aller plus loin avec vous.
-
-[Votre message de conversion ici]
-
-Merci de votre confiance,
-L'équipe Golf Huub`,
+    htmlBody: htmlTemplate(`<p>Bonjour {{prenom}},</p><p>Vous avez récemment cliqué sur notre dernière communication. Nous voulions aller plus loin avec vous.</p><p><strong>[Votre message de conversion ici]</strong></p><p>Merci de votre confiance,<br>L'équipe Golf Huub</p>`),
   },
   openers: {
     subjectPrefix: 'Vous avez manqué quelque chose — ',
-    bodyPlaceholder: `Bonjour {{prenom}},
-
-Nous avons remarqué que vous avez ouvert notre dernier email mais n'avez pas encore agi.
-
-Voici une autre opportunité de [bénéfice clé].
-
-[Votre message ici]
-
-À bientôt,
-L'équipe Golf Huub`,
+    htmlBody: htmlTemplate(`<p>Bonjour {{prenom}},</p><p>Nous avons remarqué que vous avez ouvert notre dernier email mais n'avez pas encore agi.</p><p>Voici une autre opportunité de <strong>[bénéfice clé]</strong>.</p><p><strong>[Votre message ici]</strong></p><p>À bientôt,<br>L'équipe Golf Huub</p>`),
   },
   non_openers: {
     subjectPrefix: '[Rappel] ',
-    bodyPlaceholder: `Bonjour {{prenom}},
-
-Vous avez peut-être manqué notre dernier message. Nous vous le repartageons avec un objet différent.
-
-[Votre message ici]
-
-À bientôt,
-L'équipe Golf Huub`,
+    htmlBody: htmlTemplate(`<p>Bonjour {{prenom}},</p><p>Vous avez peut-être manqué notre dernier message. Nous vous le repartageons avec un objet différent.</p><p><strong>[Votre message ici]</strong></p><p>À bientôt,<br>L'équipe Golf Huub</p>`),
   },
   errors: {
     subjectPrefix: 'Mise à jour de vos coordonnées — ',
-    bodyPlaceholder: `Bonjour {{prenom}},
-
-Nous avons tenté de vous joindre mais votre adresse semble avoir rencontré un problème technique. 
-
-Pourriez-vous nous confirmer vos coordonnées ou nous indiquer une adresse alternative ?
-
-Merci d'avance,
-L'équipe Golf Huub`,
+    htmlBody: htmlTemplate(`<p>Bonjour {{prenom}},</p><p>Nous avons tenté de vous joindre mais votre adresse semble avoir rencontré un problème technique.</p><p>Pourriez-vous nous confirmer vos coordonnées ou nous indiquer une adresse alternative ?</p><p>Merci d'avance,<br>L'équipe Golf Huub</p>`),
   },
 };
 
@@ -119,11 +96,13 @@ const FollowUpWizard = ({ open, campaign, onClose, onSuccess }) => {
   const [groupsData, setGroupsData] = useState(null);
   const [groupsError, setGroupsError] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
-  const [form, setForm] = useState({ titre: '', sujet: '', body: '', sendMode: 'draft' });
+  const [form, setForm] = useState({ titre: '', sujet: '', contenu_html: '', sendMode: 'draft' });
   const [submitError, setSubmitError] = useState(null);
   const [done, setDone] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
-  // Load groups when dialog opens
+  // Load groups + templates when dialog opens
   useEffect(() => {
     if (open && campaign?.id) {
       setStep(0);
@@ -132,11 +111,16 @@ const FollowUpWizard = ({ open, campaign, onClose, onSuccess }) => {
       setGroupsError(null);
       setSubmitError(null);
       setDone(false);
+      setTemplatePickerOpen(false);
       setLoading(true);
-      dispatch(fetchFollowupGroups(campaign.id))
-        .unwrap()
-        .then(data => { setGroupsData(data); setLoading(false); })
-        .catch(err => { setGroupsError(String(err)); setLoading(false); });
+      Promise.all([
+        dispatch(fetchFollowupGroups(campaign.id)).unwrap(),
+        axios.get('/templates').then(r => r.data).catch(() => []),
+      ]).then(([groupData, tmplData]) => {
+        setGroupsData(groupData);
+        setTemplates(tmplData);
+        setLoading(false);
+      }).catch(err => { setGroupsError(String(err)); setLoading(false); });
     }
   }, [open, campaign?.id, dispatch]);
 
@@ -147,7 +131,7 @@ const FollowUpWizard = ({ open, campaign, onClose, onSuccess }) => {
       setForm({
         titre: `${groupsData.campaign_titre} — Suivi ${groupsData.groups[selectedGroup]?.label || ''}`,
         sujet: `${sug.subjectPrefix}${groupsData.campaign_titre}`,
-        body: sug.bodyPlaceholder,
+        contenu_html: sug.htmlBody,
         sendMode: 'draft',
       });
     }
@@ -168,8 +152,7 @@ const FollowUpWizard = ({ open, campaign, onClose, onSuccess }) => {
       const payload = {
         titre: form.titre.trim() || `Suivi — ${campaign.titre}`,
         sujet: form.sujet.trim() || `Suivi de la campagne ${campaign.titre}`,
-        contenu_html: `<div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#111827">${form.body.replace(/\n/g, '<br/>')}</div>`,
-        contenu_texte: form.body,
+        contenu_html: form.contenu_html,
         audience: 'custom',
         contacts_ids: group.contact_ids,
         type_campagne: 'newsletter',
@@ -253,33 +236,49 @@ const FollowUpWizard = ({ open, campaign, onClose, onSuccess }) => {
 
       case 1:
         return (
-          <Box display="flex" flexDirection="column" gap={2}>
-            <TextField
-              label="Titre de la campagne (interne)"
-              value={form.titre}
-              onChange={e => setForm(f => ({ ...f, titre: e.target.value }))}
-              fullWidth
-              size="small"
-              helperText="Visible uniquement par vous"
-            />
-            <TextField
-              label="Objet de l'email"
-              value={form.sujet}
-              onChange={e => setForm(f => ({ ...f, sujet: e.target.value }))}
-              fullWidth
-              size="small"
-              helperText="Ce que vos contacts verront dans leur boîte"
-            />
-            <TextField
-              label="Corps de l'email"
-              value={form.body}
-              onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-              fullWidth
-              multiline
-              rows={10}
-              size="small"
-              helperText="Utilisez {{prenom}} pour personnaliser"
-              sx={{ '& .MuiInputBase-root': { fontFamily: 'monospace', fontSize: 13 } }}
+          <Box display="flex" flexDirection="column" gap={2} sx={{ height: '100%' }}>
+            <Box display="flex" gap={2} alignItems="flex-start">
+              <TextField
+                label="Titre (interne)"
+                value={form.titre}
+                onChange={e => setForm(f => ({ ...f, titre: e.target.value }))}
+                fullWidth
+                size="small"
+                helperText="Visible uniquement par vous"
+              />
+              <TextField
+                label="Objet de l'email"
+                value={form.sujet}
+                onChange={e => setForm(f => ({ ...f, sujet: e.target.value }))}
+                fullWidth
+                size="small"
+                helperText="Ce que vos contacts verront dans leur boîte"
+              />
+              <Tooltip title="Charger un modèle">
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<CollectionsBookmarkIcon fontSize="small" />}
+                  onClick={() => setTemplatePickerOpen(true)}
+                  sx={{ whiteSpace: 'nowrap', flexShrink: 0, height: 40, mt: 0.25 }}
+                >
+                  Modèle
+                </Button>
+              </Tooltip>
+            </Box>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <EmailEditor
+                value={form.contenu_html}
+                onChange={html => setForm(f => ({ ...f, contenu_html: html }))}
+                canvasHeight="calc(85vh - 320px)"
+              />
+            </Box>
+
+            <TemplatePicker
+              open={templatePickerOpen}
+              savedTemplates={templates}
+              onClose={() => setTemplatePickerOpen(false)}
+              onSelect={html => setForm(f => ({ ...f, contenu_html: html }))}
             />
           </Box>
         );
@@ -318,8 +317,8 @@ const FollowUpWizard = ({ open, campaign, onClose, onSuccess }) => {
   };
 
   return (
-    <Dialog open={open} onClose={done ? onClose : undefined} maxWidth="md" fullWidth PaperProps={{
-      sx: { borderRadius: 3, overflow: 'hidden' }
+    <Dialog open={open} onClose={done ? onClose : undefined} maxWidth="xl" fullWidth PaperProps={{
+      sx: { borderRadius: 3, overflow: 'hidden', height: step === 1 ? '90vh' : 'auto' }
     }}>
       <DialogTitle sx={{ bgcolor: '#111827', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 2 }}>
         <Box display="flex" alignItems="center" gap={1}>
@@ -345,7 +344,7 @@ const FollowUpWizard = ({ open, campaign, onClose, onSuccess }) => {
         </Box>
       )}
 
-      <DialogContent sx={{ py: 3, px: 3, minHeight: 300 }}>
+      <DialogContent sx={{ py: 3, px: 3, minHeight: 300, display: step === 1 ? 'flex' : 'block', flexDirection: 'column', overflow: step === 1 ? 'hidden' : 'auto' }}>
         {renderStep()}
       </DialogContent>
 

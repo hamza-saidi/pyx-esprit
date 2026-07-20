@@ -73,6 +73,8 @@ function applyClubFilter(options, clubId) {
 }
 
 function stampClubId(instance, clubId, modelName) {
+  // global_admin users are cross-tenant by design — club_id = null is correct
+  if (modelName === 'Utilisateur' && instance.role === 'global_admin') return;
   if (instance.club_id === undefined || instance.club_id === null) {
     if (clubId === null) {
       throw new Error(

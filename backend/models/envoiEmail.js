@@ -30,6 +30,7 @@ module.exports = (sequelize, DataTypes) => {
       message_erreur: { type: DataTypes.TEXT },
       token_tracking: { type: DataTypes.STRING(255), unique: true }, // Pour le tracking des ouvertures/clics
       actif: { type: DataTypes.BOOLEAN, defaultValue: true },
+      variante: { type: DataTypes.STRING(1), allowNull: true },
       club_id: { type: DataTypes.INTEGER, defaultValue: 1 },
     },
     {
