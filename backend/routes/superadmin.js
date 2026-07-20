@@ -117,6 +117,136 @@ router.post('/clubs/:id/subscription', async (req, res, next) => {
   }
 });
 
+// ── Facturation (suivi interne, aucune passerelle de paiement) ───────────────
+
+async function generateInvoiceReference() {
+  const year = new Date().getFullYear();
+  const count = await db.Invoice.count({
+    where: db.sequelize.where(db.sequelize.fn('YEAR', db.sequelize.col('date_emission')), year),
+  });
+  return `INV-${year}-${String(count + 1).padStart(3, '0')}`;
+}
+
+// GET /api/superadmin/invoices — liste avec club + plan joints
+router.get('/invoices', async (req, res, next) => {
+  try {
+    const invoices = await db.Invoice.findAll({
+      include: [
+        { model: db.Club, as: 'club', attributes: ['id', 'nom'] },
+        {
+          model: db.Subscription,
+          as: 'subscription',
+          attributes: ['id'],
+          include: [{ model: db.Plan, as: 'plan', attributes: ['id', 'nom', 'slug'] }],
+        },
+      ],
+      order: [['date_emission', 'DESC']],
+    });
+    res.json(invoices);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/superadmin/invoices — générer une facture pour un club
+router.post('/invoices', async (req, res, next) => {
+  try {
+    const { club_id, montant, date_echeance } = req.body;
+    if (!club_id) return res.status(400).json({ message: 'club_id requis.' });
+
+    const club = await db.Club.findByPk(club_id);
+    if (!club) return res.status(404).json({ message: 'Club introuvable.' });
+
+    const subscription = await db.Subscription.findOne({
+      where: { club_id, statut: 'active' },
+      include: [{ model: db.Plan, as: 'plan' }],
+      order: [['date_creation', 'DESC']],
+    });
+
+    const finalMontant =
+      montant != null ? Number(montant) : Number(subscription?.plan?.prix_mensuel || 0);
+
+    const invoice = await db.Invoice.create({
+      club_id,
+      subscription_id: subscription?.id || null,
+      montant: finalMontant,
+      devise: subscription?.plan?.devise || 'TND',
+      date_emission: new Date(),
+      date_echeance: date_echeance || null,
+      statut: 'en_attente',
+      reference: await generateInvoiceReference(),
+    });
+
+    res.status(201).json({ message: `Facture ${invoice.reference} générée.`, invoice });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/superadmin/invoices/:id — marquer payée / impayée
+router.patch('/invoices/:id', async (req, res, next) => {
+  try {
+    const invoice = await db.Invoice.findByPk(req.params.id);
+    if (!invoice) return res.status(404).json({ message: 'Facture introuvable.' });
+
+    const { statut } = req.body;
+    const allowedStatuts = ['payee', 'en_attente', 'en_retard', 'annulee'];
+    if (!statut || !allowedStatuts.includes(statut)) {
+      return res.status(400).json({ message: 'Statut invalide.' });
+    }
+
+    await invoice.update({
+      statut,
+      date_paiement: statut === 'payee' ? new Date() : null,
+    });
+
+    res.json(invoice);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/superadmin/billing/summary — MRR/ARR/paiements en attente/répartition par plan
+router.get('/billing/summary', async (req, res, next) => {
+  try {
+    const activeSubs = await db.Subscription.findAll({
+      where: { statut: 'active' },
+      include: [{ model: db.Plan, as: 'plan' }],
+    });
+
+    let mrr = 0;
+    const byPlan = {};
+    for (const sub of activeSubs) {
+      const prix = Number(sub.plan?.prix_mensuel || 0);
+      mrr += prix;
+      const key = sub.plan?.nom || 'Sans plan';
+      if (!byPlan[key]) byPlan[key] = { plan: key, montant_mensuel: prix, tenants: 0 };
+      byPlan[key].tenants += 1;
+    }
+
+    const paiementsEnAttente = await db.Invoice.count({ where: { statut: 'en_attente' } });
+    const totalInvoicesThisYear = await db.Invoice.count({
+      where: db.sequelize.where(
+        db.sequelize.fn('YEAR', db.sequelize.col('date_emission')),
+        new Date().getFullYear()
+      ),
+    });
+
+    res.json({
+      mrr,
+      arr: mrr * 12,
+      paiements_en_attente: paiementsEnAttente,
+      factures_cette_annee: totalInvoicesThisYear,
+      revenu_par_plan: Object.values(byPlan).map((p) => ({
+        ...p,
+        revenu_total: p.montant_mensuel * p.tenants,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/superadmin/clubs — créer un nouveau club/tenant
 router.post('/clubs', async (req, res, next) => {
   try {
