@@ -7,6 +7,8 @@ const { randomBytes } = require('crypto'); // SECURITY: cryptographically secure
 const emailService = require('../services/emailService');
 const { getClubStatusEmail } = require('../utils/clubStatusEmailTemplates');
 const logger = require('../utils/logger');
+const { checkDb, checkRedis, getRecentErrors } = require('../utils/healthChecks');
+const queueService = require('../services/queueService');
 
 function generateLicenceKey() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
@@ -420,6 +422,46 @@ router.get('/stats', async (req, res, next) => {
       total_contacts: totalContacts,
       total_campagnes: totalCampagnes,
       total_envois: totalEnvois,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Monitoring (métriques applicatives internes réelles) ────────────────────
+
+// GET /api/superadmin/monitoring — santé DB/Redis/email, profondeur de file
+// BullMQ réelle, erreurs récentes des logs, uptime process. Pas de faux
+// uptime %/latence par service ni de "sessions actives" : rien dans ce
+// backend ne mesure honnêtement ces deux-là (JWT stateless, pas de
+// middleware de timing) — voir le plan de la Zone 5.
+router.get('/monitoring', async (req, res, next) => {
+  try {
+    const [db, redis, email, queue] = await Promise.all([
+      checkDb(),
+      checkRedis(),
+      emailService.checkHealth(),
+      queueService.getQueueMetrics(),
+    ]);
+
+    const services = [
+      { name: 'Base de données', status: db.status === 'ok' ? 'ok' : 'error' },
+      {
+        name: 'Redis / BullMQ',
+        status: redis.status === 'error' ? 'error' : redis.status === 'not_configured' ? 'warn' : 'ok',
+      },
+      { name: 'Service email', status: email.status === 'healthy' ? 'ok' : 'error' },
+    ];
+
+    const recentErrors = getRecentErrors();
+
+    res.json({
+      status: services.every((s) => s.status === 'ok') ? 'ok' : 'degraded',
+      uptime_seconds: process.uptime(),
+      services,
+      queue,
+      erreurs_24h: recentErrors.length,
+      journal: recentErrors,
     });
   } catch (err) {
     next(err);

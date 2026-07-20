@@ -21,6 +21,7 @@ class EmailService {
   constructor() {
     this.transporter = null;
     this.graphClient = null;
+    this._graphCredential = null;
     this._redis = null;
     if (process.env.REDIS_HOST || process.env.REDIS_URL) {
       try {
@@ -64,6 +65,7 @@ class EmailService {
         }
 
         const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+        this._graphCredential = credential;
         this.graphClient = Client.initWithMiddleware({
           authProvider: {
             getAccessToken: async () => {
@@ -1535,12 +1537,18 @@ class EmailService {
   // Méthode pour vérifier la santé du service
   async checkHealth() {
     try {
+      if (this._graphCredential) {
+        // App-only (client credentials) auth has no delegated /me endpoint
+        // to probe - acquiring a token is itself the meaningful check that
+        // the tenant/client/secret are valid.
+        await this._graphCredential.getToken('https://graph.microsoft.com/.default');
+        return { status: 'healthy', message: 'Service email opérationnel (Microsoft Graph)' };
+      }
       if (this.transporter) {
         await this.transporter.verify();
-        return { status: 'healthy', message: 'Service email opérationnel' };
-      } else {
-        return { status: 'unhealthy', message: 'Transporteur email non initialisé' };
+        return { status: 'healthy', message: 'Service email opérationnel (SMTP)' };
       }
+      return { status: 'unhealthy', message: 'Service email non initialisé' };
     } catch (error) {
       return { status: 'unhealthy', message: `Erreur de connexion: ${error.message}` };
     }

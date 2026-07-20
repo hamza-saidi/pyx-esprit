@@ -139,7 +139,25 @@ async function enqueueCampaign(campaignId, clubId) {
   return true;
 }
 
+/**
+ * Real BullMQ job counts for the monitoring dashboard. Returns
+ * `{ available: false }` when running on the in-process fallback (no
+ * Redis/BullMQ configured) rather than fabricating a number.
+ */
+async function getQueueMetrics() {
+  if (!useBull || !bullQueue) {
+    return { available: false };
+  }
+  try {
+    const counts = await bullQueue.getJobCounts('waiting', 'active', 'delayed', 'failed');
+    return { available: true, ...counts };
+  } catch (err) {
+    return { available: false, error: err.message };
+  }
+}
+
 module.exports = {
   enqueueCampaign,
   isDistributed: () => useBull,
+  getQueueMetrics,
 };

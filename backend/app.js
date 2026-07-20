@@ -3,7 +3,6 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 
 const logger = require('./utils/logger');
-const { sequelize } = require('./models');
 
 const errorHandler = require('./middleware/errorHandler');
 const cookieParser = require('cookie-parser');
@@ -95,29 +94,16 @@ app.get('/api-docs', (req, res) => {
 });
 
 // ── Health check ─────────────────────────────────────────────────────────────
+const { checkDb, checkRedis } = require('./utils/healthChecks');
 app.get('/api/health', async (req, res) => {
-  const checks = { status: 'ok', db: 'ok', redis: 'ok', uptime: process.uptime() };
-  try {
-    await sequelize.authenticate();
-  } catch {
-    checks.db = 'error';
-    checks.status = 'degraded';
-  }
-  try {
-    const Redis = require('ioredis');
-    const r = process.env.REDIS_URL
-      ? new Redis(process.env.REDIS_URL)
-      : new Redis({
-          host: process.env.REDIS_HOST || '127.0.0.1',
-          port: Number(process.env.REDIS_PORT || 6379),
-          lazyConnect: true,
-        });
-    await r.ping();
-    r.disconnect();
-  } catch {
-    checks.redis = 'error';
-    checks.status = 'degraded';
-  }
+  const [db, redis] = await Promise.all([checkDb(), checkRedis()]);
+  const checks = {
+    status: 'ok',
+    db: db.status === 'ok' ? 'ok' : 'error',
+    redis: redis.status === 'error' ? 'error' : 'ok',
+    uptime: process.uptime(),
+  };
+  if (checks.db === 'error' || checks.redis === 'error') checks.status = 'degraded';
   res.status(checks.status === 'ok' ? 200 : 503).json(checks);
 });
 
