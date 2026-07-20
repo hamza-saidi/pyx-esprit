@@ -45,6 +45,10 @@ module.exports = (sequelize, DataTypes) => {
     Club.hasMany(models.Abonnement, { foreignKey: 'club_id', as: 'abonnements' });
     Club.hasMany(models.ModeleEmail, { foreignKey: 'club_id', as: 'modeles' });
     Club.hasMany(models.Automation, { foreignKey: 'club_id', as: 'automations' });
+    // Distinct from the existing `abonnements` alias above (models.Abonnement
+    // is the golf-club membership-plan concept for a club's own contacts) -
+    // this is the SaaS operator's licence/subscription for the tenant itself.
+    Club.hasMany(models.Subscription, { foreignKey: 'club_id', as: 'licences' });
   };
 
   return Club;

@@ -1,63 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box, Typography, Grid, Card, CardContent, Chip, Divider, Table,
-  TableBody, TableCell, TableHead, TableRow,
+  TableBody, TableCell, TableHead, TableRow, CircularProgress, Alert,
 } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import RemoveIcon from '@mui/icons-material/Remove';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
+import axios from '../api/axios';
 
-const PLANS = [
-  {
-    id: 'starter',
-    nom: 'Starter',
-    prix: '49 TND',
-    periode: '/ mois',
-    color: '#6366f1',
-    tenants: 0,
-    contacts: '5 000',
-    emails: '50 000',
-    users: '3',
-    automations: false,
-    api: false,
-    sla: false,
-    support: 'Email',
-    description: 'Pour démarrer avec les bases du marketing email',
-  },
-  {
-    id: 'pro',
-    nom: 'Professional',
-    prix: '149 TND',
-    periode: '/ mois',
-    color: '#0ea5e9',
-    tenants: 2,
-    contacts: '50 000',
-    emails: '500 000',
-    users: '10',
-    automations: true,
-    api: false,
-    sla: false,
-    support: 'Email + Chat',
-    description: 'Pour les équipes marketing actives',
-    popular: true,
-  },
-  {
-    id: 'enterprise',
-    nom: 'Enterprise',
-    prix: 'Sur devis',
-    periode: '',
-    color: '#f59e0b',
-    tenants: 1,
-    contacts: 'Illimités',
-    emails: 'Illimités',
-    users: 'Illimités',
-    automations: true,
-    api: true,
-    sla: true,
-    support: 'Dédié 24/7',
-    description: 'Pour les grandes organisations',
-  },
-];
+// Cosmetic only (not stored server-side) - keyed by slug so new plans added
+// later just fall back to a neutral color instead of breaking.
+const PLAN_COLORS = { starter: '#6366f1', pro: '#0ea5e9', enterprise: '#f59e0b' };
+const DEFAULT_COLOR = '#64748b';
 
 const FEATURES = [
   { label: 'Contacts', key: 'contacts' },
@@ -75,14 +29,53 @@ function FeatureValue({ val }) {
   return <Typography variant="body2" fontWeight={500}>{val}</Typography>;
 }
 
+function toDisplayPlan(p) {
+  const color = PLAN_COLORS[p.slug] || DEFAULT_COLOR;
+  return {
+    id: p.id,
+    slug: p.slug,
+    nom: p.nom,
+    prix: p.prix_mensuel != null ? `${Number(p.prix_mensuel)} ${p.devise}` : 'Sur devis',
+    periode: p.prix_mensuel != null ? '/ mois' : '',
+    color,
+    popular: p.slug === 'pro',
+    tenants: p.tenants || 0,
+    contacts: p.contacts_limit || 'Illimités',
+    emails: p.emails_limit || 'Illimités',
+    users: p.users_limit || 'Illimités',
+    automations: !!p.automations_enabled,
+    api: !!p.api_enabled,
+    sla: !!p.sla_enabled,
+    support: p.support_level || '—',
+    description: p.description || '',
+  };
+}
+
 export default function OwnerPlans() {
-  const totalTenants = PLANS.reduce((s, p) => s + p.tenants, 0);
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    axios
+      .get('/superadmin/plans')
+      .then(({ data }) => setPlans(data.map(toDisplayPlan)))
+      .catch(() => setError('Impossible de charger les plans.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return <Box display="flex" justifyContent="center" py={6}><CircularProgress size={28} /></Box>;
+  }
+  if (error) return <Alert severity="error">{error}</Alert>;
+
+  const totalTenants = plans.reduce((s, p) => s + p.tenants, 0);
 
   return (
     <Box>
       {/* Summary row */}
       <Grid container spacing={2.5} sx={{ mb: 4 }}>
-        {PLANS.map((plan) => (
+        {plans.map((plan) => (
           <Grid item xs={12} sm={4} key={plan.id}>
             <Card sx={{
               border: `1px solid ${plan.popular ? plan.color : '#e2e8f0'}`,
@@ -142,7 +135,7 @@ export default function OwnerPlans() {
             <TableHead>
               <TableRow sx={{ bgcolor: '#f8fafc' }}>
                 <TableCell sx={{ fontWeight: 600, color: '#64748b', fontSize: 12 }}>Fonctionnalité</TableCell>
-                {PLANS.map((p) => (
+                {plans.map((p) => (
                   <TableCell key={p.id} align="center" sx={{ fontWeight: 700, color: p.color, fontSize: 13 }}>
                     {p.nom}
                   </TableCell>
@@ -153,7 +146,7 @@ export default function OwnerPlans() {
               {FEATURES.map((feat) => (
                 <TableRow key={feat.key} sx={{ '&:last-child td': { borderBottom: 0 } }}>
                   <TableCell sx={{ color: '#475569', fontSize: 13 }}>{feat.label}</TableCell>
-                  {PLANS.map((p) => (
+                  {plans.map((p) => (
                     <TableCell key={p.id} align="center">
                       <FeatureValue val={p[feat.key]} />
                     </TableCell>

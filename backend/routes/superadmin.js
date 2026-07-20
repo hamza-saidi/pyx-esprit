@@ -3,9 +3,18 @@ const { authenticateToken } = require('../middleware/auth');
 const db = require('../models');
 const { runWithTenant } = require('../utils/tenantContext');
 const bcrypt = require('bcryptjs');
+const { randomBytes } = require('crypto'); // SECURITY: cryptographically secure RNG for licence keys
 const emailService = require('../services/emailService');
 const { getClubStatusEmail } = require('../utils/clubStatusEmailTemplates');
 const logger = require('../utils/logger');
+
+function generateLicenceKey() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+  const bytes = randomBytes(12);
+  let key = 'PLX-';
+  for (let i = 0; i < 12; i++) key += chars[bytes[i] % chars.length];
+  return key;
+}
 
 // Middleware : global_admin uniquement
 function requireGlobalAdmin(req, res, next) {
@@ -16,13 +25,13 @@ function requireGlobalAdmin(req, res, next) {
 
 router.use(authenticateToken, requireGlobalAdmin);
 
-// GET /api/superadmin/clubs — liste tous les clubs avec stats rapides
+// GET /api/superadmin/clubs — liste tous les clubs avec stats rapides + licence active
 router.get('/clubs', async (req, res, next) => {
   try {
     const clubs = await db.Club.findAll({ order: [['id', 'ASC']] });
     const result = await Promise.all(
       clubs.map(async (club) => {
-        const [contacts, users, campagnes] = await Promise.all([
+        const [contacts, users, campagnes, licence] = await Promise.all([
           runWithTenant({ clubId: club.id, isSystem: true }, () =>
             db.Contact.count({ where: { club_id: club.id } })
           ),
@@ -32,11 +41,77 @@ router.get('/clubs', async (req, res, next) => {
           runWithTenant({ clubId: club.id, isSystem: true }, () =>
             db.CampagneEmail.count({ where: { club_id: club.id } })
           ),
+          db.Subscription.findOne({
+            where: { club_id: club.id, statut: 'active' },
+            include: [{ model: db.Plan, as: 'plan' }],
+            order: [['date_creation', 'DESC']],
+          }),
         ]);
-        return { ...club.toJSON(), _stats: { contacts, users, campagnes } };
+        return { ...club.toJSON(), _stats: { contacts, users, campagnes }, licence };
       })
     );
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/superadmin/plans — liste des plans + nombre réel de tenants actifs par plan
+router.get('/plans', async (req, res, next) => {
+  try {
+    const plans = await db.Plan.findAll({ order: [['ordre_affichage', 'ASC']] });
+    const counts = await db.Subscription.findAll({
+      where: { statut: 'active' },
+      attributes: ['plan_id', [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'count']],
+      group: ['plan_id'],
+      raw: true,
+    });
+    const countByPlan = counts.reduce((acc, row) => {
+      acc[row.plan_id] = parseInt(row.count, 10);
+      return acc;
+    }, {});
+    res.json(plans.map((p) => ({ ...p.toJSON(), tenants: countByPlan[p.id] || 0 })));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/superadmin/clubs/:id/subscription — assigner/changer le plan d'un club
+router.post('/clubs/:id/subscription', async (req, res, next) => {
+  try {
+    const club = await db.Club.findByPk(req.params.id);
+    if (!club) return res.status(404).json({ message: 'Club introuvable.' });
+
+    const { plan_id, duree_mois } = req.body;
+    if (!plan_id) return res.status(400).json({ message: 'plan_id requis.' });
+
+    const plan = await db.Plan.findByPk(plan_id);
+    if (!plan) return res.status(404).json({ message: 'Plan introuvable.' });
+
+    // Cancel any existing active subscription for this club before creating
+    // the new one - a club has at most one active licence at a time.
+    await db.Subscription.update(
+      { statut: 'annulee' },
+      { where: { club_id: club.id, statut: 'active' } }
+    );
+
+    const dateDebut = new Date();
+    const dateFin = new Date(dateDebut);
+    dateFin.setMonth(dateFin.getMonth() + (Number(duree_mois) || 12));
+
+    const subscription = await db.Subscription.create({
+      club_id: club.id,
+      plan_id: plan.id,
+      licence_key: generateLicenceKey(),
+      date_debut: dateDebut,
+      date_fin: dateFin,
+      statut: 'active',
+    });
+
+    res.status(201).json({
+      message: `Plan "${plan.nom}" assigné à "${club.nom}".`,
+      subscription: { ...subscription.toJSON(), plan },
+    });
   } catch (err) {
     next(err);
   }

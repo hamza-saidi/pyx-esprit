@@ -8,14 +8,7 @@ import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import axios from '../api/axios';
 
 const PLAN_COLORS = { starter: '#6366f1', pro: '#0ea5e9', enterprise: '#f59e0b' };
-
-function maskKey(slug) {
-  const hash = slug.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let key = 'PLX-';
-  for (let i = 0; i < 12; i++) key += chars[(hash * (i + 1) * 7) % chars.length];
-  return key.slice(0, 8) + '-****-****';
-}
+const DEFAULT_PLAN_COLOR = '#64748b';
 
 function daysUntil(dateStr) {
   const diff = new Date(dateStr) - new Date();
@@ -27,8 +20,6 @@ function ExpireBadge({ days }) {
   if (days <= 30) return <Chip label={`${days}j`} size="small" sx={{ bgcolor: '#fef3c7', color: '#d97706', fontWeight: 700, height: 22 }} />;
   return <Chip label={`${days}j`} size="small" sx={{ bgcolor: '#dcfce7', color: '#16a34a', fontWeight: 700, height: 22 }} />;
 }
-
-const PLAN_ASSIGN = { 0: 'pro', 1: 'enterprise' };
 
 export default function OwnerLicences() {
   const [clubs, setClubs] = useState([]);
@@ -49,11 +40,15 @@ export default function OwnerLicences() {
 
   useEffect(() => { load(); }, []);
 
-  const enriched = clubs.map((c, i) => ({
+  // c.licence is the club's active Subscription (joined to Plan), or null if
+  // none was ever assigned - real data from GET /superadmin/clubs, no
+  // fabrication.
+  const enriched = clubs.map((c) => ({
     ...c,
-    plan: PLAN_ASSIGN[i] || 'starter',
-    expiry: new Date(Date.now() + ((i + 1) * 90 + 60) * 86400000).toISOString().slice(0, 10),
-    licenceKey: maskKey(c.slug || String(c.id)),
+    plan: c.licence?.plan?.slug || null,
+    planNom: c.licence?.plan?.nom || null,
+    expiry: c.licence?.date_fin ? c.licence.date_fin.slice(0, 10) : null,
+    licenceKey: c.licence?.licence_key || null,
   }));
 
   return (
@@ -98,7 +93,8 @@ export default function OwnerLicences() {
                   </TableRow>
                 )}
                 {enriched.map((c) => {
-                  const days = daysUntil(c.expiry);
+                  const days = c.expiry ? daysUntil(c.expiry) : null;
+                  const planColor = c.plan ? (PLAN_COLORS[c.plan] || DEFAULT_PLAN_COLOR) : '#94a3b8';
                   return (
                     <TableRow key={c.id} hover sx={{ '&:last-child td': { borderBottom: 0 } }}>
                       <TableCell>
@@ -113,26 +109,34 @@ export default function OwnerLicences() {
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Box component="code" sx={{ fontFamily: 'monospace', fontSize: 12, bgcolor: '#f1f5f9', color: '#475569', px: 1, py: 0.4, borderRadius: 1 }}>
-                          {c.licenceKey}
-                        </Box>
+                        {c.licenceKey ? (
+                          <Box component="code" sx={{ fontFamily: 'monospace', fontSize: 12, bgcolor: '#f1f5f9', color: '#475569', px: 1, py: 0.4, borderRadius: 1 }}>
+                            {c.licenceKey}
+                          </Box>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">—</Typography>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={c.plan.charAt(0).toUpperCase() + c.plan.slice(1)}
-                          size="small"
-                          sx={{
-                            bgcolor: `${PLAN_COLORS[c.plan]}18`,
-                            color: PLAN_COLORS[c.plan],
-                            fontWeight: 700, fontSize: 11, height: 22,
-                          }}
-                        />
+                        {c.planNom ? (
+                          <Chip
+                            label={c.planNom}
+                            size="small"
+                            sx={{
+                              bgcolor: `${planColor}18`,
+                              color: planColor,
+                              fontWeight: 700, fontSize: 11, height: 22,
+                            }}
+                          />
+                        ) : (
+                          <Chip label="Aucun plan" size="small" sx={{ bgcolor: '#f1f5f9', color: '#94a3b8', fontWeight: 700, fontSize: 11, height: 22 }} />
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">{c.expiry}</Typography>
+                        <Typography variant="body2">{c.expiry || '—'}</Typography>
                       </TableCell>
                       <TableCell>
-                        <ExpireBadge days={days} />
+                        {days != null ? <ExpireBadge days={days} /> : <Typography variant="caption" color="text.secondary">—</Typography>}
                       </TableCell>
                       <TableCell>
                         <Chip
